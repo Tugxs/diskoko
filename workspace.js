@@ -347,11 +347,11 @@ function readyDecoratePreview() {
     const name = key => channels.find(channel => channel.key === key)?.name || 'قناة محذوفة';
     const box = document.createElement('div'); box.className = 'ready-log-preview';
     const heading = document.createElement('strong'); heading.textContent = 'مسار سجلات النشاط'; box.append(heading);
-    const rules = logs.mode === 'routed' ? (logs.routes || []).map(rule => ({ sources: (rule.sourceKeys || []).map(name), target: name(rule.targetKey) })) : [{ sources: ['جميع القنوات'], target: name(logs.channelKey) }];
+    const rules = logs.mode === 'routed' ? (logs.routes || []).map(rule => ({ sources: [...(rule.sourceKeys || []).map(name), ...(rule.sourceIds || []).map(id => state.data.channels?.find(channel => channel.id === id)?.name || 'قناة محذوفة')], target: name(rule.targetKey) })) : [{ sources: ['جميع القنوات'], target: name(logs.channelKey) }];
     for (const rule of rules) {
       const row = document.createElement('p'); row.textContent = `${rule.sources.join('، ') || 'اختر قناة مصدر'} ← #${rule.target}`; box.append(row);
     }
-    const note = document.createElement('small'); note.textContent = `${(logs.events || []).length || 6} أنواع أحداث · دون نص الرسائل`; box.append(note);
+    const note = document.createElement('small'); note.textContent = `${(logs.events || []).length || 6} أنواع أحداث · نص المحذوف يظهر إذا سمح Discord للبوت بقراءته`; box.append(note);
     document.querySelector('#readyPreview .ready-discord main')?.append(box);
   }
 }
@@ -437,9 +437,16 @@ function renderReadyEditor() {
   ticketSection.insertAdjacentHTML('beforeend', `<label>طريقة عرض صورة الدعم<select data-ready-field="features.ticket.imageStyle"><option value="normal" ${!['logo','design'].includes(d.features.ticket?.imageStyle) ? 'selected' : ''}>صورة عادية</option><option value="logo" ${d.features.ticket?.imageStyle === 'logo' ? 'selected' : ''}>شعار صغير داخل البطاقة</option><option value="design" ${d.features.ticket?.imageStyle === 'design' ? 'selected' : ''}>دمج شعار دائري داخل تصميمك</option></select></label><div id="readyTicketDesignControls" class="ready-design-controls" ${d.features.ticket?.imageStyle === 'design' ? '' : 'hidden'}><label>شعار السيرفر داخل التصميم<input id="readyTicketLogo" type="file" accept="image/png,image/jpeg,image/webp"></label><label>تحريك الشعار يمينًا ويسارًا <output id="readyTicketXValue">${Number(d.features.ticket?.logoX ?? 50)}%</output><input id="readyTicketX" type="range" min="10" max="90" value="${Number(d.features.ticket?.logoX ?? 50)}"></label><label>تحريك الشعار أعلى وأسفل <output id="readyTicketYValue">${Number(d.features.ticket?.logoY ?? 50)}%</output><input id="readyTicketY" type="range" min="25" max="75" value="${Number(d.features.ticket?.logoY ?? 50)}"></label><small class="form-note">ارفع تصميمًا ثابتًا وشعارًا، ثم حرّك موضع الشعار. تظهر النتيجة في المعاينة قبل النشر.</small></div>`);
   const logs = d.features.logs;
   logsSection.querySelector('[data-ready-field="features.logs.channelKey"]').closest('label').classList.add('ready-log-unified-target');
-  logsSection.querySelector('.form-note').textContent = 'يسجل أحداث الرسائل والدخول والخروج الصوتي بحسب اختيارك، دون نسخ محتوى الرسائل. الإشعارات تُجمع لتفادي الإرسال المفرط.';
+  logsSection.querySelector('.form-note').textContent = 'يسجل أحداث الرسائل والصوت بحسب اختيارك. نص الرسالة المحذوفة يظهر فقط عندما يكون متاحًا للبوت من Discord. الإشعارات تُجمع لتفادي الإرسال المفرط.';
   logsSection.insertAdjacentHTML('beforeend', `<label>طريقة توزيع اللوقات<select id="readyLogMode"><option value="unified" ${logs.mode !== 'routed' ? 'selected' : ''}>لوق واحد لجميع القنوات</option><option value="routed" ${logs.mode === 'routed' ? 'selected' : ''}>قواعد منفصلة: مصادر متعددة إلى وجهة تختارها</option></select></label><div class="ready-log-events"><b>الأحداث المسجلة</b>${[['message_create','رسالة جديدة'],['message_update','تعديل رسالة'],['message_delete','حذف رسالة'],['voice_join','دخول صوتي'],['voice_leave','خروج صوتي'],['command','أوامر البوت']].map(([key,label]) => `<label class="check-row"><input type="checkbox" data-ready-log-event="${key}" ${(logs.events || ['message_create','message_update','message_delete','voice_join','voice_leave','command']).includes(key) ? 'checked' : ''}>${label}</label>`).join('')}</div><div id="readyLogRoutes" class="ready-log-routes" ${logs.mode === 'routed' ? '' : 'hidden'}>${(logs.routes || []).map((rule,index) => `<div class="ready-log-rule"><div class="ready-log-rule-head"><b>قاعدة اللوق ${fmt(index + 1)}</b><button class="btn text" type="button" data-ready-log-remove="${index}">إزالة</button></div><details><summary>القنوات المصدر (${fmt(rule.sourceKeys?.length || 0)})</summary><div class="ready-log-sources">${d.categories.flatMap(group => group.channels).map(channel => `<label class="check-row"><input type="checkbox" data-ready-log-source="${index}:${esc(channel.key)}" ${(rule.sourceKeys || []).includes(channel.key) ? 'checked' : ''}>${channel.type === 2 ? '🔊' : '#'} ${esc(channel.name)}</label>`).join('')}</div></details><label>إرسال اللوق إلى<select data-ready-field="features.logs.routes.${index}.targetKey">${readySelectOptions(channels, rule.targetKey)}</select></label></div>`).join('')}<button class="btn secondary" type="button" id="readyAddLogRoute" ${(logs.routes || []).length >= 10 ? 'disabled' : ''}>＋ أضف قاعدة لوق</button></div>`);
   logsSection.querySelector('.ready-log-unified-target').hidden = logs.mode === 'routed';
+  logsSection.querySelectorAll('.ready-log-rule').forEach((row, index) => {
+    const sources = row.querySelector('.ready-log-sources');
+    row.querySelector('summary').textContent = `القنوات المصدر (${fmt((logs.routes[index].sourceKeys || []).length + (logs.routes[index].sourceIds || []).length)})`;
+    const existing = (state.data.channels || []).filter(channel => [0, 2, 5].includes(channel.type));
+    if (!existing.length) return;
+    sources.insertAdjacentHTML('beforeend', `<b>قنوات موجودة في السيرفر</b>${existing.map(channel => `<label class="check-row"><input type="checkbox" data-ready-log-existing="${index}:${esc(channel.id)}" ${(logs.routes[index].sourceIds || []).includes(channel.id) ? 'checked' : ''}>${channel.type === 2 ? '🔊' : '#'} ${esc(channel.name)}</label>`).join('')}`);
+  });
   welcomeSection.querySelector('[data-ready-field="features.welcome.avatarPosition"]').closest('label').remove();
   for (const [section, kind] of [[welcomeSection, 'welcome'], [ticketSection, 'ticket']]) {
     section.classList.add('ready-feature-with-preview');
@@ -519,7 +526,14 @@ function renderReadyEditor() {
     const [index, key] = input.dataset.readyLogSource.split(':');
     const rule = logs.routes[Number(index)];
     rule.sourceKeys = input.checked ? [...new Set([...(rule.sourceKeys || []), key])] : (rule.sourceKeys || []).filter(item => item !== key);
-    input.closest('details').querySelector('summary').textContent = `القنوات المصدر (${fmt(rule.sourceKeys.length)})`;
+    input.closest('details').querySelector('summary').textContent = `القنوات المصدر (${fmt(rule.sourceKeys.length + (rule.sourceIds || []).length)})`;
+    $('#readyPreview').innerHTML = readyPreview(d); readyDecoratePreview();
+  });
+  document.querySelectorAll('[data-ready-log-existing]').forEach(input => input.onchange = () => {
+    const [index, id] = input.dataset.readyLogExisting.split(':');
+    const rule = logs.routes[Number(index)];
+    rule.sourceIds = input.checked ? [...new Set([...(rule.sourceIds || []), id])] : (rule.sourceIds || []).filter(item => item !== id);
+    input.closest('details').querySelector('summary').textContent = `القنوات المصدر (${fmt((rule.sourceKeys || []).length + rule.sourceIds.length)})`;
     $('#readyPreview').innerHTML = readyPreview(d); readyDecoratePreview();
   });
   document.querySelectorAll('[data-ready-log-event]').forEach(input => input.onchange = () => {
@@ -557,11 +571,13 @@ function readyReviewDialog(data) {
   const review = data.run.review, replace = data.run.mode === 'replace';
   const toDelete = [...review.deletions.channels.map(item => `# ${item.name}`), ...review.deletions.roles.map(item => `رتبة ${item.name}`)];
   const protectedItems = [...(review.protectedChannels || []).map(item => `# ${item.name}`), ...(review.protectedRoles || []).map(item => `رتبة ${item.name}`)];
+  const retainedChannels = review.retained?.channels || [];
   const executorName = data.run.executor === 'custom' ? state.readyCustomBot?.name || 'بوتك الخاص' : 'بوت ديسكوكو';
   modal('مراجعة القالب قبل التنفيذ', `<div class="notice info"><div><b>${esc(review.guildName)}</b><p>${replace ? 'استبدال الهيكل القديم' : 'تنصيب القالب مع إبقاء الموجود'} · ${fmt(data.steps.length)} خطوات</p></div></div><div class="ready-review-list"><h3>الهيكل الجديد</h3>${data.steps.filter(step => !step.kind.startsWith('delete-')).map(step => `<div class="row"><span class="row-icon">${step.kind === 'role' ? '◇' : step.kind === 'category' ? '▤' : step.kind === 'channel' ? '#' : '✦'}</span><div class="row-main"><b>${esc(step.name)}</b><small>${esc(step.kind.replace('feature-', 'ميزة: '))}</small></div>${status(step.status)}</div>`).join('')}${replace ? `<h3>العناصر التي سيحذفها البوت بعد البناء (${fmt(toDelete.length)})</h3>${toDelete.length ? `<ul>${toDelete.map(name => `<li>${esc(name)}</li>`).join('')}</ul>` : '<p>لا توجد عناصر قديمة للحذف.</p>'}${protectedItems.length ? `<h3>عناصر محمية ستبقى (${fmt(protectedItems.length)})</h3><ul>${protectedItems.map(name => `<li>${esc(name)}</li>`).join('')}</ul>` : ''}<p class="form-note">حذف القنوات يمحو الرسائل نهائيًا من Discord، وحذف الرتب يزيلها من الأعضاء. لا يمكن استعادة المحتوى من هذه المعاينة.</p>` : '<p class="form-note">لن تُحذف القنوات أو الرتب الحالية.</p>'}</div><label class="check-row"><input type="checkbox" id="readyAcknowledge">راجعت الهيكل والصلاحيات وقائمة الحذف، وأوافق على التنفيذ.</label>${replace ? `<label>لتأكيد الاستبدال، اكتب اسم السيرفر كما يظهر: <b>${esc(review.guildName)}</b><input id="readyGuildName" autocomplete="off" placeholder="اسم السيرفر"></label>` : ''}`, `<button class="btn secondary" id="readyLater">لاحقًا</button><button class="btn primary" id="readyApply" disabled>نعم، نفّذ القالب</button>`);
   const details = (review.createOrReuse || []).map(item => `<div class="row"><div class="row-main"><b>${esc(item.name)}</b><small>${item.kind === 'role' ? `رتبة · ${esc({ moderator: 'إشراف محدود', support: 'دعم', member: 'عضو', vip: 'مميز' }[item.preset] || '')} · لا صلاحية Administrator` : item.kind === 'channel' ? `${item.parent ? `${esc(item.parent)} · ` : ''}${esc({ public: 'عامة', read_only: 'قراءة فقط', private: 'خاصة' }[item.access] || '')}` : 'تصنيف'}</small></div>${badge(item.action === 'reuse' ? 'موجودة وتبقى' : item.action === 'update' ? 'تعديل' : 'إنشاء', item.action === 'reuse' ? 'neutral' : 'purple')}</div>`).join('');
   document.querySelector('.ready-review-list')?.insertAdjacentHTML('afterbegin', `<details><summary>تفاصيل كل قناة ورتبة وصلاحيتها (${fmt((review.createOrReuse || []).length)})</summary><div class="rows">${details}</div></details>`);
   document.querySelector('.ready-review-list')?.insertAdjacentHTML('afterbegin', `<p class="notice info">المنفّذ: ${esc(executorName)} · استهلاك القالب: ${fmt(review.usageUnits || 1)} متغيرًا عند بدء التنفيذ. الرتب لا تُحتسب.</p>`);
+  if (!replace && retainedChannels.length) document.querySelector('.ready-review-list')?.insertAdjacentHTML('beforeend', `<details class="ready-retained"><summary>قنوات موجودة ستبقى خارج القالب (${fmt(retainedChannels.length)})</summary><p class="form-note">لن ينقلها البوت إلى التصنيفات الجديدة. يمكنك ترتيبها لاحقًا من Discord، أو مراجعة خيار الاستبدال إذا أردت حذف القديم.</p><ul>${retainedChannels.map(item => `<li>${item.type === 4 ? 'تصنيف' : '#'} ${esc(item.name)}${item.uncategorized ? ' · خارج التصنيفات' : ''}</li>`).join('')}</ul></details>`);
   const reusedAdminRoles = (review.createOrReuse || []).filter(item => item.kind === 'role' && item.action === 'reuse' && item.hasAdministrator);
   if (reusedAdminRoles.length) document.querySelector('.ready-review-list')?.insertAdjacentHTML('afterbegin', `<p class="notice">تنبيه: الرتب الموجودة ${reusedAdminRoles.map(item => esc(item.name)).join('، ')} لديها صلاحية Administrator حاليًا. وضع التنصيب سيبقي صلاحياتها كما هي؛ راجعها في Discord.</p>`);
   if (replace && review.affectedTasks) document.querySelector('.ready-review-list')?.insertAdjacentHTML('beforeend', `<p class="notice">ستُلغى ${fmt(review.affectedTasks.schedules)} رسائل مجدولة، وتُوقف ${fmt(review.affectedTasks.giveaways)} جيف أوي، وتُزال ${fmt(review.affectedTasks.ticketPanels)} لوحات دعم مرتبطة بالقنوات القديمة.</p>`);
@@ -1368,6 +1384,7 @@ window.addEventListener('hashchange', () => { render(); $('#workspace').focus({ 
 window.addEventListener('focus', () => { if (state.awaitingInstall) { state.awaitingInstall = false; loadGuild(); } });
 $('#dialog').addEventListener('cancel', event => { if ($('#applyPlan')?.textContent === 'جارٍ التطبيق…') event.preventDefault(); });
 start();
+
 
 
 

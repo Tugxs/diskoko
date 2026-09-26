@@ -81,6 +81,8 @@ test('replacement removes every old channel and unmanaged role, while installati
   const install = readyTemplateDiff(definition, snapshot, 'add');
   assert.equal(install.deletions.channels.length, 0);
   assert.equal(install.deletions.roles.length, 0);
+  assert.deepEqual(install.retained.channels.map(row => row.id), ['a', 'b']);
+  assert.deepEqual(install.retained.roles.map(row => row.id), ['r1', 'r2']);
   const replacement = readyTemplateDiff(definition, snapshot, 'replace');
   assert.deepEqual(replacement.deletions.channels.map(row => row.id), ['a', 'b']);
   assert.deepEqual(replacement.deletions.roles.map(row => row.id), ['r1']);
@@ -130,3 +132,13 @@ test('multiple log rules accept shared destinations and count one unit per rule'
   definition.features.logs.routes[1].sourceKeys = [channels[2].key];
   assert.throws(() => normalizeReadyDefinition(definition), /مصادر اللوق/);
 });
+
+test('log rules can include channels already present in the server', () => {
+  const definition = normalizeReadyDefinition(READY_TEMPLATES[2].definition);
+  definition.features.logs.mode = 'routed';
+  definition.features.logs.routes = [{ key: 'old-chat', targetKey: definition.features.logs.channelKey, sourceKeys: [], sourceIds: ['1553422484324356097'] }];
+  const normalized = normalizeReadyDefinition(definition);
+  assert.deepEqual(normalized.features.logs.routes[0].sourceIds, ['1553422484324356097']);
+  assert.equal(readyUsageUnits(normalized), readyUsageUnits(definition));
+});
+

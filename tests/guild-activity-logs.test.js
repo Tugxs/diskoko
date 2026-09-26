@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { activityLogDestinations } from '../lib/guild-activity-logs.js';
+import { activityLogDestinations, deletedMessageDetail } from '../lib/guild-activity-logs.js';
+
+test('deleted message detail preserves safe content or explains missing content', () => {
+  assert.match(deletedMessageDetail('hello\n@everyone'), /hello ⏎ @\u200beveryone/);
+  assert.match(deletedMessageDetail(''), /المحتوى غير متاح/);
+  assert.ok(deletedMessageDetail('a'.repeat(800)).length < 440);
+});
 
 test('unified logs include source channels but never loop into their destination', () => {
   const config = { mode: 'unified', events: ['message_create'], targetId: 'all-logs' };
@@ -26,3 +32,4 @@ test('commands follow their source channel route only when enabled', () => {
   assert.deepEqual(activityLogDestinations(config, 'command', 'memes'), ['chat-logs']);
   assert.deepEqual(activityLogDestinations(config, 'message_create', 'memes'), []);
 });
+
