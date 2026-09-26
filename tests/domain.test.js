@@ -12,6 +12,10 @@ test('deep channel and role edits validate and preserve Discord settings', () =>
   assert.throws(() => normalizeOperations([{ resource_type: 'channel', action: 'update', resource_id: 'one', name: 'chat', permission_overwrites: [{ id: 'unknown', type: 0, allow: '1024', deny: '0' }] }], snapshot));
   assert.throws(() => normalizeOperations([{ resource_type: 'channel', action: 'update', resource_id: 'one', name: 'chat', rate_limit_per_user: 21601 }], snapshot));
 });
+test('an existing same-name resource with different settings cannot be silently reused', () => {
+  assert.throws(() => checkExistingAccess({ resource_type: 'role', name: 'Member', color: 0xff00ff }, snapshot.roles.find(role => role.id === 'role')));
+  assert.throws(() => checkExistingAccess({ resource_type: 'channel', name: 'chat', rate_limit_per_user: 10 }, snapshot.channels.find(channel => channel.id === 'one')));
+});
 test('owner, manager and administrator can manage; ordinary members cannot', () => {
   assert.equal(manageable({ owner: true }), true); assert.equal(manageable({ permissions: '8' }), true); assert.equal(manageable({ permissions: '32' }), true); assert.equal(manageable({ permissions: '1024' }), false);
 });
