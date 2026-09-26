@@ -2,6 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { manageable, normalizeOperations, resolveExisting, checkExistingAccess, checkConflict, operationBody, connectionState, normalizeSchedule } from '../lib/workspace-domain.js';
 const snapshot = { guildId: 'guild', channels: [{ id: 'category', name: 'Welcome', type: 4 }, { id: 'one', name: 'chat', type: 0, parent_id: 'category' }, { id: 'two', name: 'chat', type: 0, parent_id: null }], roles: [{ id: 'guild', name: '@everyone' }, { id: 'managed', name: 'Bot', managed: true }, { id: 'role', name: 'Member', color: 123 }] };
+test('deep channel and role edits validate and preserve Discord settings', () => {
+  const role = normalizeOperations([{ resource_type: 'role', action: 'update', resource_id: 'role', name: 'Member', color: 0x9944ee, hoist: true, mentionable: false, permissions: '3072' }], snapshot)[0];
+  assert.deepEqual(Object.keys(operationBody(role)).sort(), ['color','hoist','mentionable','name','permissions'].sort());
+  assert.equal(operationBody(role).permissions, '3072');
+  const channel = normalizeOperations([{ resource_type: 'channel', action: 'update', resource_id: 'one', name: 'chat', rate_limit_per_user: 15, nsfw: false, permission_overwrites: [{ id: 'guild', type: 0, allow: '0', deny: '2048' }] }], snapshot)[0];
+  assert.equal(operationBody(channel).rate_limit_per_user, 15);
+  assert.equal(operationBody(channel).permission_overwrites[0].deny, '2048');
+  assert.throws(() => normalizeOperations([{ resource_type: 'channel', action: 'update', resource_id: 'one', name: 'chat', permission_overwrites: [{ id: 'unknown', type: 0, allow: '1024', deny: '0' }] }], snapshot));
+  assert.throws(() => normalizeOperations([{ resource_type: 'channel', action: 'update', resource_id: 'one', name: 'chat', rate_limit_per_user: 21601 }], snapshot));
+});
 test('owner, manager and administrator can manage; ordinary members cannot', () => {
   assert.equal(manageable({ owner: true }), true); assert.equal(manageable({ permissions: '8' }), true); assert.equal(manageable({ permissions: '32' }), true); assert.equal(manageable({ permissions: '1024' }), false);
 });
@@ -16,8 +26,9 @@ test('protected roles cannot be edited', () => {
   for (const resource_id of ['guild', 'managed']) assert.throws(() => normalizeOperations([{ action: 'update', resource_type: 'role', resource_id, name: 'new' }], snapshot));
 });
 test('only safe supported changes reach Discord', () => {
-  const [op] = normalizeOperations([{ resource_type: 'role', name: 'Member', color: 0, permissions: '8', mentionable: true }], snapshot);
-  assert.deepEqual(operationBody(op), { name: 'Member', mentionable: false, color: 0 });
+  assert.throws(() => normalizeOperations([{ resource_type: 'role', name: 'Member', permissions: '8' }], snapshot));
+  const [op] = normalizeOperations([{ resource_type: 'role', name: 'Member', color: 0, permissions: '8', mentionable: true, confirm_admin: true }], snapshot);
+  assert.deepEqual(operationBody(op), { name: 'Member', mentionable: true, color: 0, permissions: '8' });
   assert.throws(() => normalizeOperations([{ resource_type: 'channel', action: 'delete', name: 'chat' }], snapshot));
 });
 test('duplicate edits must be consolidated', () => {

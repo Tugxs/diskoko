@@ -43,8 +43,21 @@ test('voice recognition resumes after a browser pause and stops only when the us
 });
 test('deep link opens the requested guild with true live data and one navigation controller', async () => {
   const { dom, doc, requests } = await page('builder');
-  assert.match(doc.querySelector('h1').textContent, /مساحة مرتبة/); assert.match(doc.body.textContent, /الدردشة/);
+  assert.match(doc.querySelector('h1').textContent, /القنوات والرتب/); assert.match(doc.body.textContent, /الدردشة/);
   assert.equal(doc.querySelectorAll('.nav-link').length, 12); assert.equal(requests.filter(r => r.url === '/api/account/overview').length, 1); dom.window.close();
+});
+test('channel and role editor exposes detailed permissions before review', async () => {
+  const { dom, doc } = await page('builder');
+  doc.querySelector('[data-edit="c2"]').click();
+  assert.ok(doc.querySelector('#permissionTarget'));
+  assert.ok(doc.querySelector('[data-channel-permission="ViewChannel"]'));
+  assert.ok(doc.querySelector('#resourceSlowmode'));
+  doc.querySelector('#closeDialog').click();
+  doc.querySelector('[data-tab="roles"]').click();
+  doc.querySelector('[data-edit="r1"]').click();
+  assert.ok(doc.querySelector('[data-role-permission="Administrator"]'));
+  assert.ok(doc.querySelector('#resourceHoist'));
+  dom.window.close();
 });
 test('ready templates open as an independent section with both sources and a Discord preview', async () => {
   const response = url => url === '/api/ready-templates' ? { templates: READY_TEMPLATES } : fixtureResponse(url);

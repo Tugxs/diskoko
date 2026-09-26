@@ -13,7 +13,7 @@ function setup({ locked = true, confirmed = true, authorized = true } = {}) {
   mountWorkspace(app, { pool, requireUser: () => {}, authorizedGuild: async () => authorized ? { id: 'g' } : null, requirePlanCapacity: async () => {}, audit: async () => {}, templates: {}, makeTemplatePlan: () => {}, botStatus: () => ({}), discordBotFetch: async (url, options) => {
     calls.push({ url, options });
     if (options) return { ok: true, data: { id: 'new-id', ...JSON.parse(options.body) } };
-    return { ok: true, data: url.endsWith('/channels') ? [{ id: 'category-id', type: 4, name: 'Group' }] : [] };
+    return { ok: true, data: url === '/users/@me' ? { id: 'bot' } : url.endsWith('/members/bot') ? { roles: [] } : url.endsWith('/roles') ? [{ id: 'g', name: '@everyone', permissions: '8' }] : url.endsWith('/channels') ? [{ id: 'category-id', type: 4, name: 'Group' }] : [] };
   } });
   const req = { params: { id: '7' }, user: { id: 1 }, body: { confirmed, guildId: 'g' } };
   const result = { body: null, error: null }; const res = { json: body => { result.body = body; } };

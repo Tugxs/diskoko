@@ -105,3 +105,17 @@ dialog:has(.ai-native-event-layout){width:min(1000px,calc(100vw - 30px))}
 .alert-row .actions{align-items:center;justify-content:flex-end}
 .alert-critical .row-icon{background:#ff929d19;color:var(--red);font-weight:700}
 @media(max-width:760px){.alert-tabs{display:grid;grid-template-columns:1fr 1fr}.alert-tabs button{justify-content:space-between}.alert-row .actions{width:100%;justify-content:flex-start}}
+/* Channel and role editor */
+dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
+.resource-editor{display:grid;gap:16px}
+.resource-editor>details{border:1px solid var(--line);border-radius:12px;background:#191c29;padding:15px 17px}
+.resource-editor summary{cursor:pointer;font-weight:600;color:#e8ddff;padding:2px 0}
+.resource-editor details>.form-grid,.resource-editor details>.permission-group,.resource-editor details>.permission-matrix{margin-top:16px}
+.resource-editor .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.permission-group{border:1px solid #34384b;border-radius:10px;padding:12px 16px;margin:12px 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 18px}
+.permission-group legend{color:#cbb9fa;padding:0 7px;font-size:12px}
+.permission-group .check-row{margin:0;padding:5px 0}
+.permission-matrix{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.permission-matrix label{background:#121622;border:1px solid #303448;border-radius:9px;padding:10px 12px}
+.permission-matrix select{margin-top:5px;padding:8px}
+@media(max-width:680px){.resource-editor .form-grid,.permission-group,.permission-matrix{grid-template-columns:1fr}}
