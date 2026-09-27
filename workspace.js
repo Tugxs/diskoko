@@ -105,7 +105,12 @@ function draftChangeUnits(op) {
   let units = 0;
   const defaults = { hoist: false, mentionable: false, rate_limit_per_user: 0, default_thread_rate_limit_per_user: 0, default_auto_archive_duration: 1440, bitrate: 64000, user_limit: 0, rtc_region: null, nsfw: false, video_quality_mode: 1, default_sort_order: 0, default_forum_layout: 0, available_tags: [] };
   const colors = value => JSON.stringify(['primary_color','secondary_color','tertiary_color'].map(field => value?.[field] ?? null));
-  for (const key of ['name','parent_id','topic','position','color','colors','unicode_emoji','hoist','mentionable','rate_limit_per_user','default_thread_rate_limit_per_user','default_auto_archive_duration','bitrate','user_limit','rtc_region','nsfw','video_quality_mode','default_sort_order','default_forum_layout','available_tags']) if (Object.hasOwn(op,key) && (key === 'position' && op.position_changed || (key === 'colors' ? colors(op[key]) !== colors(original.colors || { primary_color: original.color || 0 }) : key === 'available_tags' ? JSON.stringify(op[key]) !== JSON.stringify(original[key] || []) : String(op[key] ?? '') !== String(original[key] ?? defaults[key] ?? '')))) units++;
+  for (const key of ['name','parent_id','topic','position','color','colors','hoist','mentionable','rate_limit_per_user','default_thread_rate_limit_per_user','default_auto_archive_duration','bitrate','user_limit','rtc_region','nsfw','video_quality_mode','default_sort_order','default_forum_layout','available_tags']) if (Object.hasOwn(op,key) && (key === 'position' && op.position_changed || (key === 'colors' ? colors(op[key]) !== colors(original.colors || { primary_color: original.color || 0 }) : key === 'available_tags' ? JSON.stringify(op[key]) !== JSON.stringify(original[key] || []) : String(op[key] ?? '') !== String(original[key] ?? defaults[key] ?? '')))) units++;
+  if (Object.hasOwn(op,'icon') || Object.hasOwn(op,'unicode_emoji')) {
+    const oldIcon = original.icon || original.unicode_emoji || null;
+    const newIcon = op.icon || op.unicode_emoji || null;
+    if (oldIcon !== newIcon) units++;
+  }
   if (Object.hasOwn(op,'permissions')) { let bits = BigInt(op.permissions) ^ BigInt(original.permissions || '0'); while (bits) { bits &= bits - 1n; units++; } }
   if (Object.hasOwn(op,'permission_overwrites')) {
     const before = new Map((original.permission_overwrites || []).map(row => [String(row.id),row]));
@@ -439,6 +444,14 @@ function advancedEditResource(kind, id, typeOverride, nameDraft) {
     const appearance = document.createElement('details');
     appearance.innerHTML = `<summary>مظهر الرتبة المتقدم</summary><div class="form-grid"><label>نمط اللون<select id="resourceColorStyle"><option value="solid">لون واحد</option><option value="gradient" ${enhanced ? '' : 'disabled'}>لون متدرج</option><option value="holographic" ${enhanced ? '' : 'disabled'}>لون مجسم</option></select></label><label id="resourceSecondaryWrap">اللون الثاني<input id="resourceSecondaryColor" type="color" value="#${Number(item.colors?.secondary_color || 0x7561de).toString(16).padStart(6,'0')}"></label><label>إيموجي رمز الرتبة<input id="resourceRoleEmoji" maxlength="16" value="${esc(item.unicode_emoji || '')}" placeholder="مثال: ⭐" ${icons ? '' : 'disabled'}></label></div><p class="form-note">${enhanced ? 'الألوان المتقدمة متاحة في هذا السيرفر.' : 'التدرج يحتاج ميزة ENHANCED_ROLE_COLORS في السيرفر.'} ${icons ? 'إيموجي الرتبة متاح.' : 'رمز الرتبة يحتاج ميزة ROLE_ICONS.'}</p>`;
     permissionSection?.before(appearance);
+    const iconPicker = document.createElement('div');
+    iconPicker.innerHTML = `<label>رمز الرتبة<select id="resourceIconMode" ${icons ? '' : 'disabled'}><option value="keep">الإبقاء على الرمز الحالي</option><option value="emoji">إيموجي</option><option value="image">رفع صورة</option><option value="none">بدون رمز</option></select></label><label id="resourceIconUpload" hidden>صورة الرتبة (64×64 بكسل، حتى 256 كيلوبايت)<input id="resourceRoleImage" type="file" accept="image/png,image/jpeg,image/webp"></label><p class="form-note">رفع صورة الرتبة يحتاج مستوى تعزيز السيرفر الثاني (Boost Level 2) أو ميزة ROLE_ICONS. لا تُرسل الصورة إلى Discord قبل مراجعة التغييرات.</p>`;
+    appearance.append(iconPicker);
+    const iconMode = $('#resourceIconMode');
+    iconMode.value = item.unicode_emoji ? 'emoji' : item.icon ? 'keep' : 'none';
+    const emojiLabel = $('#resourceRoleEmoji').closest('label');
+    iconMode.onchange = () => { emojiLabel.hidden = iconMode.value !== 'emoji'; $('#resourceIconUpload').hidden = iconMode.value !== 'image'; };
+    iconMode.onchange();
     const style = $('#resourceColorStyle');
     style.value = item.colors?.tertiary_color ? 'holographic' : item.colors?.secondary_color ? 'gradient' : 'solid';
     if (!enhanced && style.value !== 'solid') { const current = document.createElement('option'); current.value = 'retain'; current.textContent = 'الإبقاء على النمط الحالي'; style.add(current); style.value = 'retain'; }
@@ -528,17 +541,31 @@ function advancedEditResource(kind, id, typeOverride, nameDraft) {
       }, 300);
     };
   }
-  $('#resourceForm').onsubmit = event => {
+  $('#resourceForm').onsubmit = async event => {
     event.preventDefault(); const name = $('#resourceName').value.trim(); if (!name) return;
     const op = { resource_type: kind, action: id ? 'update' : 'create', name, ...(id ? { resource_id: id } : {}) };
     if (!role) { const requestedPosition = Number($('#resourcePosition').value) - 1; if (!id || requestedPosition + 1 !== displayedOrder) { op.position = requestedPosition; if (id) op.position_changed = true; } if (kind === 'channel') { op.parent_id = $('#resourceParent').value || null; if (!id) op.type = Number($('#resourceType').value); if ($('#resourceTopic')) op.topic = $('#resourceTopic').value.trim(); if ($('#resourceSlowmode')) op.rate_limit_per_user = Number($('#resourceSlowmode').value); if ($('#resourceNsfw')) op.nsfw = $('#resourceNsfw').checked; if ($('#resourceUserLimit')) op.user_limit = Number($('#resourceUserLimit').value); if ($('#resourceVideoQuality')) op.video_quality_mode = Number($('#resourceVideoQuality').value); } if (rows.length) op.permission_overwrites = rows; }
-    else { const requestedPosition = Number($('#resourcePosition').value); if (!id || requestedPosition !== Number(original.position ?? 1)) op.position = requestedPosition; op.color = parseInt($('#resourceColor').value.slice(1),16); op.hoist = $('#resourceHoist').checked; op.mentionable = $('#resourceMentionable').checked; let flags = BigInt(item.permissions || '0'); document.querySelectorAll('[data-role-permission]').forEach(input => { const bit = BigInt(input.value); flags = input.checked ? flags | bit : flags & ~bit; }); op.permissions = String(flags); if ((flags & 8n) && !(roleFlags & 8n)) { if (!confirm('هذه الرتبة ستحصل على Administrator والتحكم الكامل في السيرفر. هل تريد متابعتها إلى المراجعة؟')) return; op.confirm_admin = true; }
+    else { const requestedPosition = Number($('#resourcePosition').value); if ((!id && requestedPosition !== 1) || (id && requestedPosition !== Number(original.position ?? 1))) op.position = requestedPosition; op.color = parseInt($('#resourceColor').value.slice(1),16); op.hoist = $('#resourceHoist').checked; op.mentionable = $('#resourceMentionable').checked; let flags = BigInt(item.permissions || '0'); document.querySelectorAll('[data-role-permission]').forEach(input => { const bit = BigInt(input.value); flags = input.checked ? flags | bit : flags & ~bit; }); op.permissions = String(flags); if ((flags & 8n) && !(roleFlags & 8n)) { if (!confirm('هذه الرتبة ستحصل على Administrator والتحكم الكامل في السيرفر. هل تريد متابعتها إلى المراجعة؟')) return; op.confirm_admin = true; }
       const style = $('#resourceColorStyle')?.value;
       if (style === 'gradient') { op.colors = { primary_color: op.color, secondary_color: parseInt($('#resourceSecondaryColor').value.slice(1),16), tertiary_color: null }; delete op.color; }
       else if (style === 'holographic') { op.colors = { primary_color: 11127295, secondary_color: 16759788, tertiary_color: 16761760 }; delete op.color; }
       else if (style === 'retain') delete op.color;
       else if (original?.colors?.secondary_color || original?.colors?.tertiary_color) { op.colors = { primary_color: op.color, secondary_color: null, tertiary_color: null }; delete op.color; }
-      if ($('#resourceRoleEmoji') && !$('#resourceRoleEmoji').disabled) { const emoji = $('#resourceRoleEmoji').value.trim() || null; if (!id || emoji !== (original.unicode_emoji || null)) op.unicode_emoji = emoji; }
+      if ($('#resourceIconMode') && !$('#resourceIconMode').disabled) {
+        const mode = $('#resourceIconMode').value;
+        if (mode === 'image') {
+          const file = $('#resourceRoleImage').files?.[0];
+          if (!file || !['image/png','image/jpeg','image/webp'].includes(file.type) || file.size > 256 * 1024) { modalError(new Error('اختر صورة PNG أو JPEG أو WebP ثابتة لا تتجاوز 256 كيلوبايت.')); return; }
+          const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('تعذر قراءة الصورة.')); reader.readAsDataURL(file); }).catch(error => { modalError(error); return null; });
+          if (!data) return;
+          op.icon = data; op.unicode_emoji = null;
+        } else if (mode === 'emoji') {
+          const emoji = $('#resourceRoleEmoji').value.trim();
+          if (!emoji) { modalError(new Error('اختر إيموجي واحدًا أو غيّر الخيار إلى بدون رمز.')); return; }
+          if (!id || emoji !== (original.unicode_emoji || null) || original.icon) { op.unicode_emoji = emoji; op.icon = null; }
+        } else if (mode === 'none' && (original?.icon || original?.unicode_emoji)) { op.icon = null; op.unicode_emoji = null; }
+        else if (mode === 'keep' && existing?.icon?.startsWith('data:')) { op.icon = existing.icon; op.unicode_emoji = null; }
+      }
     }
     if (!role && kind === 'channel') {
       const numberSetting = (selector, key, fallback) => { const input = $(selector); if (input && (!id || Number(input.value) !== Number(original[key] ?? fallback))) op[key] = Number(input.value); };
@@ -601,13 +628,28 @@ function operationDetails(op) {
 }
 function operationTable(operations, removable = false) {
   const names = new Map(operations.map(op => [op.operation_key, op.name]));
-  const labels = { name: 'الاسم', parent_id: 'التصنيف', topic: 'الوصف', position: 'الترتيب', color: 'اللون', hoist: 'إظهار الرتبة منفصلة', mentionable: 'إمكانية الإشارة', rate_limit_per_user: 'بطء المحادثة', default_thread_rate_limit_per_user: 'بطء السلاسل', default_auto_archive_duration: 'أرشفة السلاسل', bitrate: 'جودة الصوت', user_limit: 'حد الأعضاء', rtc_region: 'منطقة الصوت', nsfw: 'قناة للبالغين', video_quality_mode: 'جودة الفيديو', default_sort_order: 'ترتيب المنتدى', default_forum_layout: 'عرض المنتدى' };
+  const labels = { name: 'الاسم', parent_id: 'التصنيف', topic: 'الوصف', position: 'الترتيب', color: 'اللون', colors: 'نمط الألوان', icon: 'رمز الرتبة', unicode_emoji: 'إيموجي الرتبة', hoist: 'إظهار الرتبة منفصلة', mentionable: 'إمكانية الإشارة', rate_limit_per_user: 'بطء المحادثة', default_thread_rate_limit_per_user: 'بطء السلاسل', default_auto_archive_duration: 'أرشفة السلاسل', bitrate: 'جودة الصوت', user_limit: 'حد الأعضاء', rtc_region: 'منطقة الصوت', nsfw: 'قناة للبالغين', video_quality_mode: 'جودة الفيديو', default_sort_order: 'ترتيب المنتدى', default_forum_layout: 'عرض المنتدى', available_tags: 'وسوم المنتدى' };
   const beforeAfter = op => {
     if (op.action !== 'update') return '';
     const old = { ...((op.resource_type === 'role' ? state.data.roles : state.data.channels)?.find(row => row.id === op.resource_id) || {}), ...(op.before || {}) };
     const changes = Object.entries(labels).filter(([key]) => Object.hasOwn(op, key) && (key !== 'position' || op.position_changed) && String(old[key] ?? '') !== String(op[key] ?? ''));
-    const display = (key, value) => key === 'position' && op.resource_type !== 'role' ? String(Number(value ?? 0) + 1) : typeof value === 'boolean' ? value ? 'مفعّل' : 'معطّل' : String(value ?? 'غير محدد');
-    return changes.length ? `<ul class="change-diff">${changes.map(([key,label]) => `<li>${label}: <span class="before">${esc(display(key, old[key]))}</span> ← <span class="after">${esc(display(key, op[key]))}</span></li>`).join('')}</ul>` : '';
+    const display = (key, value) => key === 'parent_id' ? state.data.channels?.find(c => c.id === value)?.name || 'دون تصنيف' : key === 'position' && op.resource_type !== 'role' ? String(Number(value ?? 0) + 1) : key === 'icon' ? value ? 'صورة الرتبة' : 'بدون صورة' : key === 'colors' ? 'ألوان الرتبة' : key === 'available_tags' ? `${(value || []).length} وسوم` : typeof value === 'boolean' ? value ? 'مفعّل' : 'معطّل' : String(value ?? 'غير محدد');
+    const permissionChanges = [];
+    if (Object.hasOwn(op, 'permission_overwrites')) {
+      const prior = new Map((old.permission_overwrites || []).map(row => [String(row.id), row]));
+      const next = new Map(op.permission_overwrites.map(row => [String(row.id), row]));
+      const stateOf = (row, bit) => (BigInt(row?.allow || '0') & bit) ? 'سماح' : (BigInt(row?.deny || '0') & bit) ? 'منع' : 'وراثة';
+      for (const id of new Set([...prior.keys(), ...next.keys()])) for (const [, label, flag] of channelPermissionChoices) {
+        const bit = BigInt(flag), before = stateOf(prior.get(id), bit), after = stateOf(next.get(id), bit);
+        if (before !== after) permissionChanges.push({ label: `${state.data.roles?.find(role => role.id === id)?.name || `العضو ${id}`} · ${label}`, before, after });
+      }
+    }
+    if (Object.hasOwn(op, 'permissions')) for (const [, label, flag] of rolePermissionGroups.flatMap(([, flags]) => flags)) {
+      const bit = BigInt(flag), before = (BigInt(old.permissions || '0') & bit) ? 'مفعّلة' : 'غير مفعّلة', after = (BigInt(op.permissions) & bit) ? 'مفعّلة' : 'غير مفعّلة';
+      if (before !== after) permissionChanges.push({ label, before, after });
+    }
+    const allChanges = [...changes.map(([key,label]) => ({ label, before: display(key, old[key]), after: display(key, op[key]) })), ...permissionChanges];
+    return allChanges.length ? `<ul class="change-diff">${allChanges.map(change => `<li>${esc(change.label)}: <span class="before">${esc(change.before)}</span> ← <span class="after">${esc(change.after)}</span></li>`).join('')}</ul>` : '';
   };
   return `<div class="table-wrap"><table><thead><tr><th>الإجراء</th><th>العنصر والتغيير</th>${removable ? '<th>إزالة</th>' : ''}</tr></thead><tbody>${operations.map((op, index) => `<tr><td>${badge(op.action === 'update' ? 'تعديل' : 'إضافة / مطابقة', op.action === 'update' ? 'warn' : 'purple')}</td><td><b>${esc(op.name)}</b><small>${{ channel: op.type === 2 ? 'قناة صوتية' : op.type === 15 ? 'منتدى' : 'قناة', category: 'تصنيف', role: 'رتبة' }[op.resource_type] || ''}${op.before?.name && op.before.name !== op.name ? ` · <span class="before">${esc(op.before.name)}</span> ← <span class="after">${esc(op.name)}</span>` : ''}${op.parent_key ? ` · التصنيف: ${esc(names.get(op.parent_key) || op.parent_name || '')}` : Object.hasOwn(op, 'parent_id') ? ` · التصنيف: ${esc(state.data.channels?.find(c => c.id === op.parent_id)?.name || 'دون تصنيف')}` : ''}${Object.hasOwn(op, 'color') ? ` · اللون: #${Number(op.color).toString(16).padStart(6, '0')}` : ''}${op.access === 'read_only' ? ' · للقراءة فقط' : op.access === 'staff_only' ? ` · خاصة برتبة ${esc(state.data.roles?.find(role => role.id === op.staff_role_id)?.name || 'فريق محدد')}` : ''}${operationDetails(op)}</small>${beforeAfter(op)}</td>${removable ? `<td><button class="btn text" data-remove="${index}" aria-label="إزالة ${esc(op.name)} من قائمة المراجعة">×</button></td>` : ''}</tr>`).join('')}</tbody></table></div>`;
 }

@@ -132,6 +132,8 @@ test('role appearance only enables server-supported enhancements', async () => {
   doc.querySelector('[data-tab="roles"]').click();
   doc.querySelector('[data-edit="r1"]').click();
   assert.equal(doc.querySelector('#resourceRoleEmoji').disabled, false);
+  assert.equal(doc.querySelector('#resourceIconMode').disabled, false);
+  assert.match(doc.querySelector('#resourceIconUpload').textContent, /64×64/);
   assert.equal(doc.querySelector('#resourceColorStyle option[value="gradient"]').disabled, false);
   dom.window.close();
 });
@@ -143,6 +145,8 @@ test('channel draft counts settings changed rather than one channel', async () =
   send.value = 'deny'; send.dispatchEvent(new dom.window.Event('change'));
   doc.querySelector('#resourceForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
   assert.match(doc.querySelector('#draftBar').textContent, /عدد التغييرات المتوقع: ٢/);
+  doc.querySelector('#reviewDraft').click();
+  assert.match(doc.querySelector('#dialogContent').textContent, /إرسال الرسائل.*وراثة.*منع/s);
   dom.window.close();
 });
 test('channel order is shown from one and unchanged order is not staged', async () => {
@@ -583,7 +587,7 @@ test('account offers one direct primary route per guild', async () => {
 test('subscription page shows four plans, annual savings and real usage', async () => {
   const { dom, doc } = await page('subscription', fixtureResponse, 'account.html', 'account.js');
   assert.equal(doc.querySelectorAll('.billing-plan').length, 4);
-  assert.match(doc.body.textContent, /خطط التغييرات/);
+  assert.match(doc.body.textContent, /التغييرات المنفذة/);
   assert.ok(doc.body.textContent.includes((15000).toLocaleString('ar-SA')));
   doc.querySelector('[data-interval="annual"]').click();
   assert.ok(doc.body.textContent.includes((2990).toLocaleString('ar-SA')));

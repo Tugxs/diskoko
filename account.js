@@ -1,7 +1,7 @@
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const planNames = { free: 'Free', trial: 'Free', starter: 'Starter', growth: 'Growth', business: 'Business', complete: 'Business' };
-const usageNames = { servers: 'السيرفرات المرتبطة', changeSetsPerMonth: 'خطط التغييرات', scheduledMessages: 'الرسائل المجدولة', customTemplates: 'القوالب الخاصة', customBots: 'تصاميم البوتات' };
+const usageNames = { servers: 'السيرفرات المرتبطة', changeSetsPerMonth: 'التغييرات المنفذة', scheduledMessages: 'الرسائل المجدولة', customTemplates: 'القوالب الخاصة', customBots: 'تصاميم البوتات' };
 let account; let interval = 'monthly'; let couponCode = '';
 function target() { return ['servers', 'create', 'projects', 'subscription'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'servers'; }
 async function api(path, options) { const response = await fetch(path, { credentials: 'include', cache: 'no-store', ...options }); const data = await response.json(); if (!response.ok) throw Object.assign(Error(data.error || 'تعذر تحميل البيانات.'), { status: response.status, data }); return data; }

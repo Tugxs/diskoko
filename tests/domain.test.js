@@ -54,6 +54,32 @@ test('usage counts changed settings, including each role permission choice once'
   assert.equal(operationUnits(role), 3, 'two permission bits and hoist');
   assert.equal(planUsageUnits([channel,role]), 5);
 });
+test('channel credit uses final differences across category and each permission flag', () => {
+  const server = { guildId: 'guild', channels: [
+    { id: 'cat', name: 'جديد', type: 4 },
+    { id: 'news', name: 'إعلانات', type: 0, parent_id: null, permission_overwrites: [] },
+  ], roles: [{ id: 'guild', name: '@everyone' }, { id: 'member', name: 'عضو جديد' }] };
+  const base = { resource_type: 'channel', action: 'update', resource_id: 'news', name: 'إعلانات', parent_id: 'cat' };
+  const [three] = normalizeOperations([{ ...base, permission_overwrites: [{ id: 'guild', type: 0, allow: '1024', deny: '2048' }] }], server);
+  assert.equal(operationUnits(three), 3, 'category, allow view and deny send');
+  const [four] = normalizeOperations([{ ...base, permission_overwrites: [
+    { id: 'guild', type: 0, allow: '1024', deny: '2048' },
+    { id: 'member', type: 0, allow: '1024', deny: '0' },
+  ] }], server);
+  assert.equal(operationUnits(four), 4);
+  const [reverted] = normalizeOperations([{ ...base, parent_id: null, permission_overwrites: [] }], server);
+  assert.equal(operationUnits(reverted), 0, 'reverted settings cannot use credits');
+});
+test('role icon image is one setting and invalid image is rejected locally', () => {
+  const server = { ...snapshot, roles: [...snapshot.roles.filter(role => role.id !== 'role'), { id: 'role', name: 'Member', icon: 'oldhash', unicode_emoji: null }] };
+  const icon = 'data:image/png;base64,' + Buffer.from('not a real image').toString('base64');
+  const [replacement] = normalizeOperations([{ action: 'update', resource_type: 'role', resource_id: 'role', name: 'Member', icon, unicode_emoji: null }], server);
+  assert.equal(operationBody(replacement).icon, icon);
+  assert.equal(operationUnits(replacement), 1);
+  const [remove] = normalizeOperations([{ action: 'update', resource_type: 'role', resource_id: 'role', name: 'Member', icon: null, unicode_emoji: null }], server);
+  assert.equal(operationUnits(remove), 1);
+  assert.throws(() => normalizeOperations([{ action: 'update', resource_type: 'role', resource_id: 'role', name: 'Member', icon: 'http://example.com/icon.png' }], server));
+});
 test('owner, manager and administrator can manage; ordinary members cannot', () => {
   assert.equal(manageable({ owner: true }), true); assert.equal(manageable({ permissions: '8' }), true); assert.equal(manageable({ permissions: '32' }), true); assert.equal(manageable({ permissions: '1024' }), false);
 });
