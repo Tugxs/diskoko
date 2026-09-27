@@ -387,7 +387,7 @@ async function discordBotFetch(pathname, options = {}) {
   let selectedToken = null;
   if (guildId && !context?.aiBotToken && !context?.selectedBotId) {
     const selected = await connectedBotMetadata(pool, guildId);
-    if (selected) {
+    if (selected?.selected) {
       if (!selected.online) return { ok: false, status: 503, data: { message: 'بوت السيرفر المرتبط غير متصل الآن' } };
       const bot = await connectedBot(pool, guildId);
       selectedToken = bot.token;
@@ -604,7 +604,7 @@ app.use(async (req, _res, next) => {
     const user = await currentUser(req);
     if (!user || !await authorizedGuild(user, guildId)) return next();
     const selected = await connectedBotMetadata(pool, guildId);
-    if (selected) {
+    if (selected?.selected) {
       const context = requestContext.getStore();
       context.selectedBot = selected;
       context.selectedBotId = selected.id;
