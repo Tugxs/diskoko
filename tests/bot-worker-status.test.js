@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { connectedBotMetadata } from '../lib/ai-bot-connections.js';
+import { connectedBotMetadata, syncAiBots } from '../lib/ai-bot-connections.js';
+
+test('worker loads the connection version needed to keep a ready customer bot running', async () => {
+  const queries = [];
+  const pool = { query: async sql => { queries.push(sql); return { rows: [] }; } };
+  await syncAiBots(pool);
+  assert.match(queries[0], /SELECT .*updated_at FROM ai_bot_connections/);
+});
 
 test('website reads a fresh customer bot worker heartbeat', async () => {
   const previous = process.env.BOT_GATEWAY_MODE;
@@ -20,3 +27,4 @@ test('website marks an expired worker heartbeat offline', async () => {
   try { assert.equal((await connectedBotMetadata(pool, '12345678901234567')).online, false); }
   finally { if (previous === undefined) delete process.env.BOT_GATEWAY_MODE; else process.env.BOT_GATEWAY_MODE = previous; }
 });
+
