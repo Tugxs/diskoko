@@ -2,6 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validateDiscordWrite } from '../lib/discord-preflight.js';
 
+test('validated guild channel and role reordering accepts Discord array payloads', () => {
+  const guild = '123456789012345678', channel = '234567890123456789';
+  for (const kind of ['channels', 'roles']) {
+    const path = `/guilds/${guild}/${kind}`;
+    assert.equal(validateDiscordWrite(path, { method: 'PATCH', body: JSON.stringify([{ id: channel, position: 3 }]) }), null);
+    assert.match(validateDiscordWrite(path, { method: 'PATCH', body: JSON.stringify([{ id: channel, position: -1 }]) }), /ترتيب/);
+  }
+});
+
 test('rejects malformed and oversized template messages before Discord', () => {
   const path = '/channels/123456789012345678/messages';
   assert.match(validateDiscordWrite(path, { method: 'POST', body: '{oops' }), /قراءة/);
