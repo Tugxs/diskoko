@@ -252,7 +252,8 @@ function overview() {
 }
 function builder() {
   const d = state.data; const labels = { channels: 'القنوات والتصنيفات', roles: 'الرتب', access: 'معاينة الوصول' };
-  $('#workspace').innerHTML = head('القنوات والرتب', 'تحكم ببنية سيرفرك من مكان واحد. كل تعديل يمر بمراجعة قبل تطبيقه.') + connectionNotice() + `<div class="notice info"><div><b>لتحكم كامل، امنح البوت صلاحية Administrator وضع رتبته فوق الرتب التي سيعدلها.</b><p>اختر بوت ديسكوكو أو اربط بوتك الخاص من إعدادات السيرفر. بدون الصلاحيات اللازمة سيُرفض التنفيذ قبل تغيير العناصر التي لا يستطيع البوت إدارتها.</p></div>${action('إعدادات البوت', 'settings', 'secondary')}</div><div class="tabs" role="tablist" aria-label="بنية السيرفر">${Object.entries(labels).map(([key, label]) => `<button role="tab" aria-selected="${state.tab === key}" class="tab ${state.tab === key ? 'active' : ''}" data-tab="${key}">${label}</button>`).join('')}</div><div id="builderContent"></div>`;
+  $('#workspace').innerHTML = head('القنوات والرتب', 'تحكم ببنية سيرفرك من مكان واحد. كل تعديل يمر بمراجعة قبل تطبيقه.') + connectionNotice() + `<div class="notice info"><div><b>لتحكم كامل، امنح البوت صلاحية Administrator وضع رتبته فوق الرتب التي سيعدلها.</b><p>تحقق من البوت المختار أدناه قبل التعديل. يجب أن تكون رتبته فوق الرتب المستهدفة، ويحتاج صلاحيات إدارة القنوات والرتب.</p></div>${action('إعدادات البوت', 'settings', 'secondary')}</div><section class="ready-executor-panel" aria-label="بوت تنفيذ القنوات والرتب"><div class="ready-executor-head"><div><span class="ready-executor-kicker">القنوات والرتب</span><h3>بوت التنفيذ</h3><p>اختر البوت الذي سينفذ تغييرات القنوات والتصنيفات والرتب في هذا السيرفر.</p></div></div><div id="builderBotConnection" role="status">جارٍ فحص البوت…</div></section><div class="tabs" role="tablist" aria-label="بنية السيرفر">${Object.entries(labels).map(([key, label]) => `<button role="tab" aria-selected="${state.tab === key}" class="tab ${state.tab === key ? 'active' : ''}" data-tab="${key}">${label}</button>`).join('')}</div><div id="builderContent"></div>`;
+  void loadServerExecutor('builderBotConnection', 'builder');
   document.querySelectorAll('[data-tab]').forEach(button => { button.onclick = () => { state.tab = button.dataset.tab; builder(); }; });
   if (!d.connection.readable) { $('#builderContent').innerHTML = empty('ننتظر اكتمال الاتصال', 'بعد التحقق من الربط، ستظهر البنية الفعلية لسيرفرك.', action('إكمال الربط', 'settings', 'primary')); return; }
   if (state.tab === 'access') { accessPreview(); return; }
@@ -1780,7 +1781,7 @@ function safety() {
 function settings() {
   const d = state.data;
   $('#workspace').innerHTML = head('إعدادات مساحة مجتمعك.', 'اتصال السيرفر وتفضيلات النشاط، في مكان واحد.') + `<div class="steps"><span class="step done">✓ الحساب مرتبط</span><span class="step ${d.connection.status === 'installed' ? 'done' : ''}">${d.connection.status === 'installed' ? '✓' : '2'} ربط بوت التنفيذ</span><span class="step ${d.connection.readable ? 'done' : ''}">${d.connection.readable ? '✓' : '3'} قراءة السيرفر</span></div><div class="grid-2">${panel('الاتصال بـ Discord', `<div class="panel-body form-grid"><div class="server-title"><span class="server-image">${esc(d.guild.name.slice(0, 1))}</span><div><h3>${esc(d.guild.name)}</h3><small>${d.guild.owner ? 'أنت مالك السيرفر' : 'لديك صلاحية الإدارة'}</small></div></div><div class="row"><div class="row-main"><b>حالة الربط</b><small>آخر تحقق: ${date(d.connection.checked_at)}</small></div>${status(d.connection.status)}</div><div class="actions"><button class="btn primary" id="installBot">${d.connection.status === 'installed' ? 'مراجعة ربط البوت ↗' : 'إضافة Diskoko إلى السيرفر ↗'}</button><button class="btn secondary" id="verifyBot">إعادة التحقق</button></div><p class="form-note">بعد العودة من Discord سنعيد التحقق تلقائيًا. لا نطلب صلاحية Administrator.</p><details><summary>تفاصيل السيرفر</summary><p><code>${esc(state.guild)}</code></p><button class="btn text" id="copyGuild">نسخ المعرّف</button></details></div>`)}${panel('خصوصية إحصاءات النشاط', `<div class="panel-body form-grid"><div>${badge(d.preferences.analytics_enabled ? 'جمع النشاط مفعّل' : 'جمع النشاط غير مفعّل', d.preferences.analytics_enabled ? 'good' : 'neutral')}</div><p>يجمع البوت عدد الرسائل وأسماء المشاركين فقط، دون محتوى الرسائل، لمدة 30 يومًا. الإيقاف يمنع جمع أحداث جديدة.</p><button class="btn secondary" id="toggleAnalytics">${d.preferences.analytics_enabled ? 'إيقاف جمع النشاط' : 'تفعيل جمع النشاط'}</button>${action('عرض التحليلات', 'analytics', 'text')}</div>`)}</div>${panel('نسخة من البنية الحالية', '<div class="panel-body"><p>نزّل القنوات والرتب للمراجعة أو التوثيق. الملف لا يحتوي رسائل الأعضاء، ولا يوفّر استعادة تلقائية للسيرفر.</p><div class="actions" style="margin-top:18px"><button class="btn secondary" id="exportStructure">تصدير بنية السيرفر ↓</button></div></div>')}`;
-  $('#workspace .grid-2').insertAdjacentHTML('beforebegin', panel('بوت التنفيذ لهذا السيرفر', '<div class="panel-body form-grid"><p>اختر بوت ديسكوكو أو اربط بوتك الخاص. البوت المختار ينفذ القوالب، إعدادات السيرفر، ورسائل AI بعد مراجعتك.</p><div id="settingsBotConnection" role="status">جارٍ التحقق من البوت المختار…</div><a href="/ai-bot-guide.html" target="_blank" rel="noopener noreferrer">شرح إنشاء بوتك وربطه ↗</a></div>'));
+  $('#workspace .grid-2').insertAdjacentHTML('beforebegin', panel('بوت التنفيذ لهذا السيرفر', '<div class="panel-body form-grid"><p>اختر بوت ديسكوكو أو اربط بوتك الخاص ليكون المنفذ الافتراضي لأدوات السيرفر. القوالب الجاهزة تتيح اختيار بوتها عند المراجعة.</p><div id="settingsBotConnection" role="status">جارٍ التحقق من البوت المختار…</div><a href="/ai-bot-guide.html" target="_blank" rel="noopener noreferrer">شرح إنشاء بوتك وربطه ↗</a></div>'));
   void loadSettingsBotConnection();
   $('#installBot').onclick = run(async () => { const result = await api(`/api/guilds/${encodeURIComponent(state.guild)}/install-url`); window.open(result.url, '_blank', 'noopener'); state.awaitingInstall = true; });
   $('#verifyBot').onclick = run(async event => { event.currentTarget.disabled = true; try { await loadGuild(); } finally { $('#verifyBot') && ($('#verifyBot').disabled = false); } });
@@ -1788,6 +1789,31 @@ function settings() {
   $('#toggleAnalytics').onclick = () => confirmDialog(d.preferences.analytics_enabled ? 'إيقاف جمع النشاط؟' : 'تفعيل جمع النشاط؟', 'يؤثر التغيير في جمع أحداث الرسائل الجديدة. لا يُحفظ محتوى الرسائل، وتبقى الأعداد السابقة حتى نهاية مدة الاحتفاظ البالغة 30 يومًا.', 'تأكيد', async () => { await api(`/api/workspace/${encodeURIComponent(state.guild)}/preferences`, { method: 'PUT', body: JSON.stringify({ analytics_enabled: !d.preferences.analytics_enabled }) }); closeDialog(); await loadGuild(); });
   $('#exportStructure').disabled = !d.connection.readable;
   $('#exportStructure').onclick = () => download('diskoko-server-structure.json', { exported_at: new Date().toISOString(), guild: { id: state.guild, name: d.guild.name }, channels: d.channels, roles: d.roles });
+}
+function serverExecutorMarkup(bot) {
+  const customSelected = Boolean(bot?.selected);
+  const retry = bot?.retryAt && new Date(bot.retryAt).getTime() > Date.now() ? ` · المحاولة التالية ${date(bot.retryAt)}` : '';
+  return `<div class="ready-executor-options"><label class="ready-executor-option"><input type="radio" name="serverExecutor" value="diskoko" ${customSelected ? '' : 'checked'}><span class="ready-executor-icon" aria-hidden="true"><img src="/assets/diskoko-logo.png" alt=""></span><span class="ready-executor-copy"><strong>بوت ديسكوكو</strong><small>${customSelected ? 'سيُفحص اتصاله عند اختياره' : state.data.bot?.online ? 'متصل وجاهز' : 'غير متصل الآن'}</small></span></label><label class="ready-executor-option"><input type="radio" name="serverExecutor" value="custom" ${customSelected ? 'checked' : ''} ${bot?.online ? '' : 'disabled'}><span class="ready-executor-icon" aria-hidden="true">🤖</span><span class="ready-executor-copy"><strong>بوتك الخاص</strong><small>${bot ? `${esc(bot.name)} · ${bot.online ? 'متصل وجاهز' : `غير متصل${retry}`}` : 'لم يُربط بهذا السيرفر بعد'}</small></span></label></div><p class="ready-executor-foot">اختيار السيرفر الافتراضي لأدوات الموقع. لا يرسل أي تعديل إلى Discord؛ سيُفحص الاتصال والصلاحيات عند التنفيذ.${!bot ? ` ${action('ربط بوتك الخاص', 'settings', 'text')}` : !bot.online ? ` ${action('راجع الربط والاتصال', 'settings', 'text')}` : ''}</p>`;
+}
+function bindServerExecutor(target, guild) {
+  target.querySelectorAll('input[name="serverExecutor"]').forEach(input => { input.onchange = run(async () => {
+    target.querySelectorAll('input[name="serverExecutor"]').forEach(option => { option.disabled = true; });
+    try {
+      await api('/api/ai/bot-connection/selection', { method: 'POST', body: JSON.stringify({ guildId: guild, executor: input.value }) });
+      await loadGuild();
+      toast(input.value === 'custom' ? 'بوتك الخاص أصبح بوت التنفيذ لهذا السيرفر.' : 'بوت ديسكوكو أصبح بوت التنفيذ لهذا السيرفر.');
+    } catch (error) { await loadGuild(); throw error; }
+  }); });
+}
+async function loadServerExecutor(targetId, view) {
+  const guild = state.guild, epoch = state.epoch, target = document.getElementById(targetId);
+  if (!target) return;
+  try {
+    const { bot } = await api(`/api/ai/bot-connection?guildId=${encodeURIComponent(guild)}`);
+    if (guild !== state.guild || epoch !== state.epoch || screen() !== view || !target.isConnected) return;
+    target.innerHTML = serverExecutorMarkup(bot);
+    bindServerExecutor(target, guild);
+  } catch (error) { if (target.isConnected && guild === state.guild && screen() === view) target.textContent = error.message; }
 }
 async function loadSettingsBotConnection() {
   const guild = state.guild, epoch = state.epoch, target = $('#settingsBotConnection');
@@ -1797,9 +1823,10 @@ async function loadSettingsBotConnection() {
     if (guild !== state.guild || epoch !== state.epoch || screen() !== 'settings') return;
     const retryAt = bot?.retryAt && new Date(bot.retryAt).getTime() > Date.now()
       ? `؛ المحاولة التالية ${new Date(bot.retryAt).toLocaleString('ar-SA')}` : '';
-    target.innerHTML = bot
-      ? `<div class="row"><div class="row-main"><b>${esc(bot.name)}</b><small>بوتك الخاص · ${bot.online ? 'متصل وجاهز لتنفيذ أدوات السيرفر' : `غير متصل${retryAt || '؛ أعد الربط أو انتظر عودة الاتصال'}`}</small></div>${badge(bot.online ? 'متصل' : 'غير متصل', bot.online ? 'good' : 'warn')}</div><button class="btn secondary" id="settingsBotDisconnect" type="button">فصل بوتي والعودة لبوت ديسكوكو</button>`
-      : `<div class="row"><div class="row-main"><b>بوت ديسكوكو</b><small>البوت الافتراضي لهذا السيرفر</small></div>${badge(state.data.bot.online ? 'متصل' : 'غير متصل', state.data.bot.online ? 'good' : 'warn')}</div><button class="btn primary" id="settingsBotConnect" type="button">ربط بوتي الخاص</button>`;
+    target.innerHTML = serverExecutorMarkup(bot) + (bot
+      ? `<div class="row"><div class="row-main"><b>${esc(bot.name)}</b><small>بوتك الخاص مرتبط · ${bot.online ? 'متصل' : `غير متصل${retryAt || '؛ راجع الرمز أو انتظر عودة الاتصال'}`}</small></div>${badge(bot.online ? 'متصل' : 'غير متصل', bot.online ? 'good' : 'warn')}</div><button class="btn secondary" id="settingsBotDisconnect" type="button">فصل بوتي</button>`
+      : `<button class="btn primary" id="settingsBotConnect" type="button">ربط بوتي الخاص</button>`);
+    bindServerExecutor(target, guild);
     if (bot) $('#settingsBotDisconnect').onclick = run(async () => {
       if (!window.confirm('سيعود التنفيذ إلى بوت ديسكوكو. المنشورات التفاعلية السابقة التي أنشأها بوتك قد تتوقف. هل تريد المتابعة؟')) return;
       await api('/api/ai/bot-connection', { method: 'DELETE', body: JSON.stringify({ guildId: guild }) });
