@@ -270,6 +270,24 @@ test('server settings can select a customer bot while Diskoko is offline', async
   dom.window.close();
 });
 
+test('channels and roles clearly select the server executor without sending Discord changes', async () => {
+  const response = url => url === `/api/ai/bot-connection?guildId=${guild.id}`
+    ? { bot: { id: 'bot-1', name: 'بوت التجربة', online: true, selected: false } }
+    : url === '/api/ai/bot-connection/selection' ? { executor: 'custom' }
+      : fixtureResponse(url);
+  const { dom, doc, requests } = await page('builder', response);
+  assert.equal(doc.querySelector('#builderBotConnection input[value="diskoko"]').checked, true);
+  assert.match(doc.querySelector('#builderBotConnection').textContent, /بوت التجربة/);
+  const custom = doc.querySelector('#builderBotConnection input[value="custom"]');
+  custom.checked = true;
+  custom.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  await settle();
+  const sent = requests.find(entry => entry.url === '/api/ai/bot-connection/selection');
+  assert.deepEqual(JSON.parse(sent.options.body), { guildId: guild.id, executor: 'custom' });
+  assert.equal(requests.some(entry => entry.url.includes('/change-sets')), false);
+  dom.window.close();
+});
+
 test('change history counts applied structure and published giveaway as two completed actions', async () => {
   const response = url => url === `/api/workspace/${guild.id}` ? {
     ...workspace,
