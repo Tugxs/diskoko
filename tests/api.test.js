@@ -10,7 +10,7 @@ function setup({ locked = true, confirmed = true, authorized = true } = {}) {
     query: async (sql, params) => { writes.push({ sql, params }); if (sql.startsWith('SELECT * FROM change_sets')) return { rows: [plan] }; if (sql.startsWith('SELECT * FROM change_operations')) return { rows: operations }; return { rows: [], rowCount: 1 }; },
     connect: async () => ({ query: async sql => { writes.push({ sql }); return { rows: [{ locked }] }; }, release() {} }),
   };
-  mountWorkspace(app, { pool, requireUser: () => {}, authorizedGuild: async () => authorized ? { id: 'g' } : null, requirePlanCapacity: async () => {}, audit: async () => {}, templates: {}, makeTemplatePlan: () => {}, botStatus: () => ({}), discordBotFetch: async (url, options) => {
+  mountWorkspace(app, { pool, requireUser: () => {}, authorizedGuild: async () => authorized ? { id: 'g' } : null, requirePlanCapacity: async () => ({ used: 0, limit: 100 }), audit: async () => {}, templates: {}, makeTemplatePlan: () => {}, botStatus: () => ({}), discordBotFetch: async (url, options) => {
     calls.push({ url, options });
     if (options) return { ok: true, data: { id: 'new-id', ...JSON.parse(options.body) } };
     return { ok: true, data: url === '/users/@me' ? { id: 'bot' } : url.endsWith('/members/bot') ? { roles: [] } : url.endsWith('/roles') ? [{ id: 'g', name: '@everyone', permissions: '8' }] : url.endsWith('/channels') ? [{ id: 'category-id', type: 4, name: 'Group' }] : [] };

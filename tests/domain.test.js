@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { manageable, normalizeOperations, resolveExisting, checkExistingAccess, checkConflict, operationBody, connectionState, normalizeSchedule } from '../lib/workspace-domain.js';
+import { manageable, normalizeOperations, resolveExisting, checkExistingAccess, checkConflict, operationBody, operationUnits, planUsageUnits, connectionState, normalizeSchedule } from '../lib/workspace-domain.js';
 const snapshot = { guildId: 'guild', channels: [{ id: 'category', name: 'Welcome', type: 4 }, { id: 'one', name: 'chat', type: 0, parent_id: 'category' }, { id: 'two', name: 'chat', type: 0, parent_id: null }], roles: [{ id: 'guild', name: '@everyone' }, { id: 'managed', name: 'Bot', managed: true }, { id: 'role', name: 'Member', color: 123 }] };
 test('deep channel and role edits validate and preserve Discord settings', () => {
   const role = normalizeOperations([{ resource_type: 'role', action: 'update', resource_id: 'role', name: 'Member', color: 0x9944ee, hoist: true, mentionable: false, permissions: '3072' }], snapshot)[0];
@@ -15,6 +15,19 @@ test('deep channel and role edits validate and preserve Discord settings', () =>
 test('an existing same-name resource with different settings cannot be silently reused', () => {
   assert.throws(() => checkExistingAccess({ resource_type: 'role', name: 'Member', color: 0xff00ff }, snapshot.roles.find(role => role.id === 'role')));
   assert.throws(() => checkExistingAccess({ resource_type: 'channel', name: 'chat', rate_limit_per_user: 10 }, snapshot.channels.find(channel => channel.id === 'one')));
+});
+test('reviewed channel update may intentionally change existing permission overwrites', () => {
+  const channel = { id: 'one', name: 'الإعلانات', type: 0, permission_overwrites: [] };
+  const op = { action: 'update', resource_type: 'channel', name: 'الإعلانات', permission_overwrites: [{ id: 'guild', type: 0, allow: '0', deny: '2048' }] };
+  assert.doesNotThrow(() => checkExistingAccess(op, channel));
+});
+test('usage counts changed settings, including each role permission choice once', () => {
+  const sample = { guildId: 'guild', channels: [{ id: 'news', name: 'الإعلانات', type: 0, position: 0, rate_limit_per_user: 0, nsfw: false, permission_overwrites: [{ id: 'guild', type: 0, allow: '0', deny: '2048' }] }], roles: [{ id: 'guild', name: '@everyone' }, { id: 'staff', name: 'إدارة', permissions: '0', color: 0, hoist: false, mentionable: false }] };
+  const channel = normalizeOperations([{ resource_type: 'channel', action: 'update', resource_id: 'news', name: 'الإعلانات', rate_limit_per_user: 10, nsfw: false, permission_overwrites: [{ id: 'guild', type: 0, allow: '2048', deny: '0' }] }], sample)[0];
+  const role = normalizeOperations([{ resource_type: 'role', action: 'update', resource_id: 'staff', name: 'إدارة', permissions: '3072', hoist: true }], sample)[0];
+  assert.equal(operationUnits(channel), 2, 'slowmode and deny-to-allow are two settings');
+  assert.equal(operationUnits(role), 3, 'two permission bits and hoist');
+  assert.equal(planUsageUnits([channel,role]), 5);
 });
 test('owner, manager and administrator can manage; ordinary members cannot', () => {
   assert.equal(manageable({ owner: true }), true); assert.equal(manageable({ permissions: '8' }), true); assert.equal(manageable({ permissions: '32' }), true); assert.equal(manageable({ permissions: '1024' }), false);

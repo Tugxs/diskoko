@@ -59,6 +59,16 @@ test('channel and role editor exposes detailed permissions before review', async
   assert.ok(doc.querySelector('#resourceHoist'));
   dom.window.close();
 });
+test('channel draft counts settings changed rather than one channel', async () => {
+  const { dom, doc } = await page('builder');
+  doc.querySelector('[data-edit="c2"]').click();
+  doc.querySelector('#resourceSlowmode').value = '10';
+  const send = doc.querySelector('[data-channel-permission="SendMessages"]');
+  send.value = 'deny'; send.dispatchEvent(new dom.window.Event('change'));
+  doc.querySelector('#resourceForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.match(doc.querySelector('#draftBar').textContent, /عدد التغييرات المتوقع: ٢/);
+  dom.window.close();
+});
 test('ready templates open as an independent section with both sources and a Discord preview', async () => {
   const response = url => url === '/api/ready-templates' ? { templates: READY_TEMPLATES } : fixtureResponse(url);
   const { dom, doc } = await page('ready-templates', response, 'studio.html', 'workspace.js', window => { window.structuredClone = structuredClone; });

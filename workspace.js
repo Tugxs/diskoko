@@ -97,9 +97,28 @@ function panel(title, body, control = '') { return `<section class="panel"><div 
 function draftKey() { return `diskoko:review:${state.account?.user.id}:${state.guild}`; }
 function readDraft() { try { const value = JSON.parse(localStorage.getItem(draftKey()) || '[]'); state.draft = Array.isArray(value) ? value.slice(0, 100) : []; } catch { state.draft = []; } }
 function saveDraft() { try { localStorage.setItem(draftKey(), JSON.stringify(state.draft)); } catch { toast('تعذر حفظ قائمة التغييرات على هذا الجهاز. احتفظ بالصفحة مفتوحة.'); } draftBar(); }
+function draftChangeUnits(op) {
+  if (op.action !== 'update') return 1;
+  const original = (op.resource_type === 'role' ? state.data?.roles : state.data?.channels)?.find(item => item.id === op.resource_id);
+  if (!original) return 1;
+  let units = 0;
+  const defaults = { hoist: false, mentionable: false, rate_limit_per_user: 0, default_thread_rate_limit_per_user: 0, bitrate: 0, user_limit: 0, nsfw: false, video_quality_mode: 1 };
+  for (const key of ['name','parent_id','topic','position','color','hoist','mentionable','rate_limit_per_user','default_thread_rate_limit_per_user','bitrate','user_limit','nsfw','video_quality_mode']) if (Object.hasOwn(op,key) && String(op[key] ?? '') !== String(original[key] ?? defaults[key] ?? '')) units++;
+  if (Object.hasOwn(op,'permissions')) { let bits = BigInt(op.permissions) ^ BigInt(original.permissions || '0'); while (bits) { bits &= bits - 1n; units++; } }
+  if (Object.hasOwn(op,'permission_overwrites')) {
+    const before = new Map((original.permission_overwrites || []).map(row => [String(row.id),row]));
+    const after = new Map(op.permission_overwrites.map(row => [String(row.id),row]));
+    for (const id of new Set([...before.keys(),...after.keys()])) {
+      const old = before.get(id), next = after.get(id);
+      let bits = BigInt(old?.allow || '0') | BigInt(old?.deny || '0') | BigInt(next?.allow || '0') | BigInt(next?.deny || '0');
+      for (let bit = 1n; bits; bit <<= 1n) if (bits & bit) { const value = row => (BigInt(row?.allow || '0') & bit) ? 'allow' : (BigInt(row?.deny || '0') & bit) ? 'deny' : 'inherit'; if (value(old) !== value(next)) units++; bits &= ~bit; }
+    }
+  }
+  return units;
+}
 function draftBar() {
   const node = $('#draftBar'); node.hidden = !state.draft.length || !state.data || state.loading;
-  node.innerHTML = `<div><b>${fmt(state.draft.length)} تغييرات قيد المراجعة</b><small>لم تُطبّق على Discord · ${esc(state.data?.guild.name)}</small></div><div class="actions"><button class="btn secondary" id="discardDraft">تجاهل التغييرات</button><button class="btn primary" id="reviewDraft">مراجعة التغييرات ←</button></div>`;
+  node.innerHTML = `<div><b>عدد التغييرات المتوقع: ${fmt(state.draft.reduce((total, op) => total + draftChangeUnits(op), 0))}</b><small>${fmt(state.draft.length)} عناصر · تُحسب الإعدادات التي تغيّرت فقط عند التنفيذ · ${esc(state.data?.guild.name)}</small></div><div class="actions"><button class="btn secondary" id="discardDraft">تجاهل التغييرات</button><button class="btn primary" id="reviewDraft">مراجعة التغييرات ←</button></div>`;
   $('#reviewDraft').onclick = () => reviewLocal();
   $('#discardDraft').onclick = () => confirmDialog('تجاهل التغييرات؟', 'ستُزال قائمة التغييرات من هذا الجهاز. لن يتغير سيرفرك في Discord.', 'تجاهل التغييرات', () => { state.draft = []; saveDraft(); closeDialog(); render(); });
 }
@@ -319,7 +338,8 @@ function operationTable(operations, removable = false) {
   return `<div class="table-wrap"><table><thead><tr><th>الإجراء</th><th>العنصر والتغيير</th>${removable ? '<th>إزالة</th>' : ''}</tr></thead><tbody>${operations.map((op, index) => `<tr><td>${badge(op.action === 'update' ? 'تعديل' : 'إضافة / مطابقة', op.action === 'update' ? 'warn' : 'purple')}</td><td><b>${esc(op.name)}</b><small>${{ channel: op.type === 2 ? 'قناة صوتية' : op.type === 15 ? 'منتدى' : 'قناة', category: 'تصنيف', role: 'رتبة' }[op.resource_type] || ''}${op.before?.name && op.before.name !== op.name ? ` · <span class="before">${esc(op.before.name)}</span> ← <span class="after">${esc(op.name)}</span>` : ''}${op.parent_key ? ` · التصنيف: ${esc(names.get(op.parent_key) || op.parent_name || '')}` : Object.hasOwn(op, 'parent_id') ? ` · التصنيف: ${esc(state.data.channels?.find(c => c.id === op.parent_id)?.name || 'دون تصنيف')}` : ''}${Object.hasOwn(op, 'color') ? ` · اللون: #${Number(op.color).toString(16).padStart(6, '0')}` : ''}${op.access === 'read_only' ? ' · للقراءة فقط' : op.access === 'staff_only' ? ` · خاصة برتبة ${esc(state.data.roles?.find(role => role.id === op.staff_role_id)?.name || 'فريق محدد')}` : ''}${operationDetails(op)}</small></td>${removable ? `<td><button class="btn text" data-remove="${index}" aria-label="إزالة ${esc(op.name)} من قائمة المراجعة">×</button></td>` : ''}</tr>`).join('')}</tbody></table></div>`;
 }
 function reviewLocal() {
-  modal('مراجعة مسودتك', `<p class="form-note">السيرفر المستهدف: <b>${esc(state.data.guild.name)}</b>. حفظ الخطة لا يطبق التغييرات.</p>${operationTable(state.draft, true)}`, '<button class="btn primary" id="savePlan">حفظ خطة التغييرات</button>');
+  const units = state.draft.reduce((total, op) => total + draftChangeUnits(op), 0);
+  modal('مراجعة مسودتك', `<p class="form-note">السيرفر المستهدف: <b>${esc(state.data.guild.name)}</b>. عدد التغييرات المتوقع: ${fmt(units)} في ${fmt(state.draft.length)} عناصر. كل إعداد مختلف يُحسب مرة؛ حفظ الخطة لا يطبق شيئًا في Discord.</p>${!units ? '<p class="form-note">لم يتغير أي إعداد. أزل العناصر غير المعدلة أو غيّر أحد خياراتها.</p>' : ''}${operationTable(state.draft, true)}`, `<button class="btn primary" id="savePlan" ${units ? '' : 'disabled'}>حفظ خطة التغييرات</button>`);
   document.querySelectorAll('[data-remove]').forEach(button => { button.onclick = () => { state.draft.splice(Number(button.dataset.remove), 1); saveDraft(); if (state.draft.length) reviewLocal(); else closeDialog(); }; });
   $('#savePlan').onclick = async event => { event.currentTarget.disabled = true; try { const created = await api('/api/change-sets', { method: 'POST', body: JSON.stringify({ guildId: state.guild, operations: state.draft }) }); state.draft = []; saveDraft(); closeDialog(); await loadGuild(); await showPlan(created.changeSet.id); } catch (error) { modalError(error); $('#savePlan').disabled = false; } };
 }
@@ -329,7 +349,7 @@ async function showPlan(id, returnToWorkspace = false) {
   if (state.guild !== expectedGuild || data.changeSet.guild_id !== state.guild) throw Error('هذه الخطة تخص سيرفرًا آخر.');
   const done = data.operations.filter(op => op.status === 'succeeded').length;
   const complete = data.changeSet.status === 'succeeded';
-  modal('مراجعة التغييرات', `<div class="notice info"><div><b>${esc(state.data.guild.name)}</b><p>${fmt(done)} من ${fmt(data.operations.length)} عمليات مكتملة. ${complete ? 'اكتمل التطبيق.' : 'سيُنفّذ غير المكتمل فقط.'}</p></div>${status(data.changeSet.status)}</div>${operationTable(data.changeSet.plan.operations)}<div class="rows">${data.operations.map(op => `<div class="row"><div class="row-main"><b>${esc(data.changeSet.plan.operations.find(item => item.operation_key === op.operation_key)?.name || op.operation_key)}</b>${op.result?.error ? `<small>${esc(op.result.error)}</small>` : ''}</div>${status(op.status)}</div>`).join('')}</div>${!complete && !returnToWorkspace ? '<label class="check-row"><input type="checkbox" id="confirmApply">راجعت التغييرات وأوافق على تطبيقها على هذا السيرفر.</label>' : ''}`, complete ? '<button class="btn primary" id="donePlan">تم</button>' : `<button class="btn secondary" id="laterPlan">لاحقًا</button><button class="btn primary" id="applyPlan" ${returnToWorkspace && state.data.connection.readable ? '' : 'disabled'}>نعم، أؤكد التنفيذ</button>`);
+  modal('مراجعة التغييرات', `<div class="notice info"><div><b>${esc(state.data.guild.name)}</b><p>${fmt(done)} من ${fmt(data.operations.length)} عناصر مكتملة · ${fmt(data.changeSet.usage_units || 1)} تغييرًا في هذه الخطة. ${complete ? 'اكتمل التطبيق.' : 'سيُنفّذ غير المكتمل فقط.'}</p></div>${status(data.changeSet.status)}</div>${operationTable(data.changeSet.plan.operations)}<div class="rows">${data.operations.map(op => `<div class="row"><div class="row-main"><b>${esc(data.changeSet.plan.operations.find(item => item.operation_key === op.operation_key)?.name || op.operation_key)}</b>${op.result?.error ? `<small>${esc(op.result.error)}</small>` : ''}</div>${status(op.status)}</div>`).join('')}</div>${!complete && !returnToWorkspace ? '<label class="check-row"><input type="checkbox" id="confirmApply">راجعت التغييرات وأوافق على تطبيقها على هذا السيرفر.</label>' : ''}`, complete ? '<button class="btn primary" id="donePlan">تم</button>' : `<button class="btn secondary" id="laterPlan">لاحقًا</button><button class="btn primary" id="applyPlan" ${returnToWorkspace && state.data.connection.readable ? '' : 'disabled'}>نعم، أؤكد التنفيذ</button>`);
   if (complete) { $('#donePlan').onclick = closeDialog; return; }
   $('#laterPlan').onclick = closeDialog;
   if (!returnToWorkspace) $('#confirmApply').onchange = event => { $('#applyPlan').disabled = !event.target.checked || !state.data.connection.readable; };

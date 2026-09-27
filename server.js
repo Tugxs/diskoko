@@ -520,7 +520,7 @@ async function planCapacity(user, kind, db = pool) {
     return { used: rows[0].count, limit: limits.scheduledMessages };
   }
   if (kind === "changeSetsPerMonth") {
-    const { rows } = await db.query("SELECT ((SELECT COUNT(*) FROM change_sets WHERE user_id=$1 AND status='succeeded' AND updated_at >= date_trunc('month', NOW())) + (SELECT COUNT(*) FROM ai_requests WHERE user_id=$1 AND (sent_message_id IS NOT NULL OR interactive_message_id IS NOT NULL) AND published_at >= date_trunc('month', NOW())) + (SELECT COALESCE(SUM(usage_units),0) FROM ready_template_runs WHERE user_id=$1 AND status IN ('running','succeeded') AND updated_at >= date_trunc('month', NOW())))::int AS count", [user.id]);
+    const { rows } = await db.query("SELECT ((SELECT COALESCE(SUM(usage_units),0) FROM change_sets WHERE user_id=$1 AND status='succeeded' AND updated_at >= date_trunc('month', NOW())) + (SELECT COUNT(*) FROM ai_requests WHERE user_id=$1 AND (sent_message_id IS NOT NULL OR interactive_message_id IS NOT NULL) AND published_at >= date_trunc('month', NOW())) + (SELECT COALESCE(SUM(usage_units),0) FROM ready_template_runs WHERE user_id=$1 AND status IN ('running','succeeded') AND updated_at >= date_trunc('month', NOW())))::int AS count", [user.id]);
     return { used: rows[0].count, limit: limits.changeSetsPerMonth };
   }
   return { used: 0, limit: 0 };
