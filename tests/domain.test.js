@@ -1,6 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { manageable, normalizeOperations, resolveExisting, checkExistingAccess, checkConflict, operationBody, operationUnits, planUsageUnits, connectionState, normalizeSchedule } from '../lib/workspace-domain.js';
+import { manageable, normalizeOperations, resolveExisting, checkExistingAccess, checkConflict, operationBody, operationUnits, planUsageUnits, channelReorderEntries, connectionState, normalizeSchedule } from '../lib/workspace-domain.js';
+
+test('channel reorder converts a visible category position into a consistent sibling order', () => {
+  const channels = [
+    { id: 'one', type: 0, parent_id: 'cat', position: 11 },
+    { id: 'two', type: 0, parent_id: 'cat', position: 12 },
+    { id: 'three', type: 0, parent_id: 'cat', position: 13 },
+    { id: 'four', type: 0, parent_id: 'cat', position: 14 },
+    { id: 'five', type: 0, parent_id: 'cat', position: 15 },
+    { id: 'other', type: 0, parent_id: 'elsewhere', position: 1 },
+  ];
+  assert.deepEqual(channelReorderEntries(channels, channels[4], 3), [
+    { id: 'one', position: 0 }, { id: 'two', position: 1 },
+    { id: 'three', position: 2 }, { id: 'five', position: 3 },
+    { id: 'four', position: 4 },
+  ]);
+});
 const snapshot = { guildId: 'guild', channels: [{ id: 'category', name: 'Welcome', type: 4 }, { id: 'one', name: 'chat', type: 0, parent_id: 'category' }, { id: 'two', name: 'chat', type: 0, parent_id: null }], roles: [{ id: 'guild', name: '@everyone' }, { id: 'managed', name: 'Bot', managed: true }, { id: 'role', name: 'Member', color: 123 }] };
 test('deep channel and role edits validate and preserve Discord settings', () => {
   const role = normalizeOperations([{ resource_type: 'role', action: 'update', resource_id: 'role', name: 'Member', color: 0x9944ee, hoist: true, mentionable: false, permissions: '3072' }], snapshot)[0];
