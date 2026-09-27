@@ -21,6 +21,31 @@ test('reviewed channel update may intentionally change existing permission overw
   const op = { action: 'update', resource_type: 'channel', name: 'الإعلانات', permission_overwrites: [{ id: 'guild', type: 0, allow: '0', deny: '2048' }] };
   assert.doesNotThrow(() => checkExistingAccess(op, channel));
 });
+test('member overrides and channel-specific settings are reviewed before Discord', () => {
+  const server = { ...snapshot, channels: [
+    { id: 'voice', name: 'صوت', type: 2, bitrate: 64000, user_limit: 0 },
+    { id: 'forum', name: 'منتدى', type: 15, available_tags: [{ id: '123456789012345678', name: 'نقاش', moderated: false }] },
+  ] };
+  const member = '123456789012345679';
+  const [voice] = normalizeOperations([{ action: 'update', resource_type: 'channel', resource_id: 'voice', name: 'صوت', bitrate: 96000, rtc_region: null, permission_overwrites: [{ id: member, type: 1, allow: '1024', deny: '2048' }] }], server);
+  assert.equal(operationBody(voice).permission_overwrites[0].type, 1);
+  assert.equal(operationBody(voice).bitrate, 96000);
+  assert.equal(operationUnits(voice), 3);
+  const [forum] = normalizeOperations([{ action: 'update', resource_type: 'channel', resource_id: 'forum', name: 'منتدى', default_forum_layout: 2, available_tags: [{ id: '123456789012345678', name: 'إعلانات' }] }], server);
+  assert.equal(operationBody(forum).default_forum_layout, 2);
+  assert.throws(() => checkConflict(forum, { ...server.channels[1], available_tags: [{ id: '123456789012345678', name: 'تغيّر خارجي' }] }));
+  assert.throws(() => normalizeOperations([{ action: 'update', resource_type: 'channel', resource_id: 'voice', name: 'صوت', topic: 'غير مدعوم' }], server));
+  assert.throws(() => normalizeOperations([{ action: 'update', resource_type: 'channel', resource_id: 'forum', name: 'منتدى', available_tags: [{ id: 'غير موجود', name: 'خطأ' }] }], server));
+});
+test('role appearance validates emoji and enhanced colors before Discord', () => {
+  const server = { ...snapshot, roles: [...snapshot.roles.filter(role => role.id !== 'role'), { id: 'role', name: 'Member', color: 0, colors: { primary_color: 0, secondary_color: null, tertiary_color: null }, unicode_emoji: null }] };
+  const [op] = normalizeOperations([{ action: 'update', resource_type: 'role', resource_id: 'role', name: 'Member', colors: { primary_color: 0x7766aa, secondary_color: 0x334455, tertiary_color: null }, unicode_emoji: '⭐' }], server);
+  assert.equal(operationBody(op).unicode_emoji, '⭐');
+  assert.equal(operationBody(op).icon, null);
+  assert.equal(operationUnits(op), 2);
+  assert.throws(() => normalizeOperations([{ action: 'update', resource_type: 'role', resource_id: 'role', name: 'Member', unicode_emoji: 'hello' }], server));
+  assert.throws(() => normalizeOperations([{ action: 'update', resource_type: 'role', resource_id: 'role', name: 'Member', colors: { primary_color: 2, secondary_color: 3, tertiary_color: 4 } }], server));
+});
 test('usage counts changed settings, including each role permission choice once', () => {
   const sample = { guildId: 'guild', channels: [{ id: 'news', name: 'الإعلانات', type: 0, position: 0, rate_limit_per_user: 0, nsfw: false, permission_overwrites: [{ id: 'guild', type: 0, allow: '0', deny: '2048' }] }], roles: [{ id: 'guild', name: '@everyone' }, { id: 'staff', name: 'إدارة', permissions: '0', color: 0, hoist: false, mentionable: false }] };
   const channel = normalizeOperations([{ resource_type: 'channel', action: 'update', resource_id: 'news', name: 'الإعلانات', rate_limit_per_user: 10, nsfw: false, permission_overwrites: [{ id: 'guild', type: 0, allow: '2048', deny: '0' }] }], sample)[0];

@@ -119,3 +119,5 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 .permission-matrix label{background:#121622;border:1px solid #303448;border-radius:9px;padding:10px 12px}
 .permission-matrix select{margin-top:5px;padding:8px}
 @media(max-width:680px){.resource-editor .form-grid,.permission-group,.permission-matrix{grid-template-columns:1fr}}
+
+.resource-select{flex:0 0 19px;margin:0 0 0 8px}.access-result{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:13px 15px;border:1px solid var(--line);border-radius:11px;background:var(--panel2)}.access-result b{font-size:12px}.access-result span{font-weight:700;color:var(--purple)}.access-result small{grid-column:1/-1}.change-diff{display:grid;gap:5px;margin:8px 0 0;padding:0 18px;color:var(--muted);font-size:11px}.change-diff .after{color:var(--green)}#accessSummary{margin:16px 0}.resource-editor .actions{justify-content:flex-start;flex-wrap:wrap}.permission-matrix small{display:block;margin-top:5px}@media(max-width:680px){.access-result{grid-template-columns:1fr}.access-result small{grid-column:1}}

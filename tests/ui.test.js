@@ -59,6 +59,81 @@ test('channel and role editor exposes detailed permissions before review', async
   assert.ok(doc.querySelector('#resourceHoist'));
   dom.window.close();
 });
+test('channel editor explains effective permissions and filters temporary tickets', async () => {
+  const response = url => {
+    const body = fixtureResponse(url);
+    if (url !== `/api/workspace/${guild.id}`) return body;
+    const copy = structuredClone(body);
+    copy.channels.push({ id: 'ticket', name: 'ticket-123', type: 0, parent_id: copy.channels.find(channel => channel.type === 4)?.id || null, position: 8 });
+    return copy;
+  };
+  const { dom, doc } = await page('builder', response);
+  assert.equal(doc.querySelector('#channelFilter').value, 'permanent');
+  assert.equal(doc.body.textContent.includes('ticket-123'), false);
+  doc.querySelector('#channelFilter').value = 'tickets';
+  doc.querySelector('#channelFilter').dispatchEvent(new dom.window.Event('change'));
+  assert.match(doc.body.textContent, /ticket-123/);
+  doc.querySelector('#channelFilter').value = 'all';
+  doc.querySelector('#channelFilter').dispatchEvent(new dom.window.Event('change'));
+  doc.querySelector('[data-edit="c2"]').click();
+  assert.match(doc.querySelector('[data-permission-result="ViewChannel"]').textContent, /مسموح|ممنوع/);
+  dom.window.close();
+});
+test('access preset stages only the selected channel permission changes', async () => {
+  const { dom, doc } = await page('builder');
+  doc.querySelector('[data-edit="c2"]').click();
+  doc.querySelector('[data-access-preset="read"]').click();
+  assert.equal(doc.querySelector('[data-channel-permission="ViewChannel"]').value, 'allow');
+  assert.equal(doc.querySelector('[data-channel-permission="SendMessages"]').value, 'deny');
+  doc.querySelector('#resourceForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.match(doc.querySelector('#draftBar').textContent, /عدد التغييرات المتوقع/);
+  dom.window.close();
+});
+test('bulk editor stages a separate reviewed change for each selected channel', async () => {
+  const { dom, doc } = await page('builder');
+  const checks = [...doc.querySelectorAll('.resource-select')];
+  assert.ok(checks.length >= 2);
+  checks.slice(0, 2).forEach(check => { check.checked = true; check.dispatchEvent(new dom.window.Event('change')); });
+  doc.querySelector('#batchEdit').click();
+  doc.querySelector('#batchSlowSet').checked = true;
+  doc.querySelector('#batchSlow').value = '15';
+  doc.querySelector('#batchForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.match(doc.querySelector('#draftBar').textContent, /تغييرات/);
+  dom.window.close();
+});
+test('dragging a channel inside its category stages an order change for review', async () => {
+  const { dom, doc } = await page('builder');
+  const source = doc.querySelector('[data-edit="c2"]')?.closest('.row');
+  const target = doc.querySelector('[data-edit="c3"]')?.closest('.row');
+  assert.ok(source && target);
+  const transfer = { data: '', setData(_type, value) { this.data = value; }, getData() { return this.data; }, effectAllowed: '', dropEffect: '' };
+  source.ondragstart({ dataTransfer: transfer });
+  target.ondrop({ dataTransfer: transfer, preventDefault() {} });
+  assert.match(doc.querySelector('#draftBar').textContent, /عدد التغييرات المتوقع/);
+  dom.window.close();
+});
+test('access preview explains current channel access and updates by selected role', async () => {
+  const { dom, doc } = await page('builder');
+  doc.querySelector('[data-tab="access"]').click();
+  assert.ok(doc.querySelector('#accessChannel'));
+  assert.ok(doc.querySelector('#accessRole'));
+  assert.match(doc.querySelector('#accessSummary').textContent, /يمكن رؤية القناة|لا يمكن رؤية القناة/);
+  assert.ok(doc.querySelectorAll('#accessMatrix .access-result').length >= 20);
+  dom.window.close();
+});
+test('role appearance only enables server-supported enhancements', async () => {
+  const response = url => {
+    const body = fixtureResponse(url);
+    if (url !== `/api/workspace/${guild.id}`) return body;
+    return { ...body, guild: { ...body.guild, features: ['ROLE_ICONS', 'ENHANCED_ROLE_COLORS'] } };
+  };
+  const { dom, doc } = await page('builder', response);
+  doc.querySelector('[data-tab="roles"]').click();
+  doc.querySelector('[data-edit="r1"]').click();
+  assert.equal(doc.querySelector('#resourceRoleEmoji').disabled, false);
+  assert.equal(doc.querySelector('#resourceColorStyle option[value="gradient"]').disabled, false);
+  dom.window.close();
+});
 test('channel draft counts settings changed rather than one channel', async () => {
   const { dom, doc } = await page('builder');
   doc.querySelector('[data-edit="c2"]').click();
@@ -133,7 +208,7 @@ test('community alerts show actionable paused giveaways and failed schedules', a
   ] } : fixtureResponse(url);
   const { dom, doc } = await page('alerts', response);
   assert.match(doc.body.textContent, /توقف إعلان الجيف أوي/);
-  assert.equal(doc.querySelectorAll('[data-alert-dismiss]').length, 2);
+  assert.equal(doc.querySelectorAll('[data-alert-dismiss]').length, 3, 'all actionable alerts can be dismissed');
   assert.ok(doc.querySelector('[data-alert-pause="pending"]'));
   assert.ok(doc.querySelector('[data-alert-cancel="5"]'));
   assert.equal(doc.querySelector('[data-alert-retry]'), null, 'missing Discord messages cannot be retried');

@@ -67,7 +67,8 @@ function installAiEmojiPickers() {
 }
 const fmt = value => new Intl.NumberFormat('ar-SA').format(value ?? 0);
 const date = value => value ? new Date(value).toLocaleString('ar-SA', { dateStyle: 'medium', timeStyle: 'short' }) : 'لم يتم بعد';
-const state = { account: null, guild: new URLSearchParams(location.search).get('guild'), data: null, loading: true, error: null, tab: 'channels', draft: [], templates: null, readyCatalog: null, readyRuns: [], readyDraft: null, readyKey: null, readyMode: 'add', epoch: 0, days: 7 };
+const state = { account: null, guild: new URLSearchParams(location.search).get('guild'), data: null, loading: true, error: null, tab: 'channels', channelFilter: 'permanent', draft: [], templates: null, readyCatalog: null, readyRuns: [], readyDraft: null, readyKey: null, readyMode: 'add', epoch: 0, days: 7 };
+function temporaryTicketChannel(channel) { return /^(?:تذكرة|ticket)[-・_]/i.test(String(channel.name || '')); }
 const sections = [ ['overview', '⌂', 'نظرة عامة'], ['alerts', '⚠', 'التنبيهات'], ['builder', '▤', 'القنوات والرتب'], ['ready-templates', '▣', 'قوالب جاهزة'], ['bots', '◈', 'تصاميم بوتاتي'], ['commands', '⌘', 'الأوامر'], ['assistant', '✦', 'AI ديسكوكو'], ['automation', '◷', 'الرسائل المجدولة'], ['analytics', '⌁', 'النشاط والتحليلات'], ['safety', '◇', 'الأمان والصلاحيات'], ['activity', '≡', 'سجل التغييرات'], ['settings', '⚙', 'إعدادات السيرفر'] ];
 const aliases = { dashboard: 'overview', 'bot-settings': 'commands', 'custom-bot': 'bots', 'server-detail': 'builder', preview: 'builder', 'custom-template': 'builder', newserver: 'builder' };
 function screen() { const hash = location.hash.slice(1); return aliases[hash] || (sections.some(([key]) => key === hash) || hash === 'servers' ? hash : 'overview'); }
@@ -102,8 +103,9 @@ function draftChangeUnits(op) {
   const original = (op.resource_type === 'role' ? state.data?.roles : state.data?.channels)?.find(item => item.id === op.resource_id);
   if (!original) return 1;
   let units = 0;
-  const defaults = { hoist: false, mentionable: false, rate_limit_per_user: 0, default_thread_rate_limit_per_user: 0, bitrate: 0, user_limit: 0, nsfw: false, video_quality_mode: 1 };
-  for (const key of ['name','parent_id','topic','position','color','hoist','mentionable','rate_limit_per_user','default_thread_rate_limit_per_user','bitrate','user_limit','nsfw','video_quality_mode']) if (Object.hasOwn(op,key) && (key === 'position' && op.position_changed || String(op[key] ?? '') !== String(original[key] ?? defaults[key] ?? ''))) units++;
+  const defaults = { hoist: false, mentionable: false, rate_limit_per_user: 0, default_thread_rate_limit_per_user: 0, default_auto_archive_duration: 1440, bitrate: 64000, user_limit: 0, rtc_region: null, nsfw: false, video_quality_mode: 1, default_sort_order: 0, default_forum_layout: 0, available_tags: [] };
+  const colors = value => JSON.stringify(['primary_color','secondary_color','tertiary_color'].map(field => value?.[field] ?? null));
+  for (const key of ['name','parent_id','topic','position','color','colors','unicode_emoji','hoist','mentionable','rate_limit_per_user','default_thread_rate_limit_per_user','default_auto_archive_duration','bitrate','user_limit','rtc_region','nsfw','video_quality_mode','default_sort_order','default_forum_layout','available_tags']) if (Object.hasOwn(op,key) && (key === 'position' && op.position_changed || (key === 'colors' ? colors(op[key]) !== colors(original.colors || { primary_color: original.color || 0 }) : key === 'available_tags' ? JSON.stringify(op[key]) !== JSON.stringify(original[key] || []) : String(op[key] ?? '') !== String(original[key] ?? defaults[key] ?? '')))) units++;
   if (Object.hasOwn(op,'permissions')) { let bits = BigInt(op.permissions) ^ BigInt(original.permissions || '0'); while (bits) { bits &= bits - 1n; units++; } }
   if (Object.hasOwn(op,'permission_overwrites')) {
     const before = new Map((original.permission_overwrites || []).map(row => [String(row.id),row]));
@@ -244,41 +246,170 @@ function overview() {
   bindPlans(); bindAlertActions();
 }
 function builder() {
-  const d = state.data; const labels = { channels: 'القنوات والتصنيفات', roles: 'الرتب' };
+  const d = state.data; const labels = { channels: 'القنوات والتصنيفات', roles: 'الرتب', access: 'معاينة الوصول' };
   $('#workspace').innerHTML = head('القنوات والرتب', 'تحكم ببنية سيرفرك من مكان واحد. كل تعديل يمر بمراجعة قبل تطبيقه.') + connectionNotice() + `<div class="notice info"><div><b>لتحكم كامل، امنح البوت صلاحية Administrator وضع رتبته فوق الرتب التي سيعدلها.</b><p>اختر بوت ديسكوكو أو اربط بوتك الخاص من إعدادات السيرفر. بدون الصلاحيات اللازمة سيُرفض التنفيذ قبل تغيير العناصر التي لا يستطيع البوت إدارتها.</p></div>${action('إعدادات البوت', 'settings', 'secondary')}</div><div class="tabs" role="tablist" aria-label="بنية السيرفر">${Object.entries(labels).map(([key, label]) => `<button role="tab" aria-selected="${state.tab === key}" class="tab ${state.tab === key ? 'active' : ''}" data-tab="${key}">${label}</button>`).join('')}</div><div id="builderContent"></div>`;
   document.querySelectorAll('[data-tab]').forEach(button => { button.onclick = () => { state.tab = button.dataset.tab; builder(); }; });
   if (!d.connection.readable) { $('#builderContent').innerHTML = empty('ننتظر اكتمال الاتصال', 'بعد التحقق من الربط، ستظهر البنية الفعلية لسيرفرك.', action('إكمال الربط', 'settings', 'primary')); return; }
+  if (state.tab === 'access') { accessPreview(); return; }
   const roles = state.tab === 'roles';
-  $('#builderContent').innerHTML = `<div class="toolbar"><input class="search" id="resourceSearch" aria-label="بحث في العناصر" placeholder="ابحث بالاسم…"><div class="actions">${!roles ? '<button class="btn secondary" id="newCategory">＋ تصنيف</button>' : ''}<button class="btn primary" id="newResource">＋ ${roles ? 'رتبة جديدة' : 'قناة جديدة'}</button></div></div><section class="panel" id="resourceList"></section>`;
+  $('#builderContent').innerHTML = `<div class="toolbar"><input class="search" id="resourceSearch" aria-label="بحث في العناصر" placeholder="ابحث بالاسم…">${!roles ? `<select id="channelFilter" class="filter-select" aria-label="عرض القنوات"><option value="permanent" ${state.channelFilter === 'permanent' ? 'selected' : ''}>القنوات الأساسية</option><option value="tickets" ${state.channelFilter === 'tickets' ? 'selected' : ''}>التذاكر المؤقتة</option><option value="all" ${state.channelFilter === 'all' ? 'selected' : ''}>كل القنوات</option></select>` : ''}<div class="actions">${!roles ? '<button class="btn secondary" id="newCategory">＋ تصنيف</button>' : ''}<button class="btn primary" id="newResource">＋ ${roles ? 'رتبة جديدة' : 'قناة جديدة'}</button></div></div><section class="panel" id="resourceList"></section>`;
+  const selected = new Set();
+  const batchButton = document.createElement('button'); batchButton.type = 'button'; batchButton.className = 'btn secondary'; batchButton.id = 'batchEdit'; batchButton.disabled = true; batchButton.textContent = 'تعديل جماعي';
+  $('#builderContent .actions').prepend(batchButton);
   function rows(term = '') {
     let html = '';
     if (roles) html = [...d.roles].sort((a, b) => b.position - a.position).filter(role => role.name.toLowerCase().includes(term)).map(role => `<div class="row"><span class="role-dot" style="--role-color:#${Number(role.color || 0xa8b0c8).toString(16).padStart(6, '0')}"></span><div class="row-main"><b>${esc(role.name)}</b><small>${role.managed ? 'يديرها تطبيق' : role.id === state.guild ? 'الرتبة العامة' : 'رتبة مخصصة'}</small></div>${role.managed || role.id === state.guild ? badge('رتبة نظام') : `<button class="btn small secondary" data-edit="${esc(role.id)}" data-kind="role">تعديل</button>`}</div>`).join('');
     else {
       const groups = [{ id: null, name: 'قنوات دون تصنيف' }, ...d.channels.filter(channel => channel.type === 4).sort((a, b) => a.position - b.position)];
       for (const group of groups) {
-        const children = d.channels.filter(channel => channel.type !== 4 && (channel.parent_id || null) === group.id).sort((a, b) => a.position - b.position).filter(channel => `${channel.name} ${group.name}`.toLowerCase().includes(term));
-        if (group.id === null && !children.length) continue;
+        const children = d.channels.filter(channel => channel.type !== 4 && (channel.parent_id || null) === group.id).sort((a, b) => a.position - b.position).filter(channel => `${channel.name} ${group.name}`.toLowerCase().includes(term)).filter(channel => term || state.channelFilter === 'all' || (temporaryTicketChannel(channel) === (state.channelFilter === 'tickets')));
+        if (!children.length && group.id === null) continue;
         if (!children.length && term && !group.name.toLowerCase().includes(term)) continue;
         html += `<div class="tree-category"><span>⌄ ${esc(group.name)} <small>· ${fmt(children.length)}</small></span>${group.id ? `<button class="btn text" data-edit="${esc(group.id)}" data-kind="category">تعديل</button>` : ''}</div>`;
         html += children.map(channel => `<div class="row tree-channel"><span class="row-icon">${channel.type === 2 ? '◖' : '#'}</span><div class="row-main"><b>${esc(channel.name)}</b><small>${channel.type === 2 ? 'قناة صوتية' : channel.type === 0 ? 'قناة نصية' : 'قناة Discord'}</small></div><button class="btn small secondary" data-edit="${esc(channel.id)}" data-kind="channel">تعديل</button></div>`).join('');
       }
     }
     $('#resourceList').innerHTML = html || empty('لا توجد نتائج', 'جرّب اسمًا آخر أو أضف عنصرًا جديدًا.');
+    document.querySelectorAll('#resourceList .row [data-edit]').forEach(button => {
+      const check = document.createElement('input'); check.type = 'checkbox'; check.className = 'resource-select'; check.setAttribute('aria-label', `اختيار ${button.closest('.row')?.querySelector('b')?.textContent || 'عنصر'}`); check.checked = selected.has(button.dataset.edit);
+      check.onchange = () => { if (check.checked) selected.add(button.dataset.edit); else selected.delete(button.dataset.edit); batchButton.disabled = selected.size === 0; batchButton.textContent = `تعديل جماعي${selected.size ? ` (${selected.size})` : ''}`; };
+      button.closest('.row').prepend(check);
+      const row = button.closest('.row'); row.draggable = true;
+      row.title = 'اسحب العنصر فوق عنصر آخر في المجموعة نفسها لترتيبه، أو استخدم حقل الترتيب في تعديل العنصر.';
+      row.ondragstart = event => { event.dataTransfer.setData('text/plain', button.dataset.edit); event.dataTransfer.effectAllowed = 'move'; };
+      row.ondragover = event => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; };
+      row.ondrop = event => {
+        event.preventDefault(); const sourceId = event.dataTransfer.getData('text/plain'); const targetId = button.dataset.edit;
+        if (!sourceId || sourceId === targetId) return;
+        const list = roles ? d.roles : d.channels;
+        const source = list.find(item => item.id === sourceId), target = list.find(item => item.id === targetId);
+        if (!source || !target || (!roles && (source.parent_id || null) !== (target.parent_id || null))) { toast('اسحب القناة داخل تصنيفها نفسه. لن يتغير شيء.'); return; }
+        const position = roles ? Number(target.position) : channelOrder(target, d.channels) - 1;
+        const current = roles ? Number(source.position) : channelOrder(source, d.channels) - 1;
+        if (position === current) return;
+        let op = state.draft.find(item => item.resource_id === sourceId);
+        if (!op) { op = { resource_type: roles ? 'role' : 'channel', action: 'update', resource_id: sourceId, name: source.name }; state.draft.push(op); }
+        op.position = position; if (!roles) op.position_changed = true;
+        saveDraft(); toast(`أُضيف ترتيب «${source.name}» إلى المراجعة. لن يتغير Discord قبل التأكيد.`);
+      };
+    });
     document.querySelectorAll('[data-edit]').forEach(button => { button.onclick = () => editResource(button.dataset.kind, button.dataset.edit); });
   }
   rows(); $('#resourceSearch').oninput = event => rows(event.target.value.trim().toLowerCase());
+  $('#channelFilter')?.addEventListener('change', event => { state.channelFilter = event.target.value; rows($('#resourceSearch').value.trim().toLowerCase()); });
   $('#newResource').onclick = () => editResource(roles ? 'role' : 'channel');
   $('#newCategory')?.addEventListener('click', () => editResource('category'));
+  batchButton.onclick = () => {
+    const resources = (roles ? d.roles : d.channels).filter(item => selected.has(item.id));
+    if (!resources.length) return;
+    const controls = roles
+      ? '<label class="check-row"><input id="batchHoistSet" type="checkbox">تغيير إظهار الأعضاء منفصلين</label><label><select id="batchHoist"><option value="true">إظهار</option><option value="false">إخفاء</option></select></label><label class="check-row"><input id="batchMentionSet" type="checkbox">تغيير السماح بالإشارة</label><label><select id="batchMention"><option value="true">سماح</option><option value="false">منع</option></select></label>'
+      : '<label class="check-row"><input id="batchSlowSet" type="checkbox">تغيير بطء المحادثة للقنوات النصية والمنتديات</label><label>المدة بالثواني<input id="batchSlow" type="number" min="0" max="21600" value="0"></label><label class="check-row"><input id="batchNsfwSet" type="checkbox">تغيير تصنيف البالغين</label><label><select id="batchNsfw"><option value="false">إيقاف</option><option value="true">تفعيل</option></select></label>';
+    modal('تعديل جماعي', `<form id="batchForm" class="form-grid"><p class="form-note">اختر الإعدادات التي تريد تغييرها فقط في ${fmt(resources.length)} عناصر. ستظهر كل قناة أو رتبة على حدة في المراجعة قبل التنفيذ.</p>${controls}</form>`, '<button class="btn secondary" id="cancelBatch">إلغاء</button><button class="btn primary" type="submit" form="batchForm">إضافة للمراجعة</button>');
+    $('#cancelBatch').onclick = closeDialog;
+    $('#batchForm').onsubmit = event => {
+      event.preventDefault();
+      const changed = roles ? $('#batchHoistSet').checked || $('#batchMentionSet').checked : $('#batchSlowSet').checked || $('#batchNsfwSet').checked;
+      if (!changed) { modalError(Error('اختر إعدادًا واحدًا على الأقل.')); return; }
+      for (const item of resources) {
+        const existing = state.draft.find(op => op.resource_id === item.id);
+        const op = existing || { resource_type: roles ? 'role' : 'channel', action: 'update', resource_id: item.id, name: item.name };
+        if (roles) { if ($('#batchHoistSet').checked) op.hoist = $('#batchHoist').value === 'true'; if ($('#batchMentionSet').checked) op.mentionable = $('#batchMention').value === 'true'; }
+        else { if ($('#batchSlowSet').checked && [0,15].includes(item.type)) op.rate_limit_per_user = Number($('#batchSlow').value); if ($('#batchNsfwSet').checked && [0,2,15].includes(item.type)) op.nsfw = $('#batchNsfw').value === 'true'; }
+        if (!existing && draftChangeUnits(op)) state.draft.push(op);
+      }
+      saveDraft(); closeDialog(); toast('أُضيفت التغييرات الجماعية إلى المراجعة.');
+    };
+  };
+}
+function accessPreview() {
+  const channels = state.data.channels.filter(channel => channel.type !== 4);
+  $('#builderContent').innerHTML = `<section class="panel"><div class="panel-head"><div><h3>من يستطيع الوصول فعلًا؟</h3><p class="form-note">اختر قناة ورتبة، أو ابحث عن عضو لحساب رُتبه مجتمعة مع استثناءاته. تظهر المسودة بجانب الوضع الحالي قبل إرسالها إلى Discord.</p></div></div><div class="form-grid"><label>القناة<select id="accessChannel">${channels.map(channel => `<option value="${esc(channel.id)}">${esc(channel.name)}</option>`).join('')}</select></label><label>محاكاة رتبة<select id="accessRole">${state.data.roles.map(role => `<option value="${esc(role.id)}">${esc(role.name)}</option>`).join('')}</select></label><label>أو ابحث عن عضو<input id="accessMemberSearch" type="search" autocomplete="off" placeholder="اكتب اسم العضو أو معرّفه"></label><div id="accessMemberResults" role="status"></div></div><div id="accessSummary"></div><div id="accessMatrix" class="permission-matrix"></div></section>`;
+  let member = null, timer;
+  const render = () => {
+    const channel = channels.find(row => row.id === $('#accessChannel').value);
+    if (!channel) return;
+    const roleId = member?.id || $('#accessRole').value;
+    const memberRoles = member?.roles || null;
+    const draft = state.draft.find(op => op.resource_id === channel.id && Object.hasOwn(op, 'permission_overwrites'));
+    const currentRows = channel.permission_overwrites || [];
+    const plannedRows = draft?.permission_overwrites || currentRows;
+    const result = (bit, rows) => effectivePermission(channel, roleId, bit, rows, memberRoles);
+    const view = result(1024n, plannedRows), send = result(2048n, plannedRows);
+    const parent = state.data.channels.find(row => row.id === channel.parent_id);
+    $('#accessSummary').innerHTML = `<div class="notice ${view.allowed ? 'info' : 'warn'}"><div><b>${member ? esc(member.name) : `محاكاة رتبة ${esc(state.data.roles.find(row => row.id === roleId)?.name || '')}`}: ${view.allowed ? 'يمكن رؤية القناة' : 'لا يمكن رؤية القناة'}</b><p>${send.allowed ? 'يمكن إرسال الرسائل' : 'لا يمكن إرسال الرسائل'} · ${esc(view.source)}${parent ? ` · التصنيف: ${esc(parent.name)}` : ''}${draft ? ' · تشمل النتيجة مسودتك غير المنفذة' : ''}</p></div></div>`;
+    $('#accessMatrix').innerHTML = channelPermissionChoices.map(([key,label,value]) => { const now = result(BigInt(value), currentRows), next = result(BigInt(value), plannedRows); return `<div class="access-result"><b>${esc(label)}</b><span>${next.allowed ? '✓ مسموح' : '× ممنوع'}</span><small>${esc(next.source)}${draft && now.allowed !== next.allowed ? ` · قبل المسودة: ${now.allowed ? 'مسموح' : 'ممنوع'}` : ''}</small></div>`; }).join('');
+  };
+  $('#accessChannel').onchange = render;
+  $('#accessRole').onchange = () => { member = null; $('#accessMemberSearch').value = ''; $('#accessMemberResults').textContent = ''; render(); };
+  $('#accessMemberSearch').oninput = () => {
+    clearTimeout(timer); const query = $('#accessMemberSearch').value.trim();
+    if (query.length < 2) { member = null; $('#accessMemberResults').textContent = 'اكتب حرفين على الأقل.'; render(); return; }
+    timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/workspace/${encodeURIComponent(state.guild)}/members/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json(); if (!response.ok) throw Error(data.error || 'تعذر البحث.');
+        if ($('#accessMemberSearch').value.trim() !== query) return;
+        $('#accessMemberResults').innerHTML = data.members.length ? data.members.map(row => `<button type="button" class="btn secondary small" data-access-member="${esc(row.id)}">${esc(row.name)} <small>${esc(row.username)}</small></button>`).join('') : '<small>لا يوجد عضو مطابق.</small>';
+        document.querySelectorAll('[data-access-member]').forEach(button => { button.onclick = () => { member = data.members.find(row => row.id === button.dataset.accessMember); $('#accessMemberSearch').value = member.name; $('#accessMemberResults').textContent = ''; render(); }; });
+      } catch (error) { $('#accessMemberResults').textContent = error.message; }
+    }, 300);
+  };
+  render();
 }
 const rolePermissionGroups = [
   ['إدارة السيرفر', [['Administrator','التحكم الكامل (Administrator)','8'],['ManageGuild','إدارة السيرفر','32'],['ManageChannels','إدارة القنوات','16'],['ManageRoles','إدارة الرتب','268435456'],['ViewAuditLog','عرض سجل التدقيق','128'],['ManageWebhooks','إدارة Webhooks','536870912']]],
   ['الإشراف والأعضاء', [['KickMembers','طرد الأعضاء','2'],['BanMembers','حظر الأعضاء','4'],['ModerateMembers','إيقاف الأعضاء مؤقتًا','1099511627776'],['ManageNicknames','تغيير ألقاب الآخرين','134217728'],['ManageMessages','إدارة الرسائل','8192']]],
   ['المحادثات', [['ViewChannel','عرض القنوات','1024'],['SendMessages','إرسال الرسائل','2048'],['ReadMessageHistory','قراءة سجل الرسائل','65536'],['EmbedLinks','تضمين الروابط','16384'],['AttachFiles','إرفاق الملفات','32768'],['AddReactions','إضافة التفاعلات','64'],['UseExternalEmojis','استخدام إيموجي خارجي','262144'],['MentionEveryone','الإشارة إلى الجميع','131072'],['CreatePublicThreads','إنشاء سلاسل عامة','34359738368'],['CreatePrivateThreads','إنشاء سلاسل خاصة','68719476736'],['SendMessagesInThreads','الكتابة في السلاسل','274877906944']]],
   ['الصوت', [['Connect','الاتصال بالقنوات الصوتية','1048576'],['Speak','التحدث','2097152'],['Stream','مشاركة الشاشة','512'],['MuteMembers','كتم الأعضاء','4194304'],['DeafenMembers','إسكات الأعضاء','8388608'],['MoveMembers','نقل الأعضاء','16777216'],['PrioritySpeaker','متحدث ذو أولوية','256'],['UseSoundboard','استخدام لوحة الأصوات','4398046511104']]],
+  ['إدارة المجتمع', [['CreateInstantInvite','إنشاء روابط دعوة','1'],['ViewGuildInsights','عرض إحصاءات السيرفر','524288'],['ManageGuildExpressions','إدارة الإيموجيات والملصقات','1073741824'],['CreateGuildExpressions','إنشاء تعبيرات السيرفر','8796093022208'],['ManageEvents','إدارة الفعاليات','8589934592'],['CreateEvents','إنشاء فعاليات','17592186044416'],['ChangeNickname','تغيير لقبه الشخصي','67108864'],['ViewCreatorMonetizationAnalytics','عرض إحصاءات الربح','2199023255552']]],
+  ['الرسائل والسلاسل المتقدمة', [['SendTTSMessages','إرسال رسائل صوتية TTS','4096'],['UseExternalStickers','استخدام ملصقات خارجية','137438953472'],['UseApplicationCommands','استخدام أوامر التطبيقات','2147483648'],['ManageThreads','إدارة السلاسل','17179869184'],['SendVoiceMessages','إرسال رسائل صوتية','70368744177664'],['SendPolls','إنشاء استطلاعات','562949953421312'],['PinMessages','تثبيت الرسائل','2251799813685248'],['BypassSlowmode','تجاوز بطء المحادثة','4503599627370496'],['UseExternalApps','استخدام تطبيقات خارجية','1125899906842624']]],
+  ['الصوت والأنشطة المتقدمة', [['UseVAD','استخدام كشف الصوت التلقائي','33554432'],['RequestToSpeak','طلب التحدث في المنصة','4294967296'],['UseEmbeddedActivities','بدء أنشطة داخل الصوت','549755813888'],['UseExternalSounds','استخدام أصوات خارجية','35184372088832'],['SetVoiceChannelStatus','تعيين حالة القناة الصوتية','281474976710656']]],
 ];
 const channelPermissionChoices = [
-  ['ViewChannel','عرض القناة','1024'],['SendMessages','إرسال الرسائل','2048'],['ReadMessageHistory','قراءة السجل','65536'],['EmbedLinks','تضمين الروابط','16384'],['AttachFiles','إرفاق الملفات','32768'],['AddReactions','إضافة التفاعلات','64'],['MentionEveryone','الإشارة إلى الجميع','131072'],['ManageMessages','إدارة الرسائل','8192'],['CreatePublicThreads','إنشاء سلاسل عامة','34359738368'],['SendMessagesInThreads','الكتابة في السلاسل','274877906944'],['Connect','الاتصال الصوتي','1048576'],['Speak','التحدث','2097152'],['Stream','مشاركة الشاشة','512'],['MuteMembers','كتم الأعضاء','4194304'],['MoveMembers','نقل الأعضاء','16777216']
+  ['ViewChannel','عرض القناة','1024'],['SendMessages','إرسال الرسائل','2048'],['ReadMessageHistory','قراءة السجل','65536'],['EmbedLinks','تضمين الروابط','16384'],['AttachFiles','إرفاق الملفات','32768'],['AddReactions','إضافة التفاعلات','64'],['MentionEveryone','الإشارة إلى الجميع','131072'],['ManageMessages','إدارة الرسائل','8192'],['CreatePublicThreads','إنشاء سلاسل عامة','34359738368'],['SendMessagesInThreads','الكتابة في السلاسل','274877906944'],['Connect','الاتصال الصوتي','1048576'],['Speak','التحدث','2097152'],['Stream','مشاركة الشاشة','512'],['MuteMembers','كتم الأعضاء','4194304'],['MoveMembers','نقل الأعضاء','16777216'],
+  ['CreateInstantInvite','إنشاء دعوة','1'],['SendTTSMessages','رسائل TTS','4096'],['UseExternalEmojis','إيموجيات خارجية','262144'],['UseExternalStickers','ملصقات خارجية','137438953472'],['UseApplicationCommands','أوامر التطبيقات','2147483648'],['ManageThreads','إدارة السلاسل','17179869184'],['CreatePrivateThreads','إنشاء سلاسل خاصة','68719476736'],['ManageWebhooks','إدارة Webhooks','536870912'],['SendVoiceMessages','رسائل صوتية','70368744177664'],['SendPolls','الاستطلاعات','562949953421312'],['PinMessages','تثبيت الرسائل','2251799813685248'],['BypassSlowmode','تجاوز بطء المحادثة','4503599627370496'],['DeafenMembers','إسكات الأعضاء','8388608'],['PrioritySpeaker','متحدث ذو أولوية','256'],['UseSoundboard','لوحة الأصوات','4398046511104'],['UseVAD','كشف الصوت التلقائي','33554432'],['RequestToSpeak','طلب التحدث','4294967296'],['UseEmbeddedActivities','الأنشطة الصوتية','549755813888'],['UseExternalSounds','أصوات خارجية','35184372088832'],['SetVoiceChannelStatus','حالة القناة الصوتية','281474976710656']
 ];
+function channelTypeSettings(item, type) {
+  if (type === 2) return `<details><summary>إعدادات الصوت</summary><div class="form-grid"><label>جودة الصوت (بت/ثانية)<input id="resourceBitrate" type="number" min="8000" max="384000" step="1000" value="${Number(item.bitrate || 64000)}"></label><label>منطقة الاتصال<input id="resourceRegion" value="${esc(item.rtc_region || '')}" placeholder="تلقائي — اتركه فارغًا"></label><label>بطء المحادثة النصية في الصوت<input id="resourceSlowmode" type="number" min="0" max="21600" value="${Number(item.rate_limit_per_user || 0)}"></label><label class="check-row"><input id="resourceNsfw" type="checkbox" ${item.nsfw ? 'checked' : ''}>قناة للبالغين فقط</label></div><p class="form-note">حد جودة الصوت يعتمد على مستوى تعزيز السيرفر. سنتحقق منه قبل إضافة الخطة.</p></details>`;
+  if (![0,15].includes(type)) return '';
+  const archive = Number(item.default_auto_archive_duration || 1440);
+  const threads = `<label>أرشفة السلاسل الجديدة<select id="resourceArchive">${[[60,'بعد ساعة'],[1440,'بعد يوم'],[4320,'بعد 3 أيام'],[10080,'بعد أسبوع']].map(([value,label]) => `<option value="${value}" ${archive === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label>بطء المحادثة داخل السلاسل<input id="resourceThreadSlowmode" type="number" min="0" max="21600" value="${Number(item.default_thread_rate_limit_per_user || 0)}"></label>`;
+  if (type === 0) return `<details><summary>إعدادات السلاسل</summary><div class="form-grid">${threads}</div></details>`;
+  const tags = (item.available_tags || []).map(tag => tag.name).join('\n');
+  return `<details><summary>إعدادات المنتدى</summary><div class="form-grid">${threads}<label>ترتيب المنشورات<select id="resourceForumSort"><option value="0" ${Number(item.default_sort_order || 0) === 0 ? 'selected' : ''}>أحدث نشاط</option><option value="1" ${Number(item.default_sort_order || 0) === 1 ? 'selected' : ''}>أحدث منشور</option></select></label><label>شكل العرض<select id="resourceForumLayout"><option value="0" ${Number(item.default_forum_layout || 0) === 0 ? 'selected' : ''}>افتراضي</option><option value="1" ${Number(item.default_forum_layout || 0) === 1 ? 'selected' : ''}>قائمة</option><option value="2" ${Number(item.default_forum_layout || 0) === 2 ? 'selected' : ''}>معرض</option></select></label><label class="wide">وسوم المنتدى — وسم في كل سطر<textarea id="resourceForumTags" maxlength="420" rows="5">${esc(tags)}</textarea></label></div><p class="form-note">يمكن إضافة حتى 20 وسمًا. احتفظ باسم الوسم الحالي للحفاظ على ارتباط المنشورات به؛ إعادة التسمية تُعامل كوسم جديد.</p></details>`;
+}
+function effectivePermission(channel, roleId, bit, overwrites = channel?.permission_overwrites || [], memberRoleIds = null) {
+  const roles = state.data?.roles || [];
+  if (memberRoleIds && roleId === state.data?.guild?.owner_id) return { allowed: true, source: 'مالك السيرفر يملك الوصول الكامل' };
+  const selectedRoles = memberRoleIds ? [state.guild, ...memberRoleIds] : [state.guild, roleId];
+  const base = roles.filter(role => role.id === state.guild || selectedRoles.includes(role.id)).reduce((value, role) => value | BigInt(role.permissions || '0'), 0n);
+  if (base & 8n) return { allowed: true, source: 'Administrator يتجاوز قيود القناة' };
+  let allowed = Boolean(base & bit), source = allowed ? 'صلاحيات الرتبة أو @everyone في السيرفر' : 'لم تُمنح الصلاحية في السيرفر';
+  const everyone = overwrites.find(entry => String(entry.id) === String(state.guild) && Number(entry.type) === 0);
+  if (everyone && ((BigInt(everyone.allow || '0') | BigInt(everyone.deny || '0')) & bit)) {
+    allowed = Boolean(BigInt(everyone.allow || '0') & bit); source = 'استثناء @everyone في القناة';
+  }
+  const roleRows = overwrites.filter(entry => Number(entry.type) === 0 && selectedRoles.includes(String(entry.id)) && String(entry.id) !== String(state.guild));
+  if (roleRows.some(row => (BigInt(row.deny || '0') & bit) !== 0n)) { allowed = false; source = 'استثناء رتبة في القناة'; }
+  if (roleRows.some(row => (BigInt(row.allow || '0') & bit) !== 0n)) { allowed = true; source = 'استثناء رتبة في القناة'; }
+  if (memberRoleIds) {
+    const member = overwrites.find(entry => String(entry.id) === String(roleId) && Number(entry.type) === 1);
+    if (member && ((BigInt(member.allow || '0') | BigInt(member.deny || '0')) & bit)) {
+      allowed = Boolean(BigInt(member.allow || '0') & bit); source = 'استثناء خاص بهذا العضو';
+    }
+  }
+  if (allowed && bit !== 1024n && !effectivePermission(channel, roleId, 1024n, overwrites, memberRoleIds).allowed) return { allowed: false, source: 'لا يمكن استخدام الصلاحية دون عرض القناة' };
+  if (allowed && [4096n, 16384n, 32768n, 131072n].includes(bit) && !effectivePermission(channel, roleId, 2048n, overwrites, memberRoleIds).allowed) return { allowed: false, source: 'إرسال الرسائل ممنوع، لذا هذا الخيار غير قابل للاستخدام' };
+  if (allowed && [2097152n, 512n, 256n].includes(bit) && !effectivePermission(channel, roleId, 1048576n, overwrites, memberRoleIds).allowed) return { allowed: false, source: 'الاتصال بالقناة الصوتية ممنوع' };
+  return { allowed, source };
+}
+function permissionExplanation(channel, roleId, bit, overwrites = channel?.permission_overwrites || [], memberRoleIds = null) {
+  const result = effectivePermission(channel, roleId, bit, overwrites, memberRoleIds);
+  const parent = state.data?.channels.find(entry => entry.id === channel?.parent_id);
+  const synced = parent && JSON.stringify(parent.permission_overwrites || []) === JSON.stringify(channel?.permission_overwrites || []);
+  return `${result.allowed ? 'مسموح' : 'ممنوع'}: ${result.source}${synced ? ' · القناة متزامنة مع تصنيفها' : ''}.`;
+}
 function advancedEditResource(kind, id, typeOverride, nameDraft) {
   const original = (kind === 'role' ? state.data.roles : state.data.channels).find(item => item.id === id);
   const existing = state.draft.find(item => item.resource_id === id && id);
@@ -287,20 +418,140 @@ function advancedEditResource(kind, id, typeOverride, nameDraft) {
   const role = kind === 'role';
   const label = { role: 'الرتبة', channel: 'القناة', category: 'التصنيف' }[kind];
   const roleFlags = BigInt(item.permissions || '0');
+  const memberTargetOptions = [...new Set((item.permission_overwrites || []).filter(row => Number(row.type) === 1).map(row => String(row.id)))].map(memberId => `<option value="${esc(memberId)}" data-member="1">عضو ${esc(memberId)}</option>`).join('');
   const displayedOrder = role ? null : channelOrder(original, state.data.channels);
   const currentOrder = existing && Object.hasOwn(existing, 'position') ? Number(existing.position) + 1 : displayedOrder;
-  const sections = role ? `<details open><summary>شكل الرتبة وترتيبها</summary><div class="form-grid"><label>اللون<input id="resourceColor" type="color" value="#${Number(item.color || 0x99aab5).toString(16).padStart(6,'0')}"></label><label>الترتيب<input id="resourcePosition" type="number" min="1" max="500" value="${Number(item.position || 1)}"></label><label class="check-row"><input id="resourceHoist" type="checkbox" ${item.hoist ? 'checked' : ''}>إظهار أعضاء هذه الرتبة منفصلين في قائمة الأعضاء</label><label class="check-row"><input id="resourceMentionable" type="checkbox" ${item.mentionable ? 'checked' : ''}>السماح بالإشارة إلى هذه الرتبة</label></div></details><details><summary>صلاحيات الرتبة</summary><p class="form-note">الإعدادات غير المعروضة تبقى كما هي. Administrator يمنح جميع الصلاحيات؛ امنحه فقط لرتبة تثق بها.</p>${rolePermissionGroups.map(([title, flags]) => `<fieldset class="permission-group"><legend>${title}</legend>${flags.map(([key,text,bit]) => `<label class="check-row"><input type="checkbox" data-role-permission="${key}" value="${bit}" ${(roleFlags & BigInt(bit)) !== 0n ? 'checked' : ''}>${text}</label>`).join('')}</fieldset>`).join('')}</details>` : `<details open><summary>تفاصيل ${label}</summary><div class="form-grid">${kind === 'channel' && !id ? '<label>نوع القناة<select id="resourceType"><option value="0">نصية</option><option value="2">صوتية</option><option value="15">منتدى</option></select></label>' : ''}${kind === 'channel' ? `<label>التصنيف<select id="resourceParent"><option value="">دون تصنيف</option>${state.data.channels.filter(c => c.type === 4).map(c => `<option value="${esc(c.id)}" ${item.parent_id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>` : ''}<label>الترتيب<input id="resourcePosition" type="number" min="1" max="501" value="${currentOrder}"></label>${kind === 'channel' && type !== 2 ? `<label>وصف القناة<textarea id="resourceTopic" maxlength="1024" rows="3">${esc(item.topic || '')}</textarea></label><label>بطء المحادثة بالثواني<input id="resourceSlowmode" type="number" min="0" max="21600" value="${Number(item.rate_limit_per_user || 0)}"></label><label class="check-row"><input id="resourceNsfw" type="checkbox" ${item.nsfw ? 'checked' : ''}>قناة للبالغين فقط (NSFW)</label>` : ''}${kind === 'channel' && type === 2 ? `<label>حد الأعضاء (0 = بلا حد)<input id="resourceUserLimit" type="number" min="0" max="99" value="${Number(item.user_limit || 0)}"></label><label>جودة الفيديو<select id="resourceVideoQuality"><option value="1" ${item.video_quality_mode !== 2 ? 'selected' : ''}>تلقائية</option><option value="2" ${item.video_quality_mode === 2 ? 'selected' : ''}>720p</option></select></label>` : ''}</div></details><details><summary>من يرى ${label} وماذا يستطيع أن يفعل؟</summary><p class="form-note">اختر رتبة ثم حدّد السماح أو المنع أو وراثة إعدادات السيرفر. لن تتغير صلاحيات الرتب الأخرى.</p><label>الرتبة<select id="permissionTarget">${state.data.roles.filter(r => !r.managed || r.id === state.guild).map(r => `<option value="${esc(r.id)}">${r.id === state.guild ? '@everyone — جميع الأعضاء' : esc(r.name)}</option>`).join('')}</select></label><div class="permission-matrix">${channelPermissionChoices.map(([key,text]) => `<label>${text}<select data-channel-permission="${key}"><option value="inherit">حسب إعدادات السيرفر</option><option value="allow">سماح</option><option value="deny">منع</option></select></label>`).join('')}</div></details>`;
+  const sections = role ? `<details open><summary>شكل الرتبة وترتيبها</summary><div class="form-grid"><label>اللون<input id="resourceColor" type="color" value="#${Number(item.color || 0x99aab5).toString(16).padStart(6,'0')}"></label><label>الترتيب<input id="resourcePosition" type="number" min="1" max="500" value="${Number(item.position || 1)}"></label><label class="check-row"><input id="resourceHoist" type="checkbox" ${item.hoist ? 'checked' : ''}>إظهار أعضاء هذه الرتبة منفصلين في قائمة الأعضاء</label><label class="check-row"><input id="resourceMentionable" type="checkbox" ${item.mentionable ? 'checked' : ''}>السماح بالإشارة إلى هذه الرتبة</label></div></details><details><summary>صلاحيات الرتبة</summary><p class="form-note">الإعدادات غير المعروضة تبقى كما هي. Administrator يمنح جميع الصلاحيات؛ امنحه فقط لرتبة تثق بها.</p>${rolePermissionGroups.map(([title, flags]) => `<fieldset class="permission-group"><legend>${title}</legend>${flags.map(([key,text,bit]) => `<label class="check-row"><input type="checkbox" data-role-permission="${key}" value="${bit}" ${(roleFlags & BigInt(bit)) !== 0n ? 'checked' : ''}>${text}</label>`).join('')}</fieldset>`).join('')}</details>` : `<details open><summary>تفاصيل ${label}</summary><div class="form-grid">${kind === 'channel' && !id ? '<label>نوع القناة<select id="resourceType"><option value="0">نصية</option><option value="2">صوتية</option><option value="15">منتدى</option></select></label>' : ''}${kind === 'channel' ? `<label>التصنيف<select id="resourceParent"><option value="">دون تصنيف</option>${state.data.channels.filter(c => c.type === 4).map(c => `<option value="${esc(c.id)}" ${item.parent_id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>` : ''}<label>الترتيب<input id="resourcePosition" type="number" min="1" max="501" value="${currentOrder}"></label>${kind === 'channel' && type !== 2 ? `<label>وصف القناة<textarea id="resourceTopic" maxlength="${type === 15 ? 4096 : 1024}" rows="3">${esc(item.topic || '')}</textarea></label><label>بطء المحادثة بالثواني<input id="resourceSlowmode" type="number" min="0" max="21600" value="${Number(item.rate_limit_per_user || 0)}"></label><label class="check-row"><input id="resourceNsfw" type="checkbox" ${item.nsfw ? 'checked' : ''}>قناة للبالغين فقط (NSFW)</label>` : ''}${kind === 'channel' && type === 2 ? `<label>حد الأعضاء (0 = بلا حد)<input id="resourceUserLimit" type="number" min="0" max="99" value="${Number(item.user_limit || 0)}"></label><label>جودة الفيديو<select id="resourceVideoQuality"><option value="1" ${item.video_quality_mode !== 2 ? 'selected' : ''}>تلقائية</option><option value="2" ${item.video_quality_mode === 2 ? 'selected' : ''}>720p</option></select></label>` : ''}</div></details>${kind === 'channel' ? channelTypeSettings(item,type) : ''}<details><summary>من يرى ${label} وماذا يستطيع أن يفعل؟</summary><p class="form-note">اختر رتبة ثم حدّد السماح أو المنع أو وراثة إعدادات السيرفر. لن تتغير صلاحيات الرتب الأخرى.</p><label>الرتبة أو العضو<select id="permissionTarget">${state.data.roles.filter(r => !r.managed || r.id === state.guild).map(r => `<option value="${esc(r.id)}">${r.id === state.guild ? '@everyone — جميع الأعضاء' : esc(r.name)}</option>`).join('')}${memberTargetOptions}</select></label><label>إضافة عضو بالاسم<input id="memberSearch" type="search" autocomplete="off" placeholder="اكتب اسم العضو للبحث"></label><div id="memberSearchResults" role="status"></div><div class="permission-matrix">${channelPermissionChoices.map(([key,text]) => `<label>${text}<select data-channel-permission="${key}"><option value="inherit">بدون استثناء هنا</option><option value="allow">سماح</option><option value="deny">منع</option></select><small data-permission-result="${key}"></small></label>`).join('')}</div></details>`;
   modal(`${id ? 'تعديل' : 'إضافة'} ${label}`, `<form id="resourceForm" class="resource-editor"><label>اسم ${label}<input id="resourceName" required maxlength="100" value="${esc(item.name || '')}" placeholder="اكتب اسمًا واضحًا"></label>${sections}<p class="form-note">ستُحفظ التغييرات في مسودتك أولًا. راجعها وأكّد التنفيذ قبل إرسال أي شيء إلى Discord.</p></form>`, '<button class="btn secondary" id="cancelEdit">إلغاء</button><button class="btn primary" type="submit" form="resourceForm">إضافة للمراجعة</button>');
   $('#cancelEdit').onclick = closeDialog;
+  if (role) {
+    const permissionSection = document.querySelector('[data-role-permission]')?.closest('details');
+    if (permissionSection) {
+      const search = document.createElement('input'); search.type = 'search'; search.placeholder = 'ابحث عن صلاحية بالاسم'; search.setAttribute('aria-label', 'بحث في صلاحيات الرتبة');
+      permissionSection.querySelector('.form-note')?.after(search);
+      search.oninput = () => permissionSection.querySelectorAll('.permission-group').forEach(group => { let visible = 0; group.querySelectorAll('.check-row').forEach(row => { row.hidden = !row.textContent.toLowerCase().includes(search.value.trim().toLowerCase()); if (!row.hidden) visible++; }); group.hidden = visible === 0; });
+    }
+    const features = state.data.guild.features || [];
+    const enhanced = features.includes('ENHANCED_ROLE_COLORS'), icons = features.includes('ROLE_ICONS');
+    const appearance = document.createElement('details');
+    appearance.innerHTML = `<summary>مظهر الرتبة المتقدم</summary><div class="form-grid"><label>نمط اللون<select id="resourceColorStyle"><option value="solid">لون واحد</option><option value="gradient" ${enhanced ? '' : 'disabled'}>لون متدرج</option><option value="holographic" ${enhanced ? '' : 'disabled'}>لون مجسم</option></select></label><label id="resourceSecondaryWrap">اللون الثاني<input id="resourceSecondaryColor" type="color" value="#${Number(item.colors?.secondary_color || 0x7561de).toString(16).padStart(6,'0')}"></label><label>إيموجي رمز الرتبة<input id="resourceRoleEmoji" maxlength="16" value="${esc(item.unicode_emoji || '')}" placeholder="مثال: ⭐" ${icons ? '' : 'disabled'}></label></div><p class="form-note">${enhanced ? 'الألوان المتقدمة متاحة في هذا السيرفر.' : 'التدرج يحتاج ميزة ENHANCED_ROLE_COLORS في السيرفر.'} ${icons ? 'إيموجي الرتبة متاح.' : 'رمز الرتبة يحتاج ميزة ROLE_ICONS.'}</p>`;
+    permissionSection?.before(appearance);
+    const style = $('#resourceColorStyle');
+    style.value = item.colors?.tertiary_color ? 'holographic' : item.colors?.secondary_color ? 'gradient' : 'solid';
+    if (!enhanced && style.value !== 'solid') { const current = document.createElement('option'); current.value = 'retain'; current.textContent = 'الإبقاء على النمط الحالي'; style.add(current); style.value = 'retain'; }
+    const updateStyle = () => { $('#resourceSecondaryWrap').hidden = style.value !== 'gradient'; $('#resourceColor').closest('label').hidden = style.value === 'holographic'; };
+    style.onchange = updateStyle; updateStyle();
+  } else {
+    const matrix = document.querySelector('.permission-matrix');
+    if (matrix && matrix.children.length > 10) {
+      const advanced = document.createElement('details'); advanced.innerHTML = '<summary>صلاحيات إضافية للقناة</summary><div class="permission-matrix"></div>';
+      const target = advanced.querySelector('.permission-matrix');
+      [...matrix.children].slice(10).forEach(row => target.append(row));
+      matrix.after(advanced);
+    }
+  }
   if ($('#resourceType')) { $('#resourceType').value = String(type); $('#resourceType').onchange = event => advancedEditResource(kind, id, Number(event.target.value), $('#resourceName').value); }
   const rows = (item.permission_overwrites || []).map(r => ({ id: String(r.id), type: Number(r.type), allow: String(r.allow || '0'), deny: String(r.deny || '0') }));
-  const showPermissions = () => { const current = rows.find(r => r.id === $('#permissionTarget').value); const allow = BigInt(current?.allow || '0'), deny = BigInt(current?.deny || '0'); document.querySelectorAll('[data-channel-permission]').forEach(select => { const bit = BigInt(channelPermissionChoices.find(c => c[0] === select.dataset.channelPermission)[2]); select.value = (allow & bit) ? 'allow' : (deny & bit) ? 'deny' : 'inherit'; }); };
-  if (!role) { $('#permissionTarget').onchange = showPermissions; showPermissions(); document.querySelectorAll('[data-channel-permission]').forEach(select => { select.onchange = () => { const id = $('#permissionTarget').value; let row = rows.find(r => r.id === id); if (!row) { row = { id, type: 0, allow: '0', deny: '0' }; rows.push(row); } const bit = BigInt(channelPermissionChoices.find(c => c[0] === select.dataset.channelPermission)[2]); let allow = BigInt(row.allow), deny = BigInt(row.deny); allow &= ~bit; deny &= ~bit; if (select.value === 'allow') allow |= bit; if (select.value === 'deny') deny |= bit; row.allow = String(allow); row.deny = String(deny); }; }); }
+  if (!role) {
+    const presets = document.createElement('div'); presets.className = 'actions';
+    presets.innerHTML = '<button type="button" class="btn secondary small" data-access-preset="chat">محادثة مفتوحة</button><button type="button" class="btn secondary small" data-access-preset="read">قراءة فقط</button><button type="button" class="btn secondary small" data-access-preset="hidden">إخفاء القناة</button>';
+    $('#permissionTarget').parentElement.after(presets);
+    presets.querySelectorAll('[data-access-preset]').forEach(button => { button.onclick = () => {
+      const target = $('#permissionTarget').selectedOptions[0];
+      let row = rows.find(entry => entry.id === target.value);
+      if (!row) { row = { id: target.value, type: target.dataset.member === '1' ? 1 : 0, allow: '0', deny: '0' }; rows.push(row); }
+      let allow = BigInt(row.allow), deny = BigInt(row.deny);
+      for (const bit of [1024n, 2048n, 65536n]) { allow &= ~bit; deny &= ~bit; }
+      if (button.dataset.accessPreset === 'chat') allow |= 1024n | 2048n | 65536n;
+      else if (button.dataset.accessPreset === 'read') { allow |= 1024n | 65536n; deny |= 2048n; }
+      else deny |= 1024n;
+      row.allow = String(allow); row.deny = String(deny);
+      showPermissions();
+    }; });
+  }
+  if (!role && kind === 'channel') {
+    const parent = state.data.channels.find(channel => channel.id === item.parent_id && channel.type === 4);
+    if (parent) {
+      const same = (left, right) => JSON.stringify((left || []).map(row => [String(row.id), Number(row.type), String(row.allow || '0'), String(row.deny || '0')]).sort((a,b) => a[0].localeCompare(b[0]))) === JSON.stringify((right || []).map(row => [String(row.id), Number(row.type), String(row.allow || '0'), String(row.deny || '0')]).sort((a,b) => a[0].localeCompare(b[0])));
+      const note = document.createElement('div');
+      note.className = 'notice info';
+      note.innerHTML = `<div><b id="categorySyncState">${same(rows, parent.permission_overwrites) ? 'متزامنة مع التصنيف' : 'صلاحيات مستقلة عن التصنيف'}</b><p>تصنيف «${esc(parent.name)}» هو مصدر الصلاحيات عند المزامنة. نسخ قواعده يحل محل استثناءات القناة بعد المراجعة.</p></div><button type="button" class="btn secondary" id="syncCategoryPermissions">نسخ صلاحيات التصنيف</button>`;
+      $('#permissionTarget').closest('details').prepend(note);
+      $('#syncCategoryPermissions').onclick = () => {
+        rows.splice(0, rows.length, ...(parent.permission_overwrites || []).map(row => ({ id: String(row.id), type: Number(row.type), allow: String(row.allow || '0'), deny: String(row.deny || '0') })));
+        $('#categorySyncState').textContent = 'ستتزامن مع التصنيف بعد التنفيذ';
+        showPermissions();
+      };
+    }
+  }
+  const updatePermissionExplanations = () => {
+    const target = $('#permissionTarget')?.value;
+    if (!target) return;
+    document.querySelectorAll('[data-permission-result]').forEach(node => {
+      const choice = channelPermissionChoices.find(entry => entry[0] === node.dataset.permissionResult);
+      if (choice) {
+        const selected = $('#permissionTarget').selectedOptions[0];
+        if (selected?.dataset.member === '1' && !selected.dataset.roles) { node.textContent = 'ابحث عن العضو باسمه لتفسير صلاحياته من جميع رتبه.'; return; }
+        const memberRoles = selected?.dataset.member === '1' ? JSON.parse(selected.dataset.roles || '[]') : null;
+        node.textContent = permissionExplanation(item, target, BigInt(choice[2]), rows, memberRoles);
+      }
+    });
+  };
+  const showPermissions = () => { const current = rows.find(r => r.id === $('#permissionTarget').value); const allow = BigInt(current?.allow || '0'), deny = BigInt(current?.deny || '0'); document.querySelectorAll('[data-channel-permission]').forEach(select => { const bit = BigInt(channelPermissionChoices.find(c => c[0] === select.dataset.channelPermission)[2]); select.value = (allow & bit) ? 'allow' : (deny & bit) ? 'deny' : 'inherit'; }); updatePermissionExplanations(); };
+  if (!role) { $('#permissionTarget').onchange = showPermissions; showPermissions(); document.querySelectorAll('[data-channel-permission]').forEach(select => { select.onchange = () => { const id = $('#permissionTarget').value; let row = rows.find(r => r.id === id); if (!row) { row = { id, type: $('#permissionTarget').selectedOptions[0]?.dataset.member === '1' ? 1 : 0, allow: '0', deny: '0' }; rows.push(row); } const bit = BigInt(channelPermissionChoices.find(c => c[0] === select.dataset.channelPermission)[2]); let allow = BigInt(row.allow), deny = BigInt(row.deny); allow &= ~bit; deny &= ~bit; if (select.value === 'allow') allow |= bit; if (select.value === 'deny') deny |= bit; row.allow = String(allow); row.deny = String(deny); updatePermissionExplanations(); }; }); }
+  if (!role && $('#memberSearch')) {
+    let searchTimer;
+    $('#memberSearch').oninput = () => {
+      clearTimeout(searchTimer);
+      const query = $('#memberSearch').value.trim();
+      if (query.length < 2) { $('#memberSearchResults').textContent = 'اكتب حرفين على الأقل.'; return; }
+      searchTimer = setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/workspace/${encodeURIComponent(state.guild)}/members/search?q=${encodeURIComponent(query)}`);
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'تعذر البحث عن الأعضاء.');
+          if ($('#memberSearch').value.trim() !== query) return;
+          $('#memberSearchResults').innerHTML = result.members.length ? result.members.map(member => `<button type="button" class="btn secondary small" data-member-result="${esc(member.id)}">${esc(member.name)} <small>${esc(member.username)}</small></button>`).join('') : '<small>لا توجد نتائج مطابقة.</small>';
+          document.querySelectorAll('[data-member-result]').forEach(button => { button.onclick = () => {
+            const member = result.members.find(entry => entry.id === button.dataset.memberResult);
+            let option = [...$('#permissionTarget').options].find(entry => entry.value === member.id);
+            if (!option) { option = new Option(`${member.name} — عضو`, member.id); $('#permissionTarget').add(option); }
+            option.dataset.member = '1'; option.dataset.roles = JSON.stringify(member.roles || []);
+            $('#permissionTarget').value = member.id;
+            $('#memberSearchResults').textContent = '';
+            showPermissions();
+          }; });
+        } catch (error) { $('#memberSearchResults').textContent = error.message; }
+      }, 300);
+    };
+  }
   $('#resourceForm').onsubmit = event => {
     event.preventDefault(); const name = $('#resourceName').value.trim(); if (!name) return;
     const op = { resource_type: kind, action: id ? 'update' : 'create', name, ...(id ? { resource_id: id } : {}) };
     if (!role) { const requestedPosition = Number($('#resourcePosition').value) - 1; if (!id || requestedPosition + 1 !== displayedOrder) { op.position = requestedPosition; if (id) op.position_changed = true; } if (kind === 'channel') { op.parent_id = $('#resourceParent').value || null; if (!id) op.type = Number($('#resourceType').value); if ($('#resourceTopic')) op.topic = $('#resourceTopic').value.trim(); if ($('#resourceSlowmode')) op.rate_limit_per_user = Number($('#resourceSlowmode').value); if ($('#resourceNsfw')) op.nsfw = $('#resourceNsfw').checked; if ($('#resourceUserLimit')) op.user_limit = Number($('#resourceUserLimit').value); if ($('#resourceVideoQuality')) op.video_quality_mode = Number($('#resourceVideoQuality').value); } if (rows.length) op.permission_overwrites = rows; }
-    else { const requestedPosition = Number($('#resourcePosition').value); if (!id || requestedPosition !== Number(original.position ?? 1)) op.position = requestedPosition; op.color = parseInt($('#resourceColor').value.slice(1),16); op.hoist = $('#resourceHoist').checked; op.mentionable = $('#resourceMentionable').checked; let flags = BigInt(item.permissions || '0'); document.querySelectorAll('[data-role-permission]').forEach(input => { const bit = BigInt(input.value); flags = input.checked ? flags | bit : flags & ~bit; }); op.permissions = String(flags); if ((flags & 8n) && !(roleFlags & 8n)) { if (!confirm('هذه الرتبة ستحصل على Administrator والتحكم الكامل في السيرفر. هل تريد متابعتها إلى المراجعة؟')) return; op.confirm_admin = true; } }
+    else { const requestedPosition = Number($('#resourcePosition').value); if (!id || requestedPosition !== Number(original.position ?? 1)) op.position = requestedPosition; op.color = parseInt($('#resourceColor').value.slice(1),16); op.hoist = $('#resourceHoist').checked; op.mentionable = $('#resourceMentionable').checked; let flags = BigInt(item.permissions || '0'); document.querySelectorAll('[data-role-permission]').forEach(input => { const bit = BigInt(input.value); flags = input.checked ? flags | bit : flags & ~bit; }); op.permissions = String(flags); if ((flags & 8n) && !(roleFlags & 8n)) { if (!confirm('هذه الرتبة ستحصل على Administrator والتحكم الكامل في السيرفر. هل تريد متابعتها إلى المراجعة؟')) return; op.confirm_admin = true; }
+      const style = $('#resourceColorStyle')?.value;
+      if (style === 'gradient') { op.colors = { primary_color: op.color, secondary_color: parseInt($('#resourceSecondaryColor').value.slice(1),16), tertiary_color: null }; delete op.color; }
+      else if (style === 'holographic') { op.colors = { primary_color: 11127295, secondary_color: 16759788, tertiary_color: 16761760 }; delete op.color; }
+      else if (style === 'retain') delete op.color;
+      else if (original?.colors?.secondary_color || original?.colors?.tertiary_color) { op.colors = { primary_color: op.color, secondary_color: null, tertiary_color: null }; delete op.color; }
+      if ($('#resourceRoleEmoji') && !$('#resourceRoleEmoji').disabled) { const emoji = $('#resourceRoleEmoji').value.trim() || null; if (!id || emoji !== (original.unicode_emoji || null)) op.unicode_emoji = emoji; }
+    }
+    if (!role && kind === 'channel') {
+      const numberSetting = (selector, key, fallback) => { const input = $(selector); if (input && (!id || Number(input.value) !== Number(original[key] ?? fallback))) op[key] = Number(input.value); };
+      numberSetting('#resourceBitrate', 'bitrate', 64000);
+      numberSetting('#resourceArchive', 'default_auto_archive_duration', 1440);
+      numberSetting('#resourceThreadSlowmode', 'default_thread_rate_limit_per_user', 0);
+      numberSetting('#resourceForumSort', 'default_sort_order', 0);
+      numberSetting('#resourceForumLayout', 'default_forum_layout', 0);
+      if ($('#resourceRegion')) { const region = $('#resourceRegion').value.trim() || null; if (!id || region !== (original.rtc_region || null)) op.rtc_region = region; }
+      if ($('#resourceForumTags')) {
+        const names = $('#resourceForumTags').value.split('\n').map(name => name.trim()).filter(Boolean);
+        const tags = names.map(name => { const previous = original.available_tags?.find(tag => tag.name === name); return { ...(previous?.id ? { id: String(previous.id) } : {}), name, moderated: previous?.moderated === true }; });
+        const before = (original.available_tags || []).map(tag => ({ id: String(tag.id), name: tag.name, moderated: tag.moderated === true }));
+        if (!id || JSON.stringify(tags) !== JSON.stringify(before)) op.available_tags = tags;
+      }
+    }
     if (existing) state.draft[state.draft.indexOf(existing)] = op; else state.draft.push(op);
     saveDraft(); closeDialog(); toast('أُضيف التعديل إلى مسودتك.');
   };
@@ -311,7 +562,7 @@ function editResource(kind, id) {
   const existing = state.draft.find(item => item.resource_id === id && id);
   const item = { ...original, ...existing };
   const label = { role: 'الرتبة', channel: 'القناة', category: 'التصنيف' }[kind];
-  modal(`${id ? 'تعديل' : 'إضافة'} ${label}`, `<form id="resourceForm" class="form-grid"><label>الاسم<input id="resourceName" required maxlength="100" value="${esc(item.name || '')}" placeholder="اكتب اسمًا واضحًا"></label>${kind === 'channel' ? `${!id ? '<label>نوع القناة<select id="resourceType"><option value="0">قناة نصية</option><option value="2">قناة صوتية</option><option value="15">منتدى</option></select></label>' : ''}<label>التصنيف<select id="resourceParent"><option value="">دون تصنيف</option>${state.data.channels.filter(channel => channel.type === 4).map(channel => `<option value="${esc(channel.id)}" ${item.parent_id === channel.id ? 'selected' : ''}>${esc(channel.name)}</option>`).join('')}</select></label><label>الترتيب<input id="resourcePosition" type="number" min="0" max="500" value="${Number(item.position || 0)}"></label>${(item.type ?? 0) !== 2 ? `<label>وصف القناة<textarea id="resourceTopic" maxlength="1024" rows="3" placeholder="اشرح هدف القناة للأعضاء">${esc(item.topic || '')}</textarea></label>` : ''}` : ''}${kind === 'role' ? `<label>ترتيب الرتبة<input id="resourcePosition" type="number" min="1" max="500" value="${Number(item.position || 1)}"></label><label>لون الرتبة<input id="resourceColor" type="color" value="#${Number(item.color || 0x99aab5).toString(16).padStart(6, '0')}"></label>` : ''}<p class="form-note">سيُضاف هذا التعديل إلى قائمة المراجعة. لن يتغير شيء في Discord حتى تراجع وتؤكد التطبيق.</p></form>`, '<button class="btn secondary" id="cancelEdit">إلغاء</button><button class="btn primary" type="submit" form="resourceForm">إضافة للمراجعة</button>');
+  modal(`${id ? 'تعديل' : 'إضافة'} ${label}`, `<form id="resourceForm" class="form-grid"><label>الاسم<input id="resourceName" required maxlength="100" value="${esc(item.name || '')}" placeholder="اكتب اسمًا واضحًا"></label>${kind === 'channel' ? `${!id ? '<label>نوع القناة<select id="resourceType"><option value="0">قناة نصية</option><option value="2">قناة صوتية</option><option value="15">منتدى</option></select></label>' : ''}<label>التصنيف<select id="resourceParent"><option value="">دون تصنيف</option>${state.data.channels.filter(channel => channel.type === 4).map(channel => `<option value="${esc(channel.id)}" ${item.parent_id === channel.id ? 'selected' : ''}>${esc(channel.name)}</option>`).join('')}</select></label><label>الترتيب<input id="resourcePosition" type="number" min="0" max="500" value="${Number(item.position || 0)}"></label>${(item.type ?? 0) !== 2 ? `<label>وصف القناة<textarea id="resourceTopic" maxlength="${type === 15 ? 4096 : 1024}" rows="3" placeholder="اشرح هدف القناة للأعضاء">${esc(item.topic || '')}</textarea></label>` : ''}` : ''}${kind === 'role' ? `<label>ترتيب الرتبة<input id="resourcePosition" type="number" min="1" max="500" value="${Number(item.position || 1)}"></label><label>لون الرتبة<input id="resourceColor" type="color" value="#${Number(item.color || 0x99aab5).toString(16).padStart(6, '0')}"></label>` : ''}<p class="form-note">سيُضاف هذا التعديل إلى قائمة المراجعة. لن يتغير شيء في Discord حتى تراجع وتؤكد التطبيق.</p></form>`, '<button class="btn secondary" id="cancelEdit">إلغاء</button><button class="btn primary" type="submit" form="resourceForm">إضافة للمراجعة</button>');
   $('#cancelEdit').onclick = closeDialog;
   $('#resourceForm').onsubmit = event => {
     event.preventDefault(); const name = $('#resourceName').value.trim(); if (!name) return;
@@ -347,11 +598,41 @@ function operationDetails(op) {
 }
 function operationTable(operations, removable = false) {
   const names = new Map(operations.map(op => [op.operation_key, op.name]));
-  return `<div class="table-wrap"><table><thead><tr><th>الإجراء</th><th>العنصر والتغيير</th>${removable ? '<th>إزالة</th>' : ''}</tr></thead><tbody>${operations.map((op, index) => `<tr><td>${badge(op.action === 'update' ? 'تعديل' : 'إضافة / مطابقة', op.action === 'update' ? 'warn' : 'purple')}</td><td><b>${esc(op.name)}</b><small>${{ channel: op.type === 2 ? 'قناة صوتية' : op.type === 15 ? 'منتدى' : 'قناة', category: 'تصنيف', role: 'رتبة' }[op.resource_type] || ''}${op.before?.name && op.before.name !== op.name ? ` · <span class="before">${esc(op.before.name)}</span> ← <span class="after">${esc(op.name)}</span>` : ''}${op.parent_key ? ` · التصنيف: ${esc(names.get(op.parent_key) || op.parent_name || '')}` : Object.hasOwn(op, 'parent_id') ? ` · التصنيف: ${esc(state.data.channels?.find(c => c.id === op.parent_id)?.name || 'دون تصنيف')}` : ''}${Object.hasOwn(op, 'color') ? ` · اللون: #${Number(op.color).toString(16).padStart(6, '0')}` : ''}${op.access === 'read_only' ? ' · للقراءة فقط' : op.access === 'staff_only' ? ` · خاصة برتبة ${esc(state.data.roles?.find(role => role.id === op.staff_role_id)?.name || 'فريق محدد')}` : ''}${operationDetails(op)}</small></td>${removable ? `<td><button class="btn text" data-remove="${index}" aria-label="إزالة ${esc(op.name)} من قائمة المراجعة">×</button></td>` : ''}</tr>`).join('')}</tbody></table></div>`;
+  const labels = { name: 'الاسم', parent_id: 'التصنيف', topic: 'الوصف', position: 'الترتيب', color: 'اللون', hoist: 'إظهار الرتبة منفصلة', mentionable: 'إمكانية الإشارة', rate_limit_per_user: 'بطء المحادثة', default_thread_rate_limit_per_user: 'بطء السلاسل', default_auto_archive_duration: 'أرشفة السلاسل', bitrate: 'جودة الصوت', user_limit: 'حد الأعضاء', rtc_region: 'منطقة الصوت', nsfw: 'قناة للبالغين', video_quality_mode: 'جودة الفيديو', default_sort_order: 'ترتيب المنتدى', default_forum_layout: 'عرض المنتدى' };
+  const beforeAfter = op => {
+    if (op.action !== 'update') return '';
+    const old = { ...((op.resource_type === 'role' ? state.data.roles : state.data.channels)?.find(row => row.id === op.resource_id) || {}), ...(op.before || {}) };
+    const changes = Object.entries(labels).filter(([key]) => Object.hasOwn(op, key) && (key !== 'position' || op.position_changed) && String(old[key] ?? '') !== String(op[key] ?? ''));
+    const display = (key, value) => key === 'position' && op.resource_type !== 'role' ? String(Number(value ?? 0) + 1) : typeof value === 'boolean' ? value ? 'مفعّل' : 'معطّل' : String(value ?? 'غير محدد');
+    return changes.length ? `<ul class="change-diff">${changes.map(([key,label]) => `<li>${label}: <span class="before">${esc(display(key, old[key]))}</span> ← <span class="after">${esc(display(key, op[key]))}</span></li>`).join('')}</ul>` : '';
+  };
+  return `<div class="table-wrap"><table><thead><tr><th>الإجراء</th><th>العنصر والتغيير</th>${removable ? '<th>إزالة</th>' : ''}</tr></thead><tbody>${operations.map((op, index) => `<tr><td>${badge(op.action === 'update' ? 'تعديل' : 'إضافة / مطابقة', op.action === 'update' ? 'warn' : 'purple')}</td><td><b>${esc(op.name)}</b><small>${{ channel: op.type === 2 ? 'قناة صوتية' : op.type === 15 ? 'منتدى' : 'قناة', category: 'تصنيف', role: 'رتبة' }[op.resource_type] || ''}${op.before?.name && op.before.name !== op.name ? ` · <span class="before">${esc(op.before.name)}</span> ← <span class="after">${esc(op.name)}</span>` : ''}${op.parent_key ? ` · التصنيف: ${esc(names.get(op.parent_key) || op.parent_name || '')}` : Object.hasOwn(op, 'parent_id') ? ` · التصنيف: ${esc(state.data.channels?.find(c => c.id === op.parent_id)?.name || 'دون تصنيف')}` : ''}${Object.hasOwn(op, 'color') ? ` · اللون: #${Number(op.color).toString(16).padStart(6, '0')}` : ''}${op.access === 'read_only' ? ' · للقراءة فقط' : op.access === 'staff_only' ? ` · خاصة برتبة ${esc(state.data.roles?.find(role => role.id === op.staff_role_id)?.name || 'فريق محدد')}` : ''}${operationDetails(op)}</small>${beforeAfter(op)}</td>${removable ? `<td><button class="btn text" data-remove="${index}" aria-label="إزالة ${esc(op.name)} من قائمة المراجعة">×</button></td>` : ''}</tr>`).join('')}</tbody></table></div>`;
+}
+function draftWarnings(operations) {
+  const warnings = [];
+  const view = 1024n, send = 2048n;
+  for (const op of operations) {
+    if (op.resource_type === 'role' && Object.hasOwn(op, 'permissions') && (BigInt(op.permissions) & 8n)) warnings.push(`الرتبة «${op.name}» تملك Administrator؛ ستتجاوز معظم قيود القنوات.`);
+    if (!['channel', 'category'].includes(op.resource_type)) continue;
+    for (const row of op.permission_overwrites || []) {
+      const allow = BigInt(row.allow || '0'), deny = BigInt(row.deny || '0');
+      const target = row.id === state.guild ? '@everyone' : state.data.roles?.find(role => role.id === row.id)?.name || `العضو ${row.id}`;
+      if ((deny & view) && (allow & send)) warnings.push(`في «${op.name}»: ${target} يمكنه الإرسال بحسب الاستثناء لكنه ممنوع من رؤية القناة؛ راجع قاعدة الوصول.`);
+      if (row.id === state.guild && (deny & view)) warnings.push(`القناة «${op.name}» مخفية عن جميع الأعضاء ما لم تسمح لهم رتبة أو استثناء آخر برؤيتها.`);
+    }
+    const original = state.data.channels?.find(channel => channel.id === op.resource_id);
+    if (original?.parent_id && Object.hasOwn(op, 'permission_overwrites')) {
+      const parent = state.data.channels.find(channel => channel.id === original.parent_id);
+      const normalized = rows => JSON.stringify((rows || []).map(row => [String(row.id), Number(row.type), String(row.allow || '0'), String(row.deny || '0')]).sort((a,b) => a[0].localeCompare(b[0])));
+      if (parent && normalized(original.permission_overwrites) === normalized(parent.permission_overwrites) && normalized(op.permission_overwrites) !== normalized(parent.permission_overwrites)) warnings.push(`«${op.name}» متزامنة الآن مع التصنيف؛ هذه التغييرات ستجعل صلاحياتها مستقلة عنه.`);
+    }
+  }
+  return warnings;
 }
 function reviewLocal() {
   const units = state.draft.reduce((total, op) => total + draftChangeUnits(op), 0);
-  modal('مراجعة مسودتك', `<p class="form-note">السيرفر المستهدف: <b>${esc(state.data.guild.name)}</b>. عدد التغييرات المتوقع: ${fmt(units)} في ${fmt(state.draft.length)} عناصر. كل إعداد مختلف يُحسب مرة؛ حفظ الخطة لا يطبق شيئًا في Discord.</p>${!units ? '<p class="form-note">لم يتغير أي إعداد. أزل العناصر غير المعدلة أو غيّر أحد خياراتها.</p>' : ''}${operationTable(state.draft, true)}`, `<button class="btn primary" id="savePlan" ${units ? '' : 'disabled'}>حفظ خطة التغييرات</button>`);
+  const warnings = draftWarnings(state.draft);
+  modal('مراجعة مسودتك', `<p class="form-note">السيرفر المستهدف: <b>${esc(state.data.guild.name)}</b>. عدد التغييرات المتوقع: ${fmt(units)} في ${fmt(state.draft.length)} عناصر. كل إعداد مختلف يُحسب مرة؛ حفظ الخطة لا يطبق شيئًا في Discord.</p>${!units ? '<p class="form-note">لم يتغير أي إعداد. أزل العناصر غير المعدلة أو غيّر أحد خياراتها.</p>' : ''}${warnings.length ? `<div class="notice warn"><div><b>نقاط تحتاج انتباهك قبل التنفيذ</b>${warnings.map(message => `<p>${esc(message)}</p>`).join('')}</div></div>` : ''}${operationTable(state.draft, true)}`, `<button class="btn primary" id="savePlan" ${units ? '' : 'disabled'}>حفظ خطة التغييرات</button>`);
   document.querySelectorAll('[data-remove]').forEach(button => { button.onclick = () => { state.draft.splice(Number(button.dataset.remove), 1); saveDraft(); if (state.draft.length) reviewLocal(); else closeDialog(); }; });
   $('#savePlan').onclick = async event => { event.currentTarget.disabled = true; try { const created = await api('/api/change-sets', { method: 'POST', body: JSON.stringify({ guildId: state.guild, operations: state.draft }) }); state.draft = []; saveDraft(); closeDialog(); await loadGuild(); await showPlan(created.changeSet.id); } catch (error) { modalError(error); $('#savePlan').disabled = false; } };
 }
