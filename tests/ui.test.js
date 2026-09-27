@@ -69,6 +69,32 @@ test('channel draft counts settings changed rather than one channel', async () =
   assert.match(doc.querySelector('#draftBar').textContent, /عدد التغييرات المتوقع: ٢/);
   dom.window.close();
 });
+test('channel order is shown from one and unchanged order is not staged', async () => {
+  const { dom, doc } = await page('builder');
+  doc.querySelector('[data-edit="c2"]').click();
+  assert.equal(doc.querySelector('#resourcePosition').value, '1');
+  doc.querySelector('#resourceSlowmode').value = '10';
+  doc.querySelector('#resourceForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.match(doc.querySelector('#draftBar').textContent, /عدد التغييرات المتوقع: ١/);
+  dom.window.close();
+});
+test('channel order follows its visible position within the category even when Discord positions repeat', async () => {
+  const response = url => {
+    const body = fixtureResponse(url);
+    if (url !== `/api/workspace/${guild.id}`) return body;
+    const copy = structuredClone(body);
+    copy.channels.find(channel => channel.id === 'c3').position = 0;
+    return copy;
+  };
+  const { dom, doc } = await page('builder', response);
+  doc.querySelector('[data-edit="c3"]').click();
+  assert.equal(doc.querySelector('#resourcePosition').value, '2');
+  doc.querySelector('[data-channel-permission="SendMessages"]').value = 'deny';
+  doc.querySelector('[data-channel-permission="SendMessages"]').dispatchEvent(new dom.window.Event('change'));
+  doc.querySelector('#resourceForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.match(doc.querySelector('#draftBar').textContent, /عدد التغييرات المتوقع: ١/);
+  dom.window.close();
+});
 test('ready templates open as an independent section with both sources and a Discord preview', async () => {
   const response = url => url === '/api/ready-templates' ? { templates: READY_TEMPLATES } : fixtureResponse(url);
   const { dom, doc } = await page('ready-templates', response, 'studio.html', 'workspace.js', window => { window.structuredClone = structuredClone; });
