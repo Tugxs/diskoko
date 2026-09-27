@@ -190,13 +190,13 @@ test('ready templates open as an independent section with both sources and a Dis
   doc.querySelector('[data-ready-choose="server-my-arabic"]').click();
   assert.equal(doc.querySelectorAll('.ready-executor-option').length, 2);
   assert.match(doc.querySelector('.ready-executor-option strong').textContent, /ديسكوكو/);
-  assert.match(doc.querySelector('.bot-hierarchy-notice').textContent, /Administrator/);
+  assert.match(doc.querySelector('.ready-admin-banner').textContent, /Administrator/);
   assert.equal(doc.querySelector('.ready-executor-option img')?.getAttribute('src'), '/assets/diskoko-logo.png');
   assert.ok(doc.querySelector('#readyPreview .ready-discord'));
   assert.ok(doc.querySelector('input[name="readyMode"][value="replace"]'));
   assert.equal(doc.querySelectorAll('#readyPreview .ready-discord-category').length, 7);
   assert.equal(doc.querySelectorAll('#readyPreview .ready-discord-channel').length, 23);
-  assert.match(doc.querySelector('.ready-unit-note').textContent, /٣٣/);
+  assert.match(doc.querySelector('.ready-unit-note').textContent, /٣٧/);
   assert.ok(doc.querySelector('input[name="readyExecutor"][value="custom"]'));
   assert.ok(doc.querySelector('#readyTicketImage'));
   assert.match(doc.querySelector('#ready-welcome-inline-preview').textContent, /أهلًا بك/);

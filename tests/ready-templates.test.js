@@ -2,15 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { READY_TEMPLATES, normalizeReadyDefinition, readyTemplateDiff, readyUsageUnits } from '../lib/ready-templates.js';
 
-test('ready template usage counts categories, channels and enabled systems without counting roles', () => {
+test('ready template usage counts roles, categories, channels and enabled systems', () => {
   const arabic = normalizeReadyDefinition(READY_TEMPLATES[0].definition);
   assert.equal(arabic.categories.length, 7);
   assert.equal(arabic.categories.flatMap(group => group.channels).length, 23);
-  assert.equal(readyUsageUnits(arabic), 33);
+  assert.equal(readyUsageUnits(arabic), 37);
   const extraRole = structuredClone(arabic); extraRole.roles.push({ key: 'extra-role', name: 'Extra', preset: 'member', color: 0 });
-  assert.equal(readyUsageUnits(extraRole), 33);
+  assert.equal(readyUsageUnits(extraRole), 38);
   const streamer = normalizeReadyDefinition(READY_TEMPLATES[1].definition);
-  assert.equal(readyUsageUnits(streamer), 44);
+  assert.equal(readyUsageUnits(streamer), 71);
 });
 
 test('welcome composite and support artwork are retained only with valid settings', () => {
@@ -45,7 +45,7 @@ test('Diskoko Gaming Arabic remains compact with working welcome, ticket and act
   assert.equal(definition.categories.length, 6);
   assert.equal(definition.categories.flatMap(group => group.channels).length, 20);
   assert.equal(definition.roles.length, 5);
-  assert.equal(readyUsageUnits(definition), 29);
+  assert.equal(readyUsageUnits(definition), 34);
   assert.equal(definition.features.welcome.enabled, true);
   assert.equal(definition.features.ticket.enabled, true);
   assert.equal(definition.features.logs.events.includes('command'), true);
@@ -59,7 +59,7 @@ test('Diskoko Streamer gives the creator posting access without exposing subscri
   assert.equal(template.name, 'Diskoko Streamer');
   assert.equal(definition.categories.length, 7);
   assert.equal(channels.length, 21);
-  assert.equal(readyUsageUnits(definition), 31);
+  assert.equal(readyUsageUnits(definition), 36);
   assert.equal(channels.find(channel => channel.key === 'live').postRoleKey, 'streamer');
   assert.equal(channels.find(channel => channel.key === 'subscriber-chat').roleKey, 'subscriber');
   assert.equal(definition.features.welcome.enabled && definition.features.ticket.enabled && definition.features.logs.enabled, true);
@@ -128,7 +128,7 @@ test('multiple log rules accept shared destinations and count one unit per rule'
   ] };
   const normalized = normalizeReadyDefinition(definition);
   assert.equal(normalized.features.logs.routes.length, 2);
-  assert.equal(readyUsageUnits(normalized), 34);
+  assert.equal(readyUsageUnits(normalized), 38);
   definition.features.logs.routes[1].sourceKeys = [channels[2].key];
   assert.throws(() => normalizeReadyDefinition(definition), /مصادر اللوق/);
 });
