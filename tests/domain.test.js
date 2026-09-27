@@ -163,3 +163,14 @@ test('invalid schedule time, size and timezone are rejected', () => {
   assert.throws(() => normalizeSchedule({ ...valid, timezone: 'bad-zone' }, 0));
   assert.throws(() => normalizeSchedule({ ...valid, run_at: 'invalid' }, 0));
 });
+
+test('saved reorder history retains its original visible position after live data changes', () => {
+  const current = structuredClone(snapshot);
+  current.channels.push({ id:'third', name:'third', type:0, parent_id:'category', position:20 });
+  current.channels.find(row => row.id === 'one').position = 11;
+  const op = normalizeOperations([{ action:'update', resource_type:'channel', resource_id:'third', name:'third', position:0, position_changed:true }], current)[0];
+  assert.equal(op.position_before_display, 2);
+  current.channels.find(row => row.id === 'third').position = 0;
+  assert.equal(op.position_before_display, 2);
+  assert.equal(Object.hasOwn(operationBody(op),'position_before_display'), false);
+});
