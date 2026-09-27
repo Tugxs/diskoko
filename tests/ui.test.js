@@ -119,6 +119,7 @@ test('access preview explains current channel access and updates by selected rol
   assert.ok(doc.querySelector('#accessRole'));
   assert.match(doc.querySelector('#accessSummary').textContent, /يمكن رؤية القناة|لا يمكن رؤية القناة/);
   assert.ok(doc.querySelectorAll('#accessMatrix .access-result').length >= 20);
+  assert.doesNotMatch(doc.querySelector('#accessMatrix').textContent, /كتم الأعضاء/);
   dom.window.close();
 });
 test('role appearance only enables server-supported enhancements', async () => {
