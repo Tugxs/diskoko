@@ -27,3 +27,4 @@ export const aiPromptLibrary = Object.freeze([
 ]);
 
 export const readyAiTemplate = (category, title) => aiPromptLibrary.find(item => !item.moduleKind && item.category === category && item.title === title) || null;
+export const readyAiModule = (category, title) => aiPromptLibrary.find(item => item.moduleKind && item.category === category && item.title === title) || null;

@@ -447,14 +447,29 @@ test('AI module cards open their own setup and the library can expand', async ()
   const { dom, doc } = await page('assistant', fixtureResponse);
   const index = aiPromptLibrary.findIndex(item => item.moduleKind === 'orders');
   doc.querySelector(`[data-ai-template="${index}"]`).click();
-  assert.match(doc.querySelector('#dialogContent').textContent, /طلبات المتجر/);
-  assert.equal(doc.querySelector('#moduleSubjectLabel').value, 'المنتج أو الخدمة المطلوبة');
-  assert.ok(doc.querySelector('#moduleReviewChannel'));
-  assert.equal(doc.querySelector('#assistantPrompt').value, '');
-  doc.querySelector('#dialogContent button#moduleCancel').click();
+  assert.equal(doc.querySelector('#dialogContent').textContent.includes('طلبات المتجر'), false);
+  assert.match(doc.querySelector('#assistantPrompt').value, /طلب منتج/);
+  assert.match(doc.querySelector('#aiTemplateDraft').textContent, /أرسل الطلب أولًا/);
+  doc.querySelector('#aiNew').click();
   doc.querySelector('#aiLibraryExpand').click();
   assert.equal(doc.querySelector('#aiLibraryExpand').getAttribute('aria-expanded'), 'true');
   assert.ok(doc.querySelector('.ai-chat-layout').classList.contains('ai-library-expanded'));
+  dom.window.close();
+});
+test('completed AI module reply opens its specific editor only after the request was sent', async () => {
+  const id = '22222222-2222-4222-8222-222222222222';
+  const conversation = '11111111-1111-4111-8111-111111111111';
+  const response = url => url === '/api/ai/status' ? { available: true, planEnabled: true }
+    : url.startsWith('/api/ai/conversations?') ? { conversations: [{ id: conversation, title: 'مهام الفريق', updated_at: '2026-09-22T00:00:00Z' }] }
+      : url === `/api/ai/conversations/${conversation}/messages` ? { messages: [{ id, prompt: 'أريد مهام فريق الإدارة', answer: 'جهزت الميزة. افتح الإعدادات.', status: 'completed', library_mode: 'module', library_category: 'مميزات السيرفر', library_title: 'مهام فريق الإدارة' }] }
+        : fixtureResponse(url);
+  const { dom, doc } = await page('assistant', response);
+  doc.querySelector('.ai-conversation').click(); await settle();
+  assert.ok(doc.querySelector('[data-ai-module]'));
+  assert.equal(doc.querySelector('#moduleTitle'), null);
+  doc.querySelector('[data-ai-module]').click();
+  assert.match(doc.querySelector('#dialogContent').textContent, /مهام فريق الإدارة/);
+  assert.equal(doc.querySelector('#moduleSubjectLabel').value, 'عنوان مهمة الفريق');
   dom.window.close();
 });
 test('AI chat exposes reviewed Discord actions, image attachment and voice transcription control', async () => {
