@@ -752,7 +752,7 @@ async function prepareAiImage(file) {
   }
   throw Error('الصورة كبيرة جدًا بعد الضغط. اختر صورة أصغر.');
 }
-function readyCounts(definition) { const categories = definition.categories.length, channels = definition.categories.reduce((n, group) => n + group.channels.length, 0), roles = definition.roles.length, features = ['welcome','ticket'].filter(kind => definition.features?.[kind]?.enabled).length + (definition.features?.logs?.enabled ? definition.features.logs.mode === 'routed' ? (definition.features.logs.routes || []).length : 1 : 0); return { categories, channels, roles, features, units: roles + categories + channels + features }; }
+function readyCounts(definition) { const categories = definition.categories.length, channels = definition.categories.reduce((n, group) => n + group.channels.length, 0), roles = definition.roles.length, features = ['welcome','ticket'].filter(kind => definition.features?.[kind]?.enabled).length + (definition.features?.logs?.enabled ? definition.features.logs.mode === 'routed' ? (definition.features.logs.routes || []).length : 1 : 0) + (definition.features?.guides?.length || 0); return { categories, channels, roles, features, units: roles + categories + channels + features }; }
 function readyPreview(definition) {
   const roleNames = new Map(definition.roles.map(role => [role.key, role.name]));
   return `<div class="ready-discord" dir="rtl"><aside><strong>✦ ${esc(state.data.guild.name)}</strong>${definition.categories.map(group => `<div class="ready-discord-category"><b>⌄ ${esc(group.name)}</b>${group.channels.map(channel => `<div class="ready-discord-channel"><span>${channel.type === 2 ? '◖' : '#'}</span>${esc(channel.name)}${channel.access === 'private' ? '<small>🔒</small>' : ''}</div>`).join('')}</div>`).join('')}</aside><main><b>معاينة القنوات والبطاقات</b><p>شكل تقريبي داخل Discord؛ سيستخدم السيرفر اسمه وصورته الحقيقيين.</p>${definition.features?.welcome?.enabled ? `<div class="ready-preview-card" style="--ready-accent:${esc(definition.features.welcome.color || '#8d72e8')}">${definition.features.welcome.banner?.base64 ? `<img class="ready-banner" src="data:${esc(definition.features.welcome.banner.mime)};base64,${esc(definition.features.welcome.banner.base64)}" alt="صورة الترحيب">` : ''}<strong>${esc(definition.features.welcome.title)}</strong><p>${esc(definition.features.welcome.description.replaceAll('{member}', '@عضو جديد'))}</p><small>في #${esc(definition.categories.flatMap(group => group.channels).find(channel => channel.key === definition.features.welcome.channelKey)?.name || '')} · صورة العضو ${esc({ left: 'يسارًا', right: 'يمينًا', top: 'فوق النص' }[definition.features.welcome.avatarPosition] || 'يمينًا')}</small></div>` : ''}${definition.features?.ticket?.enabled ? `<div class="ready-preview-card"><strong>${esc(definition.features.ticket.title)}</strong><p>${esc(definition.features.ticket.description)}</p><button class="btn small primary" disabled>فتح تذكرة دعم</button></div>` : ''}<div class="ready-role-list"><b>الرتب وصلاحياتها</b>${definition.roles.map(role => `<span><i style="background:#${Number(role.color).toString(16).padStart(6, '0')}"></i>${esc(role.name)} <small>${esc(role.preset === 'moderator' ? 'إشراف محدود' : role.preset === 'support' ? 'دعم' : 'عضو')}</small></span>`).join('')}</div><p class="form-note">القنوات الخاصة لا يراها إلا أعضاء رتبة ${esc([...roleNames.values()].join('، '))} بحسب اختيارك. القنوات النصية للقراءة فقط تمنع رسائل الأعضاء.</p></main></div>`;
@@ -803,6 +803,16 @@ function readyDecoratePreview() {
     const note = document.createElement('small'); note.textContent = `${(logs.events || []).length} أنواع أحداث · نص المحذوف يظهر إذا سمح Discord للبوت بقراءته`; box.append(note);
     document.querySelector('#readyPreview .ready-discord main')?.append(box);
   }
+  const guides = state.readyDraft.features.guides || [];
+  const channels = state.readyDraft.categories.flatMap(group => group.channels);
+  for (const guide of guides) {
+    const card = document.createElement('div'); card.className = 'ready-guide-preview';
+    const title = document.createElement('strong'); title.textContent = guide.title;
+    const description = document.createElement('p'); description.textContent = guide.description;
+    const location = document.createElement('small'); location.textContent = `بطاقة بداية في #${channels.find(channel => channel.key === guide.channelKey)?.name || 'اختر قناة'}`;
+    card.append(title, description, location);
+    document.querySelector('#readyPreview .ready-discord main')?.append(card);
+  }
 }
 function readySelectOptions(items, chosen) { return items.map(item => `<option value="${esc(item.key)}" ${item.key === chosen ? 'selected' : ''}>${esc(item.name)}</option>`).join(''); }
 async function readyTemplatesPage() {
@@ -852,7 +862,7 @@ function readyDraftUpdate(field, value) {
   readySaveDraft();
   const preview = $('#readyPreview'); if (preview) { preview.innerHTML = readyPreview(state.readyDraft); readyDecoratePreview(); }
   const counts = $('#readyCounts'); if (counts) { const c = readyCounts(state.readyDraft); counts.textContent = `${fmt(c.units)} تغييرًا · ${fmt(c.categories)} تصنيفات · ${fmt(c.channels)} قنوات · ${fmt(c.roles)} رتب`; }
-  const note = $('.ready-unit-note'); if (note) { const c = readyCounts(state.readyDraft); note.textContent = `الاستهلاك المتوقع: ${fmt(c.units)} تغييرًا = ${fmt(c.roles)} رتب + ${fmt(c.categories)} تصنيفات + ${fmt(c.channels)} قنوات + ${fmt(c.features)} تشغيل تلقائي. عند الإيقاف تُحسب الخطوات المكتملة فقط.`; }
+  const note = $('.ready-unit-note'); if (note) { const c = readyCounts(state.readyDraft); note.textContent = `الاستهلاك المتوقع: ${fmt(c.units)} تغييرًا = ${fmt(c.roles)} رتب + ${fmt(c.categories)} تصنيفات + ${fmt(c.channels)} قنوات + ${fmt(c.features)} ميزات وبطاقات. عند الإيقاف تُحسب الخطوات المكتملة فقط.`; }
 }
 function readyNewKey(prefix) { return `${prefix}-${Math.random().toString(36).slice(2, 9)}`; }
 function readyStorageKey(key = state.readyKey) { return `diskoko:template:${state.account?.user?.id}:${state.guild}:${key}`; }
@@ -870,15 +880,15 @@ function botHierarchyNotice(context) {
   return `<div class="notice info bot-hierarchy-notice" role="note"><div><b>⚠ قبل ${context}: تأكد من صلاحيات البوت وترتيب رتبته</b><p>افتح Discord ← إعدادات السيرفر ← الرتب، وارفع رتبة <strong>البوت الذي اخترته للتنفيذ</strong> فوق الرتب التي سيُنشئها أو يعدّلها أو يحذفها. للتنصيب أو الاستبدال يحتاج إدارة القنوات وإدارة الرتب؛ ولنشر بطاقات الترحيب والدعم يحتاج أيضًا عرض القنوات وإرسال الرسائل والروابط المضمنة.</p><p>يمكن منح بوت موثوق صلاحية <strong>Administrator</strong> إذا أردت إعدادًا شاملًا، لكنها صلاحية واسعة واختيارية، ولا تُغني عن رفع رتبته فوق الرتب المستهدفة.</p><a href="https://support.discord.com/hc/en-us/articles/214836687-Discord-Roles-and-Permissions" target="_blank" rel="noopener noreferrer">شرح الرتب والصلاحيات في Discord ↗</a></div></div>`;
 }
 function readyCategory(template) {
-  return /gaming/.test(template.key) ? 'gaming' : /streamer/.test(template.key) ? 'streamer' : 'community';
+  return template.category || (/gaming/.test(template.key) ? 'gaming' : /streamer/.test(template.key) ? 'streamer' : 'community');
 }
-const readyCategoryNames = { all: 'الكل', community: 'مجتمعات', gaming: 'ألعاب', streamer: 'صناع المحتوى' };
+const readyCategoryNames = { all: 'الكل', community: 'مجتمعات', gaming: 'ألعاب', streamer: 'صناع المحتوى', store: 'متاجر', esports: 'رياضات إلكترونية', academy: 'تعليم' };
 const readyLanguageLabel = template => template?.language === 'ar-en' ? 'Arabic English' : template?.language === 'en' ? 'English' : 'Arabic';
 function readyLibraryMarkup(templates) {
-  const shown = templates.filter(template => (state.readyFilter === 'all' || readyCategory(template) === state.readyFilter) && (!state.readySearch || `${template.name} ${template.description}`.toLocaleLowerCase().includes(state.readySearch.toLocaleLowerCase())));
+  const shown = templates.filter(template => (state.readyFilter === 'all' || readyCategory(template) === state.readyFilter) && (!state.readySearch || `${template.name} ${template.description}`.toLocaleLowerCase().includes(state.readySearch.toLocaleLowerCase()))).sort((a, b) => Number(Boolean(b.featured)) - Number(Boolean(a.featured)) || Number(Boolean(b.highlights)) - Number(Boolean(a.highlights)));
   const cards = shown.map(template => {
     const c = readyCounts(template.definition), category = readyCategory(template);
-    return `<article class="template ready-library-card"><div class="ready-library-art ready-library-art-${category}" aria-hidden="true"><span>${template.icon}</span><i></i><i></i><i></i></div><div class="ready-library-copy"><div class="ready-library-meta"><span class="ready-library-type">${readyCategoryNames[category]}</span><span class="ready-language-badge" lang="en" aria-label="لغة القالب: ${esc(readyLanguageLabel(template))}">${esc(readyLanguageLabel(template))}</span></div><h3>${esc(template.name)}</h3><p>${esc(template.description)}</p><div class="ready-library-metrics"><span>${fmt(c.categories)} تصنيفات</span><span>${fmt(c.channels)} قنوات</span><span>${fmt(c.roles)} رتب</span></div><div class="ready-library-actions"><small>${fmt(c.units)} تغيير متوقع</small><button class="btn primary" data-ready-choose="${esc(template.key)}" type="button">استكشف القالب ←</button></div></div></article>`;
+    return `<article class="template ready-library-card"><div class="ready-library-art ready-library-art-${category}" aria-hidden="true"><span>${template.icon}</span><i></i><i></i><i></i></div><div class="ready-library-copy"><div class="ready-library-meta"><span class="ready-library-type">${readyCategoryNames[category]}${template.featured ? '<span class="ready-new-badge" lang="en">New</span>' : ''}</span><span class="ready-language-badge" lang="en" aria-label="لغة القالب: ${esc(readyLanguageLabel(template))}">${esc(readyLanguageLabel(template))}</span></div><h3>${esc(template.name)}</h3><p>${esc(template.description)}</p>${template.highlights ? `<div class="ready-library-highlights">${template.highlights.map(item => `<span>${esc(item)}</span>`).join('')}</div>` : ''}<div class="ready-library-metrics"><span>${fmt(c.categories)} تصنيفات</span><span>${fmt(c.channels)} قنوات</span><span>${fmt(c.roles)} رتب</span></div><div class="ready-library-actions"><small>${fmt(c.units)} تغيير متوقع</small><button class="btn primary" data-ready-choose="${esc(template.key)}" type="button">استكشف القالب ←</button></div></div></article>`;
   }).join('');
   return `<section class="ready-library-hero"><div><span class="eyebrow">مكتبة Diskoko</span><h2>ابنِ مجتمعك كما تتخيله</h2><p>ابدأ بهيكل جاهز، ثم اضبط كل قناة ورتبة وميزة قبل التنصيب. ستشاهد القالب داخل معاينة Discord وتراجع الفروق قبل أي تغيير.</p></div><span class="ready-library-hero-mark" aria-hidden="true">▣</span></section><div class="ready-library-toolbar"><div class="ready-library-filters" role="group" aria-label="تصفية القوالب">${Object.entries(readyCategoryNames).map(([key,label]) => `<button class="ready-filter ${state.readyFilter === key ? 'active' : ''}" type="button" data-ready-filter="${key}">${label}</button>`).join('')}</div><label class="ready-library-search">ابحث في المكتبة<input type="search" id="readySearch" value="${esc(state.readySearch)}" placeholder="اسم القالب أو استخدامه"></label></div><div class="ready-library-result">${fmt(shown.length)} قوالب متاحة · القوالب الجديدة ستظهر هنا</div><div class="template-grid ready-library-grid">${cards || '<p class="ready-library-empty">لا توجد قوالب مطابقة. جرّب بحثًا آخر.</p>'}</div>`;
 }
@@ -955,6 +965,9 @@ function readyArrangeSteps() {
   const template = state.readyCatalog.find(item => item.key === state.readyKey);
   panes.identity.insertAdjacentHTML('afterbegin', `<h3>اجعل القالب مناسبًا لمجتمعك</h3><p class="form-note">${esc(template?.description || '')}</p><p class="form-note">هذا الاسم يعرّف مسودتك؛ لا يغيّر اسم سيرفرك. انتقل بين الخطوات بحرية، ولن يبدأ التنفيذ حتى تراجع التغييرات وتؤكدها.</p>`);
   panes.identity.insertAdjacentHTML('beforeend', `<div class="ready-identity-summary"><b>ما الذي تستطيع تخصيصه؟</b><p>أسماء الرتب وألوانها وصلاحياتها، ترتيب التصنيفات والقنوات وخصوصيتها، بطاقات الترحيب والدعم ومسارات سجلات النشاط.</p>${template?.source ? `<a href="${esc(template.source)}" target="_blank" rel="noopener noreferrer">مصدر الإلهام للقالب ↗</a>` : '<small>قالب أصلي من Diskoko</small>'}</div>`);
+  const textChannels = state.readyDraft.categories.flatMap(group => group.channels).filter(channel => channel.type === 0);
+  panes.features.insertAdjacentHTML('beforeend', `<section class="ready-guide-editor"><h4>بطاقات بداية مخصصة لهذا القالب</h4><p class="form-note">تُنشر هذه البطاقات مرة واحدة في القنوات المحددة بعد المراجعة. عدّل النصوص أو احذف البطاقة قبل التنصيب؛ كل بطاقة منشورة تُحسب تغييرًا واحدًا.</p>${(state.readyDraft.features.guides || []).map((guide, index) => `<div class="ready-guide-fields"><div class="ready-log-rule-head"><b>بطاقة ${fmt(index + 1)}</b><button class="btn text" type="button" data-ready-guide-remove="${index}">إزالة</button></div><label>العنوان<input data-ready-field="features.guides.${index}.title" maxlength="256" value="${esc(guide.title)}"></label><label>المحتوى<textarea data-ready-field="features.guides.${index}.description" maxlength="2000" rows="4">${esc(guide.description)}</textarea></label><label>قناة النشر<select data-ready-field="features.guides.${index}.channelKey">${readySelectOptions(textChannels, guide.channelKey)}</select></label></div>`).join('')}<button class="btn secondary" type="button" id="readyAddGuide" ${(state.readyDraft.features.guides || []).length >= 8 ? 'disabled' : ''}>＋ بطاقة بداية</button></section>`);
+  if (template?.optionalIntegrations?.length) panes.features.insertAdjacentHTML('beforeend', `<section class="ready-optional-integrations" role="note"><h4>إضافات تحتاج ربطًا لاحقًا</h4><p>القنوات والرتب والميزات المعروضة أعلاه تُجهز مع القالب. الخيارات التالية غير مفعّلة بالتنصيب:</p><ul>${template.optionalIntegrations.map(item => `<li>${esc(item)}</li>`).join('')}</ul></section>`);
    const executor = $('.ready-executor-panel');
   if (executor) panes.install.prepend(executor);
   body.insertAdjacentHTML('beforeend', '<p id="readyDraftStatus" class="form-note" role="status"></p>');
@@ -1023,7 +1036,7 @@ function renderReadyEditor() {
     while (next && (next.matches('label.check-row') || next.matches('p.form-note'))) { const following = next.nextElementSibling; modeBox.append(next); next = following; }
     modeBox.querySelectorAll('label').forEach((label, index) => { label.innerHTML += `<small>${index === 0 ? 'يبقي كل القنوات والرتب الحالية ويضيف عناصر القالب فقط.' : 'ينشئ القالب أولًا، ثم يحذف القنوات والرتب القديمة التي تسمح صلاحيات البوت بحذفها. ستراجع قائمة الحذف قبل التأكيد.'}</small>`; });
   }
-  $('#readyCounts')?.closest('.panel-head')?.insertAdjacentHTML('afterend', `<p class="form-note ready-unit-note">الاستهلاك المتوقع: ${fmt(readyCounts(d).units)} تغييرًا = ${fmt(readyCounts(d).roles)} رتب + ${fmt(readyCounts(d).categories)} تصنيفات + ${fmt(readyCounts(d).channels)} قنوات + ${fmt(readyCounts(d).features)} تشغيل تلقائي. عند الإيقاف تُحسب الخطوات المكتملة فقط.</p>`);
+  $('#readyCounts')?.closest('.panel-head')?.insertAdjacentHTML('afterend', `<p class="form-note ready-unit-note">الاستهلاك المتوقع: ${fmt(readyCounts(d).units)} تغييرًا = ${fmt(readyCounts(d).roles)} رتب + ${fmt(readyCounts(d).categories)} تصنيفات + ${fmt(readyCounts(d).channels)} قنوات + ${fmt(readyCounts(d).features)} ميزات وبطاقات. عند الإيقاف تُحسب الخطوات المكتملة فقط.</p>`);
   const [welcomeSection, ticketSection, logsSection] = document.querySelectorAll('.ready-feature');
   document.querySelectorAll('.ready-edit-row').forEach((row, index) => row.insertAdjacentHTML('beforeend', `<button class="btn text" data-ready-move="role:${index}:-1" title="رفع الرتبة">↑</button><button class="btn text" data-ready-move="role:${index}:1" title="تنزيل الرتبة">↓</button>`));
   d.categories.forEach((group, gi) => group.channels.forEach((channel, ci) => {
@@ -1061,6 +1074,7 @@ function renderReadyEditor() {
     section.append(fields, inline);
   }
   readyDecoratePreview();
+  readyArrangeSteps();
   $('#readyWelcomeImage').onchange = async event => {
     const file = event.target.files?.[0]; if (!file) return;
     if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type) || file.size > 8 * 1024 * 1024) { toast('اختر صورة PNG أو JPG أو WebP أو GIF بحجم 8 ميجابايت أو أقل.'); event.target.value = ''; return; }
@@ -1114,6 +1128,13 @@ function renderReadyEditor() {
     };
     field.addEventListener(field.tagName === 'SELECT' || field.type === 'checkbox' ? 'change' : 'input', handler);
   });
+  $('#readyAddGuide')?.addEventListener('click', () => {
+    d.features.guides ||= [];
+    if (d.features.guides.length >= 8) return;
+    d.features.guides.push({ key: readyNewKey('guide'), title: 'بطاقة جديدة', description: 'اكتب هنا معلومات مفيدة لأعضاء سيرفرك.', channelKey: d.categories.flatMap(group => group.channels).find(channel => channel.type === 0)?.key || '' });
+    renderReadyEditor();
+  });
+  document.querySelectorAll('[data-ready-guide-remove]').forEach(button => button.onclick = () => { d.features.guides.splice(Number(button.dataset.readyGuideRemove), 1); renderReadyEditor(); });
   $('#readyLogMode').onchange = event => {
     logs.mode = event.target.value;
     if (logs.mode === 'routed' && !(logs.routes || []).length) logs.routes = [{ key: readyNewKey('log'), sourceKeys: [d.categories.flatMap(group => group.channels).find(channel => channel.key !== logs.channelKey)?.key].filter(Boolean), targetKey: logs.channelKey, events: [...logs.events] }];
@@ -1186,7 +1207,6 @@ function renderReadyEditor() {
       readyReviewDialog(result);
     } finally { button.disabled = false; button.textContent = label; }
   });
-  readyArrangeSteps();
 }
 function readyReviewDialog(data) {
   const review = data.run.review, replace = data.run.mode === 'replace';
@@ -1198,6 +1218,7 @@ function readyReviewDialog(data) {
   const details = (review.createOrReuse || []).map(item => `<div class="row"><div class="row-main"><b>${esc(item.name)}</b><small>${item.kind === 'role' ? `رتبة · ${esc({ moderator: 'إشراف محدود', support: 'دعم', member: 'عضو', vip: 'مميز' }[item.preset] || '')} · لا صلاحية Administrator` : item.kind === 'channel' ? `${item.parent ? `${esc(item.parent)} · ` : ''}${esc({ public: 'عامة', read_only: 'قراءة فقط', private: 'خاصة' }[item.access] || '')}` : 'تصنيف'}</small></div>${badge(item.action === 'reuse' ? 'موجودة وتبقى' : item.action === 'update' ? 'تعديل' : 'إنشاء', item.action === 'reuse' ? 'neutral' : 'purple')}</div>`).join('');
   document.querySelector('.ready-review-list')?.insertAdjacentHTML('afterbegin', `<details><summary>تفاصيل كل قناة ورتبة وصلاحيتها (${fmt((review.createOrReuse || []).length)})</summary><div class="rows">${details}</div></details>`);
   document.querySelector('.ready-review-list')?.insertAdjacentHTML('afterbegin', `<p class="notice info">المنفّذ: ${esc(executorName)} · استهلاك القالب: ${fmt(review.usageUnits || 1)} تغييرًا، تشمل الرتب. عند الإيقاف تُحسب الخطوات المكتملة فقط.</p>`);
+  if (review.guides?.length) document.querySelector('.ready-review-list')?.insertAdjacentHTML('beforeend', `<details class="ready-guide-review"><summary>بطاقات البداية التي سينشرها البوت (${fmt(review.guides.length)})</summary>${review.guides.map(guide => `<div class="ready-guide-preview"><strong>${esc(guide.title)}</strong><p>${esc(guide.description)}</p><small>في #${esc(guide.channel)}</small></div>`).join('')}</details>`);
   if (!replace && retainedChannels.length) document.querySelector('.ready-review-list')?.insertAdjacentHTML('beforeend', `<details class="ready-retained"><summary>قنوات موجودة ستبقى خارج القالب (${fmt(retainedChannels.length)})</summary><p class="form-note">لن ينقلها البوت إلى التصنيفات الجديدة. يمكنك ترتيبها لاحقًا من Discord، أو مراجعة خيار الاستبدال إذا أردت حذف القديم.</p><ul>${retainedChannels.map(item => `<li>${item.type === 4 ? 'تصنيف' : '#'} ${esc(item.name)}${item.uncategorized ? ' · خارج التصنيفات' : ''}</li>`).join('')}</ul></details>`);
   const reusedAdminRoles = (review.createOrReuse || []).filter(item => item.kind === 'role' && item.action === 'reuse' && item.hasAdministrator);
   if (reusedAdminRoles.length) document.querySelector('.ready-review-list')?.insertAdjacentHTML('afterbegin', `<p class="notice">تنبيه: الرتب الموجودة ${reusedAdminRoles.map(item => esc(item.name)).join('، ')} لديها صلاحية Administrator حاليًا. وضع التنصيب سيبقي صلاحياتها كما هي؛ راجعها في Discord.</p>`);

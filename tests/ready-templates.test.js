@@ -45,8 +45,8 @@ test('welcome composite and support artwork are retained only with valid setting
   assert.throws(() => normalizeReadyDefinition(definition), /ادمج شعار الدعم/);
 });
 
-test('the two catalog templates have valid editable structure and no administrator grants', () => {
-  assert.equal(READY_TEMPLATES.length, 4);
+test('every catalog template has valid editable structure and no administrator grants', () => {
+  assert.equal(READY_TEMPLATES.length, 9);
   for (const template of READY_TEMPLATES) {
     const definition = normalizeReadyDefinition(template.definition);
     assert.ok(definition.categories.length > 0);
@@ -55,6 +55,26 @@ test('the two catalog templates have valid editable structure and no administrat
   }
   const streamer = normalizeReadyDefinition(READY_TEMPLATES[1].definition);
   assert.equal(streamer.categories.flatMap(group => group.channels).length, 33);
+});
+
+test('five focused templates are compact, private where needed, and mark external work as optional', () => {
+  const keys = ['diskoko-store-ar', 'diskoko-store-en', 'diskoko-community', 'diskoko-esports', 'diskoko-academy'];
+  for (const key of keys) {
+    const template = READY_TEMPLATES.find(item => item.key === key);
+    assert.ok(template);
+    const definition = normalizeReadyDefinition(template.definition);
+    const channels = definition.categories.flatMap(group => group.channels);
+    assert.ok(channels.length >= 13 && channels.length <= 16);
+    assert.ok(channels.some(channel => channel.access === 'private'));
+    assert.ok(channels.find(channel => channel.key === definition.features.logs.channelKey)?.access === 'private');
+    assert.equal(definition.features.welcome.enabled && definition.features.ticket.enabled && definition.features.logs.enabled, true);
+    assert.ok(template.optionalIntegrations.length >= 1);
+    assert.equal(definition.features.guides.length, 2);
+    assert.equal(readyUsageUnits(definition), definition.roles.length + definition.categories.length + channels.length + 5);
+    assert.equal(readyCompletedUnits(definition, definition.features.guides.map(guide => ({ kind: 'feature-guide', status: 'succeeded', name: guide.title }))), 2);
+  }
+  assert.equal(READY_TEMPLATES.find(item => item.key === 'diskoko-store-ar').language, 'ar');
+  assert.equal(READY_TEMPLATES.find(item => item.key === 'diskoko-store-en').language, 'en');
 });
 
 test('Diskoko Gaming Arabic remains compact with working welcome, ticket and activity logs', () => {
