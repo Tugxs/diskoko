@@ -10,6 +10,7 @@ import nodemailer from "nodemailer";
 import { getDiscordBotStatus, setExternalBotStatus, startDiscordBot } from "./discord-bot.js";
 import { mountWorkspace, migrateWorkspace, startScheduleRunner } from "./lib/workspace-api.js";
 import { mountReadyTemplates, migrateReadyTemplates } from "./lib/ready-templates-api.js";
+import { mountStandaloneModules, migrateStandaloneModules } from "./lib/standalone-modules-api.js";
 import { manageable, problem, connectionState } from "./lib/workspace-domain.js";
 import { BOT_COMMANDS, DEFAULT_BOT_COMMAND_KEYS, validBotCommandKeys } from "./lib/bot-catalog.js";
 import { migrateLocalAi, mountLocalAi, workerAuthorized } from "./lib/local-ai.js";
@@ -299,7 +300,7 @@ app.use((req, res, next) => {
 });
 const standardJson = express.json({ limit: "512kb", verify: (req, _res, buffer) => { if (req.path === "/api/webhooks/billing") req.rawBody = Buffer.from(buffer); } });
 const interactiveMediaJson = express.json({ limit: "29mb" });
-app.use((req, res, next) => req.method === 'POST' && (/^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create-scheduled-event)$/.test(req.path) || req.path === '/api/ai/requests' || req.path === '/api/change-sets' || /^\/api\/workspace\/\d{17,20}\/ready-templates\/review$/.test(req.path)) ? interactiveMediaJson(req, res, next) : standardJson(req, res, next));
+app.use((req, res, next) => req.method === 'POST' && (/^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create-scheduled-event)$/.test(req.path) || req.path === '/api/ai/requests' || req.path === '/api/change-sets' || /^\/api\/workspace\/\d{17,20}\/(?:ready-templates|standalone-modules)\/review$/.test(req.path)) ? interactiveMediaJson(req, res, next) : standardJson(req, res, next));
 app.use("/api", (req, res, next) => {
   if (["POST", "PUT", "PATCH"].includes(req.method) && req.is("application/json") && (!req.body || typeof req.body !== "object" || Array.isArray(req.body))) return res.status(400).json({ error: "يجب أن تكون بيانات الطلب JSON object صالحًا" });
   next();
@@ -535,7 +536,7 @@ async function planCapacity(user, kind, db = pool) {
     return { used: rows[0].count, limit: limits.scheduledMessages };
   }
   if (kind === "changeSetsPerMonth") {
-const { rows } = await db.query("SELECT ((SELECT COALESCE(SUM(CASE WHEN o.result ? 'usage_units' THEN (o.result->>'usage_units')::int ELSE 0 END),0) FROM change_operations o JOIN change_sets c ON c.id=o.change_set_id WHERE c.user_id=$1 AND o.updated_at >= date_trunc('month', NOW())) + (SELECT COUNT(*) FROM change_sets c WHERE c.user_id=$1 AND c.status='succeeded' AND c.updated_at >= date_trunc('month', NOW()) AND NOT EXISTS (SELECT 1 FROM change_operations o WHERE o.change_set_id=c.id AND o.result ? 'usage_units')) + (SELECT COUNT(*) FROM ai_requests WHERE user_id=$1 AND (sent_message_id IS NOT NULL OR interactive_message_id IS NOT NULL) AND published_at >= date_trunc('month', NOW())) + (SELECT COALESCE(SUM(CASE WHEN status='succeeded' THEN usage_units WHEN status='cancelled' THEN completed_units ELSE 0 END),0) FROM ready_template_runs WHERE user_id=$1 AND status IN ('succeeded','cancelled') AND updated_at >= date_trunc('month', NOW())))::int AS count", [user.id]);
+const { rows } = await db.query("SELECT ((SELECT COALESCE(SUM(CASE WHEN o.result ? 'usage_units' THEN (o.result->>'usage_units')::int ELSE 0 END),0) FROM change_operations o JOIN change_sets c ON c.id=o.change_set_id WHERE c.user_id=$1 AND o.updated_at >= date_trunc('month', NOW())) + (SELECT COUNT(*) FROM change_sets c WHERE c.user_id=$1 AND c.status='succeeded' AND c.updated_at >= date_trunc('month', NOW()) AND NOT EXISTS (SELECT 1 FROM change_operations o WHERE o.change_set_id=c.id AND o.result ? 'usage_units')) + (SELECT COUNT(*) FROM ai_requests WHERE user_id=$1 AND (sent_message_id IS NOT NULL OR interactive_message_id IS NOT NULL) AND published_at >= date_trunc('month', NOW())) + (SELECT COALESCE(SUM(CASE WHEN status='succeeded' THEN usage_units WHEN status='cancelled' THEN completed_units ELSE 0 END),0) FROM ready_template_runs WHERE user_id=$1 AND status IN ('succeeded','cancelled') AND updated_at >= date_trunc('month', NOW())) + (SELECT COUNT(*) FROM standalone_module_installs WHERE user_id=$1 AND status='succeeded' AND updated_at >= date_trunc('month', NOW())))::int AS count", [user.id]);
     return { used: rows[0].count, limit: limits.changeSetsPerMonth };
   }
   return { used: 0, limit: 0 };
@@ -987,6 +988,7 @@ app.post(/^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create
 } catch (error) { next(error); } });
 mountWorkspace(app, { pool, requireUser, requireWriteAccess, authorizedGuild, discordBotFetch, audit, requirePlanCapacity, entitlementsFor, templates: TEMPLATES, makeTemplatePlan, botStatus: executionBotStatus });
 mountReadyTemplates(app, { pool, requireUser, requireWriteAccess, authorizedGuild, discordBotFetch, audit, requirePlanCapacity, botStatus: getDiscordBotStatus });
+mountStandaloneModules(app, { pool, requireUser, requireWriteAccess, authorizedGuild, discordBotFetch, audit, requirePlanCapacity, botStatus: getDiscordBotStatus });
 mountLocalAi(app, { pool, requireUser, requireWriteAccess, authorizedGuild, canonicalPlan, discordBotFetch, requirePlanCapacity });
 mountInteractiveSystems(app, { pool, requireUser, requireWriteAccess, authorizedGuild, discordBotFetch, requirePlanCapacity, getDiscordBotStatus: executionBotStatus });
 mountChannelControl(app, { pool, requireUser, requireWriteAccess, authorizedGuild, discordBotFetch, requirePlanCapacity });
@@ -1128,7 +1130,7 @@ app.get("/dashboard", (_req, res) => res.sendFile(path.join(__dirname, "account.
 app.get("/studio", (_req, res) => res.sendFile(path.join(__dirname, "studio.html")));
 app.use((error, req, res, _next) => { console.error(`[${req.requestId}]`, error); const { status, body } = publicError(error, req.requestId); res.status(status).json(body); });
 
-migrate().then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).then(() => migrateInteractiveSystems(pool)).then(() => migrateAiBotConnections(pool)).then(() => migrateDiscordJobQueue(pool)).then(() => migrateReadyTemplates(pool)).then(() => {
+migrate().then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).then(() => migrateInteractiveSystems(pool)).then(() => migrateAiBotConnections(pool)).then(() => migrateDiscordJobQueue(pool)).then(() => migrateReadyTemplates(pool)).then(() => migrateStandaloneModules(pool)).then(() => {
   if (process.env.DISCORD_REST_MODE === 'worker') void startDiscordJobListener(pool).catch(error => console.error('Discord queue listener failed', error.message));
   app.listen(PORT, "0.0.0.0", () => console.log(`diskoko running on ${PORT}`));
   if (process.env.BOT_GATEWAY_MODE === 'external') {

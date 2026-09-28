@@ -1,6 +1,16 @@
 // The only executable templates offered by Diskoko AI. Keep this list shared
 // between the browser and the API so a hidden draft cannot be revived by name.
 export const aiPromptLibrary = Object.freeze([
+  { category: 'مميزات السيرفر', title: 'اختيار الاهتمامات', moduleKind: 'interests', prompt: 'يختار العضو رتبة اهتمام عادية بنفسه، ويمكنه إزالتها بالضغط مرة أخرى.' },
+  { category: 'مميزات السيرفر', title: 'لوحة الاقتراحات', moduleKind: 'suggestions', prompt: 'يقدّم العضو اقتراحًا خاصًا؛ ينشره الفريق بعد المراجعة ثم يصوّت عليه المجتمع.' },
+  { category: 'مميزات السيرفر', title: 'البلاغات الخاصة', moduleKind: 'reports', prompt: 'يرسل العضو بلاغًا خاصًا إلى قناة الإدارة، دون نشره للعامة.' },
+  { category: 'مميزات السيرفر', title: 'التسجيل في الفعاليات', moduleKind: 'events', prompt: 'يسجّل العضو مشاركته أو يلغيها، مع موعد وعدد أماكن اختياريين.' },
+  { category: 'مميزات السيرفر', title: 'طلبات الانضمام', moduleKind: 'applications', prompt: 'يتقدم العضو لرتبة أو فريق، ويراجع طلبه المشرفون في قناة خاصة.' },
+  { category: 'مميزات السيرفر', title: 'الأسئلة السريعة', moduleKind: 'faq', prompt: 'يعرض البوت إجابة محددة للعضو عند الضغط على زر اللوحة.' },
+  { category: 'مميزات السيرفر', title: 'استقبال المشاركات', moduleKind: 'submissions', prompt: 'يراجع الفريق أعمال الأعضاء وروابطها، وينشر المقبول منها.' },
+  { category: 'مميزات السيرفر', title: 'طلبات المتجر', moduleKind: 'orders', prompt: 'يستقبل الفريق طلب منتج أو خدمة في قناة خاصة ويتابع إنجازه. لا يتضمن دفعًا تلقائيًا.' },
+  { category: 'مميزات السيرفر', title: 'متابعة التعلّم', moduleKind: 'learning', prompt: 'يسجل المتعلم إنجازه واحتياجه للمساعدة؛ يراجع المرشد تقدمه حتى الاكتمال.' },
+  { category: 'مميزات السيرفر', title: 'مهام فريق الإدارة', moduleKind: 'tasks', prompt: 'ينشئ الفريق مهمة داخل قناة خاصة، ثم يحدد قبولها وإنجازها.' },
   { category: 'الجيف آواي', title: 'جيف آواي سريع', prompt: 'جهز جيف آواي في #[القناة] لجائزة [الجائزة] لمدة [المدة بالدقائق] دقيقة، مع [عدد الفائزين] فائز. اعرض التفاصيل في بطاقة المراجعة قبل النشر.', kind: 'giveaway' },
   { category: 'الجيف آواي', title: 'جائزة اشتراك', prompt: 'جهز جيف آواي لجائزة اشتراك [المدة] في #[القناة]، ينتهي بعد [عدد الساعات] ساعة، وفائز واحد.', kind: 'giveaway' },
   { category: 'الجيف آواي', title: 'جائزة لأكثر من فائز', prompt: 'نظم جيف آواي في #[القناة] لجائزة [الجائزة]، لمدة [المدة] دقيقة، واختر [عدد الفائزين] فائزين.', kind: 'giveaway' },
@@ -16,4 +26,4 @@ export const aiPromptLibrary = Object.freeze([
   { category: 'إدارة المجتمع', title: 'استطلاع رأي', prompt: 'جهز استطلاعًا تفاعليًا في #[القناة] عن [السؤال] بخيارات [الخيار الأول] و[الخيار الثاني]. اعرض التفاصيل قبل النشر.', kind: 'poll' },
 ]);
 
-export const readyAiTemplate = (category, title) => aiPromptLibrary.find(item => item.category === category && item.title === title) || null;
+export const readyAiTemplate = (category, title) => aiPromptLibrary.find(item => !item.moduleKind && item.category === category && item.title === title) || null;

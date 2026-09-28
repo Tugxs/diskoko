@@ -6,6 +6,15 @@ const READY_MODULE_TYPES = {
   submissions: { icon: '🎬', label: 'استقبال المشاركات', form: true }, orders: { icon: '🛒', label: 'طلبات المتجر', form: true },
   learning: { icon: '🎓', label: 'متابعة التعلّم', form: true }, tasks: { icon: '📌', label: 'مهام فريق الإدارة', form: true, staffOnly: true },
 };
+const READY_MODULE_FIELDS = {
+  suggestions: ['عنوان الاقتراح', 'الاقتراح وسبب فائدته', 'بعد موافقة الفريق يُنشر الاقتراح مع زر تصويت.'],
+  reports: ['موضوع البلاغ', 'ما حدث وأين حدث؟', 'البلاغ خاص ويظهر لفريق المراجعة فقط.'],
+  applications: ['الدور الذي تتقدم له', 'خبرتك ولماذا ترغب في الانضمام', 'يقبل الفريق الطلب أو يرفضه داخل قناة خاصة.'],
+  submissions: ['عنوان المشاركة', 'وصف المشاركة ورابط العمل', 'ينشر الفريق المشاركات المقبولة فقط.'],
+  orders: ['المنتج أو الخدمة المطلوبة', 'الكمية والمتطلبات وطريقة التواصل', 'يتابع الفريق الطلب حتى اكتماله؛ الدفع خارج هذه الميزة.'],
+  learning: ['الدرس أو المهمة التعليمية', 'ما أُنجز وما يحتاج مساعدة', 'يراجع المرشد التقدم ويحدد اكتماله.'],
+  tasks: ['عنوان مهمة الفريق', 'المطلوب والمسؤول والموعد', 'تُعرض المهمة للفريق فقط ويمكن تحديد اكتمالها.'],
+};
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 function discordMarkdownPreview(value) {
@@ -1018,6 +1027,14 @@ function readyArrangeSteps() {
     details.append(summary);
     const body = document.createElement('div'); body.className = 'ready-module-fields';
     body.innerHTML = `<label class="check-row"><input type="checkbox" data-ready-field="features.modules.${index}.enabled" ${module.enabled ? 'checked' : ''}>تفعيل الميزة مع هذا القالب</label><label>عنوان اللوحة<input data-ready-field="features.modules.${index}.title" maxlength="256" value="${esc(module.title)}"></label><label>الوصف<textarea data-ready-field="features.modules.${index}.description" maxlength="2000" rows="3">${esc(module.description)}</textarea></label><label>نص الزر<input data-ready-field="features.modules.${index}.buttonLabel" maxlength="80" value="${esc(module.buttonLabel)}"></label><label>شكل الزر<select data-ready-field="features.modules.${index}.buttonStyle">${[[1,'بنفسجي'],[2,'رمادي'],[3,'أخضر'],[4,'أحمر']].map(([value,label]) => `<option value="${value}" ${Number(module.buttonStyle || 1) === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label>قناة عرض اللوحة<select data-ready-field="features.modules.${index}.channelKey">${readySelectOptions(meta.staffOnly ? privateChannels : publicChannels, module.channelKey)}</select></label><label>لون اللوحة<input type="color" data-ready-field="features.modules.${index}.color" value="${esc(module.color || '#8d72e8')}"></label>${meta.form ? `<label>قناة مراجعة خاصة<select data-ready-field="features.modules.${index}.reviewChannelKey">${readySelectOptions(privateChannels, module.reviewChannelKey)}</select></label><label>اسم خانة الموضوع<input data-ready-field="features.modules.${index}.subjectLabel" maxlength="45" value="${esc(module.subjectLabel || 'الموضوع')}"></label><label>اسم خانة التفاصيل<input data-ready-field="features.modules.${index}.detailsLabel" maxlength="45" value="${esc(module.detailsLabel || 'التفاصيل أو الرابط')}"></label>` : ''}${meta.form || meta.staffOnly ? `<label>رتبة الفريق<select data-ready-field="features.modules.${index}.staffRoleKey">${readySelectOptions(draft.roles, module.staffRoleKey)}</select></label>` : ''}${meta.answer ? `<label>الإجابة التي تظهر عند الضغط<textarea data-ready-field="features.modules.${index}.answer" maxlength="1800" rows="4">${esc(module.answer || '')}</textarea></label>` : ''}${meta.role ? `<label>الرتبة العادية التي يستطيع العضو اختيارها<select data-ready-field="features.modules.${index}.roleKey">${readySelectOptions(draft.roles.filter(role => role.preset === 'member'), module.roleKey)}</select></label>` : ''}<label>صورة أو GIF للوحة (حتى 8 ميجابايت)<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-ready-module-image="${index}"></label>${module.banner ? `<button class="btn text" type="button" data-ready-module-image-remove="${index}">إزالة الصورة</button>` : ''}<div class="ready-module-live-preview"><strong>معاينة اللوحة</strong><div class="ready-preview-card" style="--ready-accent:${esc(module.color || '#8d72e8')}">${module.banner ? `<img class="ready-banner" src="data:${esc(module.banner.mime)};base64,${esc(module.banner.base64)}" alt="صورة الميزة">` : ''}<b>${esc(module.title)}</b><p>${esc(module.description)}</p><button class="btn small primary" disabled>${esc(module.buttonLabel)}</button></div></div>`;
+    if (meta.form && READY_MODULE_FIELDS[module.kind]) {
+      const [subject, detailsLabel, outcome] = READY_MODULE_FIELDS[module.kind];
+      const subjectInput = body.querySelector(`[data-ready-field="features.modules.${index}.subjectLabel"]`);
+      const detailsInput = body.querySelector(`[data-ready-field="features.modules.${index}.detailsLabel"]`);
+      if (subjectInput && !module.subjectLabel) subjectInput.value = subject;
+      if (detailsInput && !module.detailsLabel) detailsInput.value = detailsLabel;
+      body.querySelector('.ready-module-live-preview').insertAdjacentHTML('beforebegin', `<p class="form-note">${esc(outcome)}</p>`);
+    }
     if (meta.signup) {
       const date = module.startsAt ? new Date(module.startsAt) : null;
       const localDate = date && Number.isFinite(date.getTime()) ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
@@ -1486,6 +1503,8 @@ async function assistant() {
   let conversations = [], messages = [], available = false, planEnabled = true, busy = false;
   $('#workspace').innerHTML = head('AI ديسكوكو', 'مساعدك لتنظيم السيرفر. محادثاتك محفوظة لهذا السيرفر ويمكنك الرجوع إليها.') + connectionNotice() + `<div class="ai-chat-layout"><aside class="panel ai-chat-sidebar"><section class="ai-bot-connect"><div class="ai-bot-connect-head"><span>✦ بوتك وهويتك</span><a href="/ai-bot-guide.html" target="_blank" rel="noopener noreferrer">شرح الربط ↗</a></div><h3>اربط بوتك الخاص بديسكوكو AI</h3><p>خلّ AI ينشر وينفذ باسم بوت سيرفرك بعد مراجعتك. يبقى بوت ديسكوكو الخيار الأساسي حتى تربط بوتك.</p><div id="aiBotConnection" role="status">جارٍ التحقق من الربط…</div></section><div class="panel-head"><h3>المحادثات</h3><button id="aiNew" class="btn small primary" type="button">+ جديدة</button></div><div id="aiConversations" class="ai-conversations"></div></aside><section class="panel ai-chat-main"><div class="panel-head"><div><h3 id="aiChatTitle">محادثة جديدة</h3><small>التغييرات على Discord تظهر للمراجعة قبل تطبيقها.</small></div><span id="aiStatus" class="badge neutral">جارٍ التحقق…</span></div><div id="aiMessages" class="ai-messages" role="log" aria-live="polite"></div><div id="aiNotice" class="ai-notice" role="status"></div><div id="aiRecording" class="ai-recording" role="status" hidden><span class="ai-recording-dot"></span><b>جارٍ تسجيل كلامك</b><span id="aiRecordingTime">00:00</span><button id="aiStopVoice" type="button" class="btn small secondary">إيقاف التسجيل</button></div><div id="aiAttachment" class="ai-attachment" hidden></div><form id="assistantForm" class="ai-composer"><label for="assistantPrompt" class="sr-only">رسالتك إلى AI ديسكوكو</label><textarea id="assistantPrompt" rows="2" maxlength="1500" placeholder="اكتب ما تحتاجه لسيرفرك…"></textarea><div class="ai-composer-tools"><button id="aiAttach" class="btn secondary" type="button" aria-label="إرفاق صورة أو ملف نصي">📎 <span>إرفاق</span></button><input id="aiFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif,.txt,text/plain" hidden><button id="aiVoice" class="btn secondary" type="button" aria-label="تسجيل صوت وتحويله إلى نص">🎙 <span>مايك</span></button><button id="aiSend" class="btn primary" type="submit">إرسال</button></div></form></section></div>`;
   $('#workspace .ai-chat-layout').insertAdjacentHTML('beforeend', `<aside class="panel ai-library"><div class="panel-head"><div><h3>مكتبة AI ديسكوكو</h3><small>${fmt(aiPromptLibrary.length)} إجراء قابل للمراجعة والتنفيذ</small></div></div><div class="ai-library-controls"><label for="aiLibrarySearch" class="sr-only">ابحث في الإجراءات</label><input id="aiLibrarySearch" type="search" placeholder="ابحث عن إجراء…"><div id="aiLibraryCategories" class="ai-library-categories"></div></div><div id="aiLibraryList" class="ai-library-list"></div><p class="ai-library-note">اختر إجراءً وأرسل القالب كما هو. أكمل بياناته في بطاقة المراجعة، وشاهد شكله في سيرفرك قبل التأكيد.</p></aside>`);
+  $('#workspace .ai-library .panel-head').insertAdjacentHTML('beforeend', '<button id="aiLibraryExpand" class="btn small secondary" type="button" aria-expanded="false">توسيع المكتبة</button>');
+  $('#aiLibraryExpand').onclick = () => { const expanded = $('#workspace .ai-chat-layout').classList.toggle('ai-library-expanded'); $('#aiLibraryExpand').textContent = expanded ? 'تصغير المكتبة' : 'توسيع المكتبة'; $('#aiLibraryExpand').setAttribute('aria-expanded', String(expanded)); };
   $('#workspace .page-head').classList.add('ai-page-head');
   $('#workspace .page-head').append($('#workspace .ai-bot-connect'));
   $('#workspace .page-head').insertAdjacentHTML('afterend', botHierarchyNotice('تنفيذ تعديلات AI على القنوات والرتب'));
@@ -1497,6 +1516,16 @@ async function assistant() {
     state.aiBotName = connectedAiBot?.name || null;
     const retryAt = connectedAiBot?.retryAt && new Date(connectedAiBot.retryAt).getTime() > Date.now() ? `؛ المحاولة التالية ${new Date(connectedAiBot.retryAt).toLocaleString('ar-SA')}` : '';
     target.innerHTML = connectedAiBot ? `<div class="ai-bot-connected"><b>✓ ${esc(connectedAiBot.name)}</b><small>${connectedAiBot.online ? 'متصل؛ يعتمد النشر على صلاحياته في القناة' : `غير متصل الآن؛ لن يتم النشر حتى يعود${retryAt}`}</small>${!connectedAiBot.memberJoins ? '<small>للترحيب التلقائي: فعّل Server Members Intent وأعد الربط.</small>' : ''}${!connectedAiBot.messageContent ? '<small>لعرض نص الرسائل المحذوفة: فعّل Message Content Intent من إعدادات Bot ثم أعد الربط. <a href="/ai-bot-guide.html" target="_blank" rel="noopener noreferrer">الخطوات ↗</a></small>' : ''}</div><button id="aiBotDisconnect" class="btn small secondary" type="button">فصل البوت</button>` : '<button id="aiBotConnect" class="btn small primary" type="button">ربط بوتي</button>';
+    target.insertAdjacentHTML('afterbegin', serverExecutorMarkup(connectedAiBot));
+    target.querySelectorAll('input[name="serverExecutor"]').forEach(input => { input.onchange = run(async () => {
+      target.querySelectorAll('input[name="serverExecutor"]').forEach(option => { option.disabled = true; });
+      try {
+        await api('/api/ai/bot-connection/selection', { method: 'POST', body: JSON.stringify({ guildId: guild, executor: input.value }) });
+        if (connectedAiBot) connectedAiBot.selected = input.value === 'custom';
+        renderAiBotConnection();
+        toast(input.value === 'custom' ? 'سيستخدم AI بوتك الخاص بعد مراجعة الصلاحيات.' : 'سيستخدم AI بوت ديسكوكو بعد مراجعة الصلاحيات.');
+      } catch (error) { renderAiBotConnection(); throw error; }
+    }); });
     if (connectedAiBot) $('#aiBotDisconnect').onclick = run(async () => {
       if (!window.confirm('سيُفصل البوت الخاص عن هذا السيرفر. المنشورات التفاعلية السابقة قد تتوقف حتى تعيد ربطه. هل تريد المتابعة؟')) return;
       await api('/api/ai/bot-connection', { method: 'DELETE', body: JSON.stringify({ guildId: guild }) });
@@ -1514,15 +1543,51 @@ async function assistant() {
   };
   api(`/api/ai/bot-connection?guildId=${encodeURIComponent(guild)}`).then(result => { if (active()) { connectedAiBot = result.bot; renderAiBotConnection(); } }).catch(() => { if (active()) $('#aiBotConnection').textContent = 'تعذر التحقق من الربط الآن. حدّث الصفحة للمحاولة مجددًا.'; });
   let libraryCategory = 'الكل', selectedTemplate = null;
+  const showStandaloneModule = item => {
+    const kind = item.moduleKind, meta = READY_MODULE_TYPES[kind];
+    if (!meta) return;
+    const channels = (state.data?.channels || []).filter(channel => channel.type === 0);
+    const roles = (state.data?.roles || []).filter(role => role.id !== guild && !role.managed);
+    const channelOptions = `<option value="">اختر قناة</option>${channels.map(channel => `<option value="${esc(channel.id)}"># ${esc(channel.name)}</option>`).join('')}`;
+    const roleOptions = `<option value="">اختر رتبة</option>${roles.map(role => `<option value="${esc(role.id)}">${esc(role.name)}</option>`).join('')}`;
+    const labels = READY_MODULE_FIELDS[kind];
+    const formFields = meta.form ? `<label>قناة مراجعة خاصة لا يراها الأعضاء<select id="moduleReviewChannel">${channelOptions}</select></label><label>رتبة الفريق<select id="moduleStaffRole">${roleOptions}</select></label><label>اسم خانة الموضوع<input id="moduleSubjectLabel" maxlength="45" value="${esc(labels?.[0] || 'الموضوع')}"></label><label>اسم خانة التفاصيل<input id="moduleDetailsLabel" maxlength="45" value="${esc(labels?.[1] || 'التفاصيل')}"></label>` : '';
+    const extra = kind === 'interests' ? `<label>رتبة اهتمام عادية بلا صلاحيات<select id="moduleRole">${roleOptions}</select></label><p class="form-note">يضيف العضو هذه الرتبة أو يزيلها بنفسه. يجب أن تكون رتبة البوت أعلى منها.</p>` : kind === 'faq' ? '<label>الإجابة التي تظهر للعضو<textarea id="moduleAnswer" maxlength="1800" rows="4" placeholder="اكتب جوابًا واحدًا واضحًا"></textarea></label>' : kind === 'events' ? '<label>موعد إغلاق التسجيل (اختياري)<input id="moduleStartsAt" type="datetime-local"></label><label>عدد الأماكن؛ صفر يعني مفتوح<input id="moduleCapacity" type="number" min="0" max="10000" value="0"></label>' : '';
+    modal(`تركيب ${meta.label}`, `<p class="form-note">الميزة مستقلة عن القوالب الجاهزة. راجع اللوحة والقنوات والصلاحيات قبل النشر؛ يُحسب تغيير واحد عند نجاح التركيب فقط.</p><div class="form-grid"><label>عنوان اللوحة<input id="moduleTitle" maxlength="256" value="${esc(meta.icon + ' ' + meta.label)}"></label><label>وصفها للأعضاء<textarea id="moduleDescription" maxlength="2000" rows="3">${esc(item.prompt)}</textarea></label><label>نص الزر<input id="moduleButton" maxlength="80" value="${esc(meta.label)}"></label><label>قناة عرض اللوحة<select id="moduleChannel">${channelOptions}</select></label>${formFields}${extra}<label>لون اللوحة<input id="moduleColor" type="color" value="#8d72e8"></label><label>شكل الزر<select id="moduleButtonStyle"><option value="1">بنفسجي</option><option value="2">رمادي</option><option value="3">أخضر</option><option value="4">أحمر</option></select></label></div>${labels ? `<p class="form-note">${esc(labels[2])}</p>` : ''}<p class="form-note">بوت التنفيذ: ${connectedAiBot?.selected ? `بوتك الخاص (${esc(connectedAiBot.name)})` : 'بوت ديسكوكو'}؛ يمكنك تغييره من الخيار أعلى صفحة AI.</p>`, '<button id="moduleCancel" class="btn secondary" type="button">إلغاء</button><button id="moduleReview" class="btn primary" type="button">مراجعة قبل النشر</button>');
+    $('#moduleColor').closest('label').insertAdjacentHTML('afterend', '<label>صورة أو GIF للوحة (اختياري، حتى 8 ميجابايت)<input id="moduleBanner" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label><div id="moduleBannerPreview" class="form-note" role="status"></div>');
+    $('#moduleBanner').onchange = event => { const file = event.target.files[0]; $('#moduleBannerPreview').textContent = file ? `${file.name} · ${Math.ceil(file.size / 1024)} كيلوبايت` : ''; };
+    $('#moduleCancel').onclick = closeDialog;
+    $('#moduleReview').onclick = run(async () => {
+      const button = $('#moduleReview'); button.disabled = true;
+      try {
+        const payload = { kind, title: $('#moduleTitle').value, description: $('#moduleDescription').value, buttonLabel: $('#moduleButton').value, channelId: $('#moduleChannel').value, color: $('#moduleColor').value, buttonStyle: Number($('#moduleButtonStyle').value), executor: connectedAiBot?.selected ? 'custom' : 'diskoko' };
+        if (meta.form) Object.assign(payload, { reviewChannelId: $('#moduleReviewChannel').value, staffRoleId: $('#moduleStaffRole').value, subjectLabel: $('#moduleSubjectLabel').value, detailsLabel: $('#moduleDetailsLabel').value });
+        if (kind === 'interests') payload.roleId = $('#moduleRole').value;
+        if (kind === 'faq') payload.answer = $('#moduleAnswer').value;
+        if (kind === 'events') Object.assign(payload, { startsAt: $('#moduleStartsAt').value ? new Date($('#moduleStartsAt').value).toISOString() : '', capacity: Number($('#moduleCapacity').value) });
+        const banner = $('#moduleBanner').files[0];
+        if (banner) {
+          if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(banner.type) || banner.size > 8 * 1024 * 1024) throw Error('اختر PNG أو JPG أو WebP أو GIF بحجم لا يتجاوز 8 ميجابايت.');
+          const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(Error('تعذر قراءة الصورة.')); reader.readAsDataURL(banner); });
+          payload.banner = { mime: banner.type, base64: dataUrl.split(',')[1] };
+        }
+        const review = await api(`/api/workspace/${encodeURIComponent(guild)}/standalone-modules/review`, { method: 'POST', body: JSON.stringify(payload) });
+        modal('مراجعة تركيب الميزة', `<div class="notice info"><div><b>${esc(review.config.title)}</b><p>ستُنشر لوحة في # ${esc(review.channelName)} بواسطة ${review.executor === 'custom' ? 'بوتك الخاص' : 'بوت ديسكوكو'}.</p></div></div><div class="ready-preview-card" style="--ready-accent:${esc(review.config.color)}">${payload.banner ? `<img class="ready-banner" src="data:${esc(payload.banner.mime)};base64,${esc(payload.banner.base64)}" alt="صورة اللوحة">` : ''}<b>${esc(review.config.title)}</b><p>${esc(review.config.description)}</p><button class="btn small primary" disabled>${esc(review.config.buttonLabel)}</button></div><p class="form-note">الإجراء الوحيد الآن: نشر اللوحة التفاعلية. سيُحسب تغيير واحد بعد نجاح Discord، ولا ينشئ هذا الإجراء قنوات أو رتبًا جديدة.</p>`, '<button id="moduleLater" class="btn secondary" type="button">لاحقًا</button><button id="moduleApply" class="btn primary" type="button">نعم، انشر الميزة</button>');
+        $('#moduleLater').onclick = closeDialog;
+        $('#moduleApply').onclick = run(async () => { const apply = $('#moduleApply'); apply.disabled = true; try { const result = await api(`/api/workspace/${encodeURIComponent(guild)}/standalone-modules/${encodeURIComponent(review.id)}/apply`, { method: 'POST', body: '{}' }); closeDialog(); toast('نُشرت الميزة بنجاح وحُسب تغيير واحد.'); if (result.channelId && result.messageId) window.open(`https://discord.com/channels/${encodeURIComponent(guild)}/${encodeURIComponent(result.channelId)}/${encodeURIComponent(result.messageId)}`, '_blank', 'noopener'); } catch (error) { modalError(error); apply.disabled = false; } });
+      } catch (error) { modalError(error); button.disabled = false; }
+    });
+  };
   const previewMemberRail = () => `<aside class="ai-discord-members"><b>الأعضاء ${Number.isFinite(Number(state.data?.onlineMembers)) && state.data?.onlineMembers !== null ? `— ${fmt(state.data.onlineMembers)} تقريبًا` : ''}</b>${state.data?.bot?.online ? '<div class="ai-discord-member"><span class="ai-discord-member-avatar">◈<i></i></span><span>ديسكوكو<small>BOT</small></span></div>' : ''}<p>أسماء المتصلين الفعلية تظهر في Discord؛ المعاينة لا تخمّنها.</p></aside>`;
   const renderLibrary = () => {
     $('#aiLibraryCategories').innerHTML = ['الكل', ...new Set(aiPromptLibrary.map(item => item.category))].map(category => `<button type="button" class="${category === libraryCategory ? 'active' : ''}" data-ai-category="${esc(category)}">${esc(category)}</button>`).join('');
     $('#aiLibraryCategories').querySelectorAll('[data-ai-category]').forEach(button => button.onclick = () => { libraryCategory = button.dataset.aiCategory; renderLibrary(); });
     const query = $('#aiLibrarySearch').value.trim().toLocaleLowerCase('ar');
     const matched = aiPromptLibrary.map((item, index) => ({ ...item, index })).filter(item => (libraryCategory === 'الكل' || item.category === libraryCategory) && (!query || `${item.title} ${item.category} ${item.prompt}`.toLocaleLowerCase('ar').includes(query)));
-    $('#aiLibraryList').innerHTML = matched.length ? matched.map(item => `<button type="button" class="ai-library-item" data-ai-template="${item.index}"><span>⚡ إجراء بعد المراجعة</span><b>${esc(item.title)}</b><small>${esc(item.prompt)}</small><small>المسار: ${esc(aiLibraryFlow(item))}</small></button>`).join('') : '<p class="ai-library-empty">لا توجد نتائج. جرّب كلمة أخرى.</p>';
+    $('#aiLibraryList').innerHTML = matched.length ? matched.map(item => `<button type="button" class="ai-library-item" data-ai-template="${item.index}"><span>${item.moduleKind ? '✦ ميزة مستقلة لسيرفرك' : '⚡ إجراء بعد المراجعة'}</span><b>${esc(item.title)}</b><small>${esc(item.prompt)}</small><small>${item.moduleKind ? 'اختر القناة والرتبة وإعدادات هذه الميزة، ثم راجع النشر.' : `المسار: ${esc(aiLibraryFlow(item))}`}</small></button>`).join('') : '<p class="ai-library-empty">لا توجد نتائج. جرّب كلمة أخرى.</p>';
     $('#aiLibraryList').querySelectorAll('[data-ai-template]').forEach(button => button.onclick = () => {
       selectedTemplate = aiPromptLibrary[Number(button.dataset.aiTemplate)];
+      if (selectedTemplate?.moduleKind) { const module = selectedTemplate; selectedTemplate = null; showStandaloneModule(module); return; }
       if (selected && messages.length) {
         selected = ''; messages = []; sessionStorage.removeItem(storageKey); renderList(); renderMessages();
         notice.textContent = 'بدأت مسودة جديدة حتى لا تختلط المهمة بسياق محادثة سابقة.';

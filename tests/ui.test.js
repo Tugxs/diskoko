@@ -431,7 +431,7 @@ test('an untouched library prompt with brackets can be submitted for an editable
       : url === '/api/ai/requests' ? { id: '22222222-2222-4222-8222-222222222222', conversationId: '11111111-1111-4111-8111-111111111111' }
         : fixtureResponse(url);
   const { dom, doc, requests } = await page('assistant', response);
-  doc.querySelector('[data-ai-template="0"]').click();
+  doc.querySelector(`[data-ai-template="${aiPromptLibrary.findIndex(item => item.title === 'جيف آواي سريع')}"]`).click();
   doc.querySelector('#assistantForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
   await settle();
   const submitted = requests.find(entry => entry.url === '/api/ai/requests');
@@ -441,6 +441,20 @@ test('an untouched library prompt with brackets can be submitted for an editable
   assert.equal(body.libraryTitle, 'جيف آواي سريع');
   assert.equal(body.libraryCategory, 'الجيف آواي');
   assert.equal(body.libraryMode, 'execute');
+  dom.window.close();
+});
+test('AI module cards open their own setup and the library can expand', async () => {
+  const { dom, doc } = await page('assistant', fixtureResponse);
+  const index = aiPromptLibrary.findIndex(item => item.moduleKind === 'orders');
+  doc.querySelector(`[data-ai-template="${index}"]`).click();
+  assert.match(doc.querySelector('#dialogContent').textContent, /طلبات المتجر/);
+  assert.equal(doc.querySelector('#moduleSubjectLabel').value, 'المنتج أو الخدمة المطلوبة');
+  assert.ok(doc.querySelector('#moduleReviewChannel'));
+  assert.equal(doc.querySelector('#assistantPrompt').value, '');
+  doc.querySelector('#dialogContent button#moduleCancel').click();
+  doc.querySelector('#aiLibraryExpand').click();
+  assert.equal(doc.querySelector('#aiLibraryExpand').getAttribute('aria-expanded'), 'true');
+  assert.ok(doc.querySelector('.ai-chat-layout').classList.contains('ai-library-expanded'));
   dom.window.close();
 });
 test('AI chat exposes reviewed Discord actions, image attachment and voice transcription control', async () => {
@@ -454,7 +468,7 @@ test('AI chat exposes reviewed Discord actions, image attachment and voice trans
   const { dom, doc } = await page('assistant', response);
   doc.querySelector('.ai-conversation').click(); await settle();
   assert.ok(doc.querySelector('[data-ai-delete]'));
-  assert.equal(doc.querySelectorAll('.ai-library-item').length, 13);
+  assert.equal(doc.querySelectorAll('.ai-library-item').length, aiPromptLibrary.length);
   assert.equal(doc.querySelectorAll('.ai-library-item').length, doc.querySelectorAll('.ai-library-item span').length);
   assert.ok(doc.querySelector('#aiVoice'));
   assert.equal(doc.querySelector('[data-ai-plan]'), null);
@@ -497,7 +511,7 @@ test('AI chat exposes reviewed Discord actions, image attachment and voice trans
   assert.match(doc.querySelector('#aiPreviewTitle').textContent, /عنوان جديد/);
   assert.equal(doc.querySelector('#aiInteractiveLaunch').disabled, true);
   doc.querySelector('#aiInteractiveCancel').click();
-  doc.querySelector('[data-ai-template="0"]').click();
+  doc.querySelector(`[data-ai-template="${aiPromptLibrary.findIndex(item => item.title === 'جيف آواي سريع')}"]`).click();
   assert.match(doc.querySelector('#assistantPrompt').value, /جيف آواي/);
   assert.equal(doc.querySelector('#aiTemplateDraft').hidden, false);
   assert.match(doc.querySelector('#aiNotice').textContent, /مسودة جديدة/);

@@ -56,9 +56,9 @@ test('message templates create review cards while retired templates cannot creat
 });
 
 test('every executable library template has a typed review path when sent unchanged', () => {
-  assert.equal(aiPromptLibrary.length, 13);
+  assert.equal(aiPromptLibrary.filter(item => item.moduleKind).length, 10);
   assert.equal(new Set(aiPromptLibrary.map(item => `${item.category}/${item.title}`)).size, aiPromptLibrary.length);
-  for (const task of aiPromptLibrary) {
+  for (const task of aiPromptLibrary.filter(item => !item.moduleKind)) {
     const draft = libraryDraftProposal({ ...task, mode: 'execute' });
     assert.ok(draft, `Missing review path: ${task.category} / ${task.title}`);
     if (task.kind === 'message') assert.ok(draft.message, `${task.title} must open a message editor`);
