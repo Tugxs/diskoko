@@ -25,11 +25,11 @@ test('ready template usage counts roles, categories, channels and enabled system
   const arabic = normalizeReadyDefinition(READY_TEMPLATES[0].definition);
   assert.equal(arabic.categories.length, 7);
   assert.equal(arabic.categories.flatMap(group => group.channels).length, 23);
-  assert.equal(readyUsageUnits(arabic), 37);
+  assert.equal(readyUsageUnits(arabic), 39);
   const extraRole = structuredClone(arabic); extraRole.roles.push({ key: 'extra-role', name: 'Extra', preset: 'member', color: 0 });
-  assert.equal(readyUsageUnits(extraRole), 38);
+  assert.equal(readyUsageUnits(extraRole), 40);
   const streamer = normalizeReadyDefinition(READY_TEMPLATES[1].definition);
-  assert.equal(readyUsageUnits(streamer), 71);
+  assert.equal(readyUsageUnits(streamer), 39);
 });
 
 test('welcome composite and support artwork are retained only with valid settings', () => {
@@ -52,9 +52,16 @@ test('every catalog template has valid editable structure and no administrator g
     assert.ok(definition.categories.length > 0);
     assert.ok(definition.categories.flatMap(group => group.channels).length > 0);
     assert.ok(definition.roles.every(role => (BigInt(role.permissions) & 8n) === 0n));
+    assert.equal(template.edition, 1);
+    assert.equal(template.seriesKey, template.key);
+    assert.equal(definition.features.guides.length, 2);
   }
   const streamer = normalizeReadyDefinition(READY_TEMPLATES[1].definition);
-  assert.equal(streamer.categories.flatMap(group => group.channels).length, 33);
+  assert.equal(streamer.categories.flatMap(group => group.channels).length, 22);
+  assert.ok(readyUsageUnits(streamer) < 50);
+  assert.equal(streamer.roles.length, 5);
+  assert.equal(streamer.features.ticket.enabled, true);
+  assert.equal(streamer.categories.flatMap(group => group.channels).find(channel => channel.key === 'subscriber-chat').access, 'private');
 });
 
 test('five focused templates are compact, private where needed, and mark external work as optional', () => {
@@ -84,7 +91,7 @@ test('Diskoko Gaming Arabic remains compact with working welcome, ticket and act
   assert.equal(definition.categories.length, 6);
   assert.equal(definition.categories.flatMap(group => group.channels).length, 20);
   assert.equal(definition.roles.length, 5);
-  assert.equal(readyUsageUnits(definition), 34);
+  assert.equal(readyUsageUnits(definition), 36);
   assert.equal(definition.features.welcome.enabled, true);
   assert.equal(definition.features.ticket.enabled, true);
   assert.equal(definition.features.logs.events.includes('command'), true);
@@ -98,7 +105,7 @@ test('Diskoko Streamer gives the creator posting access without exposing subscri
   assert.equal(template.name, 'Diskoko Streamer');
   assert.equal(definition.categories.length, 7);
   assert.equal(channels.length, 21);
-  assert.equal(readyUsageUnits(definition), 36);
+  assert.equal(readyUsageUnits(definition), 38);
   assert.equal(channels.find(channel => channel.key === 'live').postRoleKey, 'streamer');
   assert.equal(channels.find(channel => channel.key === 'subscriber-chat').roleKey, 'subscriber');
   assert.equal(definition.features.welcome.enabled && definition.features.ticket.enabled && definition.features.logs.enabled, true);
@@ -169,7 +176,7 @@ test('multiple log rules accept shared destinations and count one unit per rule'
   assert.equal(normalized.features.logs.routes.length, 2);
   assert.deepEqual(normalized.features.logs.routes[0].events, ['message_delete']);
   assert.deepEqual(new Set(normalized.features.logs.events), new Set(['message_delete', 'message_create']));
-  assert.equal(readyUsageUnits(normalized), 38);
+  assert.equal(readyUsageUnits(normalized), 40);
   definition.features.logs.routes[1].sourceKeys = [channels[2].key];
   assert.throws(() => normalizeReadyDefinition(definition), /مصادر اللوق/);
 });

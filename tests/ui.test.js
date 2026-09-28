@@ -183,6 +183,7 @@ test('ready templates open as an independent section with both sources and a Dis
   assert.match(doc.body.textContent, /Diskoko Gaming Arabic/);
   assert.match(doc.body.textContent, /Diskoko Streamer/);
   assert.equal(doc.querySelectorAll('.ready-library-card').length, 9);
+  assert.equal(doc.querySelectorAll('.ready-library-card .ready-edition-badge').length, 9);
   const cards = [...doc.querySelectorAll('.ready-library-card')];
   assert.deepEqual(cards.slice(0, 2).map(card => card.querySelector('[data-ready-choose]').dataset.readyChoose), ['diskoko-store-ar', 'diskoko-academy']);
   assert.equal(doc.querySelectorAll('.ready-new-badge').length, 2);
@@ -212,7 +213,8 @@ test('ready templates open as an independent section with both sources and a Dis
   assert.ok(doc.querySelector('input[name="readyMode"][value="replace"]'));
   assert.equal(doc.querySelectorAll('#readyPreview .ready-discord-category').length, 7);
   assert.equal(doc.querySelectorAll('#readyPreview .ready-discord-channel').length, 23);
-  assert.match(doc.querySelector('.ready-unit-note').textContent, /٣٧/);
+  assert.match(doc.querySelector('.ready-unit-note').textContent, /٣٩/);
+  assert.equal(doc.querySelectorAll('.ready-edition-badge').length, 1);
   assert.ok(doc.querySelector('input[name="readyExecutor"][value="custom"]'));
   assert.ok(doc.querySelector('#readyTicketImage'));
   assert.match(doc.querySelector('#ready-welcome-inline-preview').textContent, /أهلًا بك/);
@@ -238,12 +240,27 @@ test('ready templates open as an independent section with both sources and a Dis
   doc.querySelector('[data-platform-url="youtube"]').value = 'https://www.youtube.com/@creator';
   doc.querySelector('[data-platform-add="youtube"]').click();
   assert.equal(doc.querySelectorAll('#readyPreview .ready-discord-channel').length, 22);
-  assert.match(dom.window.sessionStorage.getItem(`diskoko:template:${account.user.id}:${guild.id}:diskoko-streamer`), /platform-youtube/);
+  assert.match(dom.window.sessionStorage.getItem(`diskoko:template:${account.user.id}:${guild.id}:diskoko-streamer:r2`), /platform-youtube/);
   doc.querySelector('#readyBack').click();
   doc.querySelector('[data-ready-choose="diskoko-streamer"]').click();
   assert.equal(doc.querySelectorAll('#readyPreview .ready-discord-channel').length, 22, 'returning to the template restores its saved draft');
   doc.querySelector('[data-ready-step="install"]').click();
   assert.ok(doc.querySelector('[data-ready-step-pane="install"] .ready-executor-panel'));
+  dom.window.close();
+});
+test('updated template opens its current structure instead of an old saved draft', async () => {
+  const response = url => url === '/api/ready-templates' ? { templates: READY_TEMPLATES } : fixtureResponse(url);
+  const { dom, doc } = await page('ready-templates', response, 'studio.html', 'workspace.js', window => {
+    window.structuredClone = structuredClone;
+    window.HTMLElement.prototype.scrollIntoView = () => {};
+    window.sessionStorage.setItem(`diskoko:template:${account.user.id}:${guild.id}:streamer-community`, JSON.stringify({
+      definition: { name: 'old draft', roles: [{ key: 'old' }], categories: [{ key: 'old', channels: [] }], features: {} },
+    }));
+  });
+  doc.querySelector('[data-ready-choose="streamer-community"]').click();
+  assert.match(doc.querySelector('.ready-detail-heading').textContent, /Diskoko Streamer Community/);
+  assert.equal(doc.querySelectorAll('#readyPreview .ready-discord-channel').length, 22);
+  assert.match(doc.querySelector('.ready-detail-heading .ready-edition-badge').textContent, /01/);
   dom.window.close();
 });
 test('ready template history offers cancellation with a clear partial-work explanation', async () => {
@@ -272,7 +289,7 @@ test('ready template log routes expose source, event type and destination and sa
   assert.match(doc.querySelector('.ready-log-rule').textContent, /قناة استقبال/);
   const event = doc.querySelector('[data-ready-log-route-event="0:message_delete"]');
   event.checked = false; event.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
-  assert.doesNotMatch(dom.window.sessionStorage.getItem(`diskoko:template:${account.user.id}:${guild.id}:diskoko-gaming-1`), /"message_delete"/);
+  assert.doesNotMatch(dom.window.sessionStorage.getItem(`diskoko:template:${account.user.id}:${guild.id}:diskoko-gaming-1:r2`), /"message_delete"/);
   dom.window.close();
 });
 test('community alerts show actionable paused giveaways and failed schedules', async () => {
