@@ -100,6 +100,7 @@ await pool.query(`CREATE TABLE IF NOT EXISTS customer_role_sync (
   requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, revision BIGINT NOT NULL DEFAULT 0);
   ALTER TABLE customer_role_sync ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 0`);
+await pool.query("UPDATE customer_role_sync SET retry_at=NOW(),attempts=0,last_error=NULL WHERE last_error LIKE 'Expected one assignable Discord role%'");
 await recoverDiscordJobQueue(pool);
 await startDiscordBot({ pool });
 await restoreAiBots(pool);
