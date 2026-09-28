@@ -109,8 +109,10 @@ async function migrate() {
       requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       attempts INTEGER NOT NULL DEFAULT 0,
-      last_error TEXT
+      last_error TEXT,
+      revision BIGINT NOT NULL DEFAULT 0
     );
+    ALTER TABLE customer_role_sync ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 0;
     CREATE TABLE IF NOT EXISTS audit_logs (
       id BIGSERIAL PRIMARY KEY,
       actor_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
@@ -509,7 +511,7 @@ function safeReturnTo(value) {
 async function requestCustomerRoleSync(userId, db = pool) {
   if (!customerRoleConfig()) return;
   await db.query(`INSERT INTO customer_role_sync(user_id) VALUES($1)
-    ON CONFLICT(user_id) DO UPDATE SET requested_at=NOW(),retry_at=NOW(),attempts=0,last_error=NULL`, [userId]);
+    ON CONFLICT(user_id) DO UPDATE SET requested_at=NOW(),retry_at=NOW(),attempts=0,last_error=NULL,revision=customer_role_sync.revision+1`, [userId]);
 }
 function publicUser(row) {
   return { id: row.id, discordId: row.discord_id, username: row.username, displayName: row.display_name, avatar: row.avatar, email: row.email, plan: row.plan, status: row.status, isAdmin: isAdmin(row), createdAt: row.created_at };
