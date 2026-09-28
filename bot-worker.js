@@ -110,4 +110,3 @@ customerRoleTimer = setInterval(() => void pumpCustomerRoles(), 1_500);
 customerRoleSweepTimer = setInterval(() => void sweepCustomerRoles(), 60_000);
 void sweepCustomerRoles();
 console.info('Diskoko bot worker started');
-

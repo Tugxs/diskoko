@@ -1153,4 +1153,3 @@ migrate().then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).th
     return discordBotFetch(pathname, { ...options, headers: { ...options.headers, Authorization: `Bot ${bot.token}` } });
   } });
 }).catch((error) => { console.error("Database migration failed", error); process.exit(1); });
-
