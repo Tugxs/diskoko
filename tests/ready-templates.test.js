@@ -142,14 +142,26 @@ test('multiple log rules accept shared destinations and count one unit per rule'
   const definition = structuredClone(READY_TEMPLATES[0].definition);
   const channels = definition.categories.flatMap(group => group.channels).filter(channel => channel.type === 0);
   definition.features.logs = { enabled: true, mode: 'routed', events: ['message_create', 'message_delete'], routes: [
-    { key: 'chat-logs', sourceKeys: [channels[0].key, channels[1].key], targetKey: channels[2].key },
-    { key: 'other-logs', sourceKeys: [channels[3].key], targetKey: channels[2].key },
+    { key: 'chat-logs', sourceKeys: [channels[0].key, channels[1].key], targetKey: channels[2].key, events: ['message_delete'] },
+    { key: 'other-logs', sourceKeys: [channels[3].key], targetKey: channels[2].key, events: ['message_create'] },
   ] };
   const normalized = normalizeReadyDefinition(definition);
   assert.equal(normalized.features.logs.routes.length, 2);
+  assert.deepEqual(normalized.features.logs.routes[0].events, ['message_delete']);
+  assert.deepEqual(new Set(normalized.features.logs.events), new Set(['message_delete', 'message_create']));
   assert.equal(readyUsageUnits(normalized), 38);
   definition.features.logs.routes[1].sourceKeys = [channels[2].key];
   assert.throws(() => normalizeReadyDefinition(definition), /مصادر اللوق/);
+});
+
+test('a private source cannot route its log into a public template channel', () => {
+  const definition = structuredClone(READY_TEMPLATES[2].definition);
+  const channels = definition.categories.flatMap(group => group.channels);
+  const source = channels.find(channel => channel.access === 'private');
+  const publicTarget = channels.find(channel => channel.type === 0 && channel.access !== 'private');
+  assert.ok(source && publicTarget);
+  definition.features.logs = { enabled: true, mode: 'routed', events: ['message_delete'], routes: [{ key: 'private-log', sourceKeys: [source.key], targetKey: publicTarget.key, events: ['message_delete'] }] };
+  assert.throws(() => normalizeReadyDefinition(definition), /قناة استقبال خاصة/);
 });
 
 test('log rules can include channels already present in the server', () => {

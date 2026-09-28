@@ -796,11 +796,11 @@ function readyDecoratePreview() {
     const name = key => channels.find(channel => channel.key === key)?.name || 'قناة محذوفة';
     const box = document.createElement('div'); box.className = 'ready-log-preview';
     const heading = document.createElement('strong'); heading.textContent = 'مسار سجلات النشاط'; box.append(heading);
-    const rules = logs.mode === 'routed' ? (logs.routes || []).map(rule => ({ sources: [...(rule.sourceKeys || []).map(name), ...(rule.sourceIds || []).map(id => state.data.channels?.find(channel => channel.id === id)?.name || 'قناة محذوفة')], target: name(rule.targetKey) })) : [{ sources: ['جميع القنوات'], target: name(logs.channelKey) }];
+    const rules = logs.mode === 'routed' ? (logs.routes || []).map(rule => ({ sources: [...(rule.sourceKeys || []).map(name), ...(rule.sourceIds || []).map(id => state.data.channels?.find(channel => channel.id === id)?.name || 'قناة محذوفة')], target: name(rule.targetKey), events: (rule.events || logs.events || []).length })) : [{ sources: ['جميع القنوات'], target: name(logs.channelKey), events: (logs.events || []).length }];
     for (const rule of rules) {
-      const row = document.createElement('p'); row.textContent = `${rule.sources.join('، ') || 'اختر قناة مصدر'} ← #${rule.target}`; box.append(row);
+      const row = document.createElement('p'); row.textContent = `${rule.sources.join('، ') || 'اختر قناة مصدر'} ← #${rule.target} · ${rule.events} أنواع أحداث`; box.append(row);
     }
-    const note = document.createElement('small'); note.textContent = `${(logs.events || []).length || 6} أنواع أحداث · نص المحذوف يظهر إذا سمح Discord للبوت بقراءته`; box.append(note);
+    const note = document.createElement('small'); note.textContent = `${(logs.events || []).length} أنواع أحداث · نص المحذوف يظهر إذا سمح Discord للبوت بقراءته`; box.append(note);
     document.querySelector('#readyPreview .ready-discord main')?.append(box);
   }
 }
@@ -1035,9 +1035,13 @@ function renderReadyEditor() {
   ticketSection.insertAdjacentHTML('beforeend', `<label>لون لوحة الدعم<input type="color" data-ready-field="features.ticket.color" value="${esc(d.features.ticket?.color || '#8d72e8')}"></label><label>نص زر الدعم<input data-ready-field="features.ticket.buttonLabel" maxlength="80" value="${esc(d.features.ticket?.buttonLabel || 'فتح تذكرة دعم')}"></label><label>صورة لوحة الدعم أو GIF (حتى 8 ميجابايت)<input id="readyTicketImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label><button class="btn text" id="readyRemoveTicketImage" ${d.features.ticket?.banner ? '' : 'hidden'}>إزالة صورة الدعم</button><label>موضع صورة الدعم<select data-ready-field="features.ticket.bannerPosition"><option value="below" ${d.features.ticket?.bannerPosition !== 'above' ? 'selected' : ''}>أسفل النص</option><option value="above" ${d.features.ticket?.bannerPosition === 'above' ? 'selected' : ''}>فوق النص</option></select></label>`);
   ticketSection.insertAdjacentHTML('beforeend', `<label>طريقة عرض صورة الدعم<select data-ready-field="features.ticket.imageStyle"><option value="normal" ${!['logo','design'].includes(d.features.ticket?.imageStyle) ? 'selected' : ''}>صورة عادية</option><option value="logo" ${d.features.ticket?.imageStyle === 'logo' ? 'selected' : ''}>شعار صغير داخل البطاقة</option><option value="design" ${d.features.ticket?.imageStyle === 'design' ? 'selected' : ''}>دمج شعار دائري داخل تصميمك</option></select></label><div id="readyTicketDesignControls" class="ready-design-controls" ${d.features.ticket?.imageStyle === 'design' ? '' : 'hidden'}><label>شعار السيرفر داخل التصميم<input id="readyTicketLogo" type="file" accept="image/png,image/jpeg,image/webp"></label><label>تحريك الشعار يمينًا ويسارًا <output id="readyTicketXValue">${Number(d.features.ticket?.logoX ?? 50)}%</output><input id="readyTicketX" type="range" min="10" max="90" value="${Number(d.features.ticket?.logoX ?? 50)}"></label><label>تحريك الشعار أعلى وأسفل <output id="readyTicketYValue">${Number(d.features.ticket?.logoY ?? 50)}%</output><input id="readyTicketY" type="range" min="25" max="75" value="${Number(d.features.ticket?.logoY ?? 50)}"></label><small class="form-note">ارفع تصميمًا ثابتًا وشعارًا، ثم حرّك موضع الشعار. تظهر النتيجة في المعاينة قبل النشر.</small></div>`);
   const logs = d.features.logs;
+  const logTargets = d.categories.flatMap(group => group.channels).filter(channel => channel.type === 0);
   logsSection.querySelector('[data-ready-field="features.logs.channelKey"]').closest('label').classList.add('ready-log-unified-target');
    logsSection.querySelector('.form-note').textContent = 'اختر سجلًا واحدًا لكل الأحداث، أو وزّعها بقواعد تربط عدة قنوات مصدر بقناة سجل واحدة. نص الرسالة المحذوفة يظهر فقط إذا كان متاحًا للبوت من Discord، وتُجمع الإشعارات لتفادي الإرسال المفرط.';
-  logsSection.insertAdjacentHTML('beforeend', `<label>طريقة توزيع اللوقات<select id="readyLogMode"><option value="unified" ${logs.mode !== 'routed' ? 'selected' : ''}>لوق واحد لجميع القنوات</option><option value="routed" ${logs.mode === 'routed' ? 'selected' : ''}>قواعد منفصلة: مصادر متعددة إلى وجهة تختارها</option></select></label><div class="ready-log-events"><b>الأحداث المسجلة</b>${[['message_create','رسالة جديدة'],['message_update','تعديل رسالة'],['message_delete','حذف رسالة'],['voice_join','دخول صوتي'],['voice_leave','خروج صوتي'],['command','أوامر البوت']].map(([key,label]) => `<label class="check-row"><input type="checkbox" data-ready-log-event="${key}" ${(logs.events || ['message_create','message_update','message_delete','voice_join','voice_leave','command']).includes(key) ? 'checked' : ''}>${label}</label>`).join('')}</div><div id="readyLogRoutes" class="ready-log-routes" ${logs.mode === 'routed' ? '' : 'hidden'}>${(logs.routes || []).map((rule,index) => `<div class="ready-log-rule"><div class="ready-log-rule-head"><b>قاعدة اللوق ${fmt(index + 1)}</b><button class="btn text" type="button" data-ready-log-remove="${index}">إزالة</button></div><details><summary>القنوات المصدر (${fmt(rule.sourceKeys?.length || 0)})</summary><div class="ready-log-sources">${d.categories.flatMap(group => group.channels).map(channel => `<label class="check-row"><input type="checkbox" data-ready-log-source="${index}:${esc(channel.key)}" ${(rule.sourceKeys || []).includes(channel.key) ? 'checked' : ''}>${channel.type === 2 ? '🔊' : '#'} ${esc(channel.name)}</label>`).join('')}</div></details><label>إرسال اللوق إلى<select data-ready-field="features.logs.routes.${index}.targetKey">${readySelectOptions(channels, rule.targetKey)}</select></label></div>`).join('')}<button class="btn secondary" type="button" id="readyAddLogRoute" ${(logs.routes || []).length >= 10 ? 'disabled' : ''}>＋ أضف قاعدة لوق</button></div>`);
+  const logEventOptions = [['message_create','رسالة جديدة'],['message_update','تعديل رسالة'],['message_delete','حذف رسالة'],['voice_join','دخول صوتي'],['voice_leave','خروج صوتي'],['command','أوامر البوت']];
+  logsSection.insertAdjacentHTML('beforeend', `<label>طريقة توزيع اللوقات<select id="readyLogMode"><option value="unified" ${logs.mode !== 'routed' ? 'selected' : ''}>سجل واحد يجمع كل الأحداث</option><option value="routed" ${logs.mode === 'routed' ? 'selected' : ''}>توزيع مخصص حسب القنوات ونوع الحدث</option></select></label>
+    <div class="ready-log-events" ${logs.mode === 'routed' ? 'hidden' : ''}><b>الأحداث في السجل الموحد</b>${logEventOptions.map(([key,label]) => `<label class="check-row"><input type="checkbox" data-ready-log-event="${key}" ${(logs.events || []).includes(key) ? 'checked' : ''}>${label}</label>`).join('')}</div>
+    <div id="readyLogRoutes" class="ready-log-routes" ${logs.mode === 'routed' ? '' : 'hidden'}><p class="form-note">لكل قاعدة اختر نوع اللوق والقنوات التي تراقبها وقناة الاستقبال. يمكن جمع عدة مصادر في سجل واحد، أو تخصيص سجل مستقل للقنوات الخاصة.</p>${(logs.routes || []).map((rule,index) => `<div class="ready-log-rule"><div class="ready-log-rule-head"><b>قاعدة اللوق ${fmt(index + 1)}</b><button class="btn text" type="button" data-ready-log-remove="${index}">إزالة</button></div><details ${index === 0 ? 'open' : ''}><summary>القنوات المصدر (${fmt((rule.sourceKeys || []).length + (rule.sourceIds || []).length)})</summary><div class="ready-log-sources">${d.categories.flatMap(group => group.channels).map(channel => `<label class="check-row"><input type="checkbox" data-ready-log-source="${index}:${esc(channel.key)}" ${(rule.sourceKeys || []).includes(channel.key) ? 'checked' : ''}>${channel.type === 2 ? '🔊' : '#'} ${esc(channel.name)}</label>`).join('')}</div></details><details class="ready-log-rule-events"><summary>أنواع الأحداث (${fmt((rule.events || logs.events || []).length)})</summary><div class="ready-log-events">${logEventOptions.map(([key,label]) => `<label class="check-row"><input type="checkbox" data-ready-log-route-event="${index}:${key}" ${(rule.events || logs.events || []).includes(key) ? 'checked' : ''}>${label}</label>`).join('')}</div></details><label>قناة استقبال هذا اللوق<select data-ready-field="features.logs.routes.${index}.targetKey">${logTargets.map(channel => `<option value="${esc(channel.key)}" ${channel.key === rule.targetKey ? 'selected' : ''}>${channel.access === 'private' ? '🔒 خاصة' : '# عامة'} ${esc(channel.name)}</option>`).join('')}</select></label><small class="form-note">لوق القناة الخاصة اختر له قناة استقبال 🔒 خاصة حتى لا يظهر للأعضاء.</small></div>`).join('')}<button class="btn secondary" type="button" id="readyAddLogRoute" ${(logs.routes || []).length >= 10 ? 'disabled' : ''}>＋ أضف قاعدة لوق</button></div>`);
   logsSection.querySelector('.ready-log-unified-target').hidden = logs.mode === 'routed';
   logsSection.querySelectorAll('.ready-log-rule').forEach((row, index) => {
     const sources = row.querySelector('.ready-log-sources');
@@ -1111,13 +1115,13 @@ function renderReadyEditor() {
   });
   $('#readyLogMode').onchange = event => {
     logs.mode = event.target.value;
-    if (logs.mode === 'routed' && !(logs.routes || []).length) logs.routes = [{ key: readyNewKey('log'), sourceKeys: [d.categories.flatMap(group => group.channels).find(channel => channel.key !== logs.channelKey)?.key].filter(Boolean), targetKey: logs.channelKey }];
+    if (logs.mode === 'routed' && !(logs.routes || []).length) logs.routes = [{ key: readyNewKey('log'), sourceKeys: [d.categories.flatMap(group => group.channels).find(channel => channel.key !== logs.channelKey)?.key].filter(Boolean), targetKey: logs.channelKey, events: [...logs.events] }];
     renderReadyEditor();
   };
   $('#readyAddLogRoute')?.addEventListener('click', () => {
     if ((logs.routes || []).length >= 10) return;
     logs.routes ||= [];
-    logs.routes.push({ key: readyNewKey('log'), sourceKeys: [], targetKey: logs.channelKey });
+    logs.routes.push({ key: readyNewKey('log'), sourceKeys: [], targetKey: logs.channelKey, events: [...logs.events] });
     renderReadyEditor();
   });
   document.querySelectorAll('[data-ready-log-remove]').forEach(button => button.onclick = () => { logs.routes.splice(Number(button.dataset.readyLogRemove), 1); renderReadyEditor(); });
@@ -1126,18 +1130,26 @@ function renderReadyEditor() {
     const rule = logs.routes[Number(index)];
     rule.sourceKeys = input.checked ? [...new Set([...(rule.sourceKeys || []), key])] : (rule.sourceKeys || []).filter(item => item !== key);
     input.closest('details').querySelector('summary').textContent = `القنوات المصدر (${fmt(rule.sourceKeys.length + (rule.sourceIds || []).length)})`;
-    $('#readyPreview').innerHTML = readyPreview(d); readyDecoratePreview();
+    readySaveDraft(); $('#readyPreview').innerHTML = readyPreview(d); readyDecoratePreview();
   });
   document.querySelectorAll('[data-ready-log-existing]').forEach(input => input.onchange = () => {
     const [index, id] = input.dataset.readyLogExisting.split(':');
     const rule = logs.routes[Number(index)];
     rule.sourceIds = input.checked ? [...new Set([...(rule.sourceIds || []), id])] : (rule.sourceIds || []).filter(item => item !== id);
     input.closest('details').querySelector('summary').textContent = `القنوات المصدر (${fmt((rule.sourceKeys || []).length + rule.sourceIds.length)})`;
-    $('#readyPreview').innerHTML = readyPreview(d); readyDecoratePreview();
+    readySaveDraft(); $('#readyPreview').innerHTML = readyPreview(d); readyDecoratePreview();
   });
   document.querySelectorAll('[data-ready-log-event]').forEach(input => input.onchange = () => {
     logs.events = [...document.querySelectorAll('[data-ready-log-event]:checked')].map(item => item.dataset.readyLogEvent);
-    $('#readyPreview').innerHTML = readyPreview(d); readyDecoratePreview();
+    readySaveDraft(); $('#readyPreview').innerHTML = readyPreview(d); readyDecoratePreview();
+  });
+  document.querySelectorAll('[data-ready-log-route-event]').forEach(input => input.onchange = () => {
+    const [index, event] = input.dataset.readyLogRouteEvent.split(':');
+    const rule = logs.routes[Number(index)];
+    rule.events = input.checked ? [...new Set([...(rule.events || logs.events || []), event])] : (rule.events || logs.events || []).filter(item => item !== event);
+    logs.events = [...new Set(logs.routes.flatMap(item => item.events || []))];
+    input.closest('details').querySelector('summary').textContent = `أنواع الأحداث (${fmt(rule.events.length)})`;
+    readySaveDraft(); $('#readyPreview').innerHTML = readyPreview(d); readyDecoratePreview();
   });
   document.querySelectorAll('input[name="readyMode"]').forEach(input => input.onchange = () => { state.readyMode = input.value; });
   document.querySelectorAll('[data-ready-add]').forEach(button => button.onclick = () => {

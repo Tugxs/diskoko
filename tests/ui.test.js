@@ -177,7 +177,7 @@ test('channel order follows its visible position within the category even when D
 });
 test('ready templates open as an independent section with both sources and a Discord preview', async () => {
   const response = url => url === '/api/ready-templates' ? { templates: READY_TEMPLATES } : fixtureResponse(url);
-  const { dom, doc } = await page('ready-templates', response, 'studio.html', 'workspace.js', window => { window.structuredClone = structuredClone; });
+  const { dom, doc } = await page('ready-templates', response, 'studio.html', 'workspace.js', window => { window.structuredClone = structuredClone; window.HTMLElement.prototype.scrollIntoView = () => {}; });
   assert.match(doc.body.textContent, /Server My Arabic/);
   assert.match(doc.body.textContent, /Streamer Community/);
   assert.match(doc.body.textContent, /Diskoko Gaming Arabic/);
@@ -241,6 +241,22 @@ test('ready template history offers cancellation with a clear partial-work expla
   assert.match(doc.querySelector('#dialogContent').textContent, /ستبقى العناصر التي نُفذت/);
   doc.querySelector('#confirmAction').click(); await settle();
   assert.ok(requests.some(item => item.url.endsWith('/ready-templates/runs/run-1/cancel') && item.options.method === 'POST'));
+  dom.window.close();
+});
+test('ready template log routes expose source, event type and destination and save the choice', async () => {
+  const response = url => url === '/api/ready-templates' ? { templates: READY_TEMPLATES } : fixtureResponse(url);
+  const { dom, doc } = await page('ready-templates', response, 'studio.html', 'workspace.js', window => { window.structuredClone = structuredClone; window.HTMLElement.prototype.scrollIntoView = () => {}; });
+  doc.querySelector('[data-ready-choose="diskoko-gaming-1"]').click();
+  doc.querySelector('[data-ready-step="features"]').click();
+  doc.querySelector('#readyLogMode').value = 'routed';
+  doc.querySelector('#readyLogMode').dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.equal(doc.querySelectorAll('.ready-log-rule').length, 1);
+  assert.match(doc.querySelector('.ready-log-rule').textContent, /القنوات المصدر/);
+  assert.match(doc.querySelector('.ready-log-rule').textContent, /أنواع الأحداث/);
+  assert.match(doc.querySelector('.ready-log-rule').textContent, /قناة استقبال/);
+  const event = doc.querySelector('[data-ready-log-route-event="0:message_delete"]');
+  event.checked = false; event.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.doesNotMatch(dom.window.sessionStorage.getItem(`diskoko:template:${account.user.id}:${guild.id}:diskoko-gaming-1`), /"message_delete"/);
   dom.window.close();
 });
 test('community alerts show actionable paused giveaways and failed schedules', async () => {

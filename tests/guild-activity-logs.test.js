@@ -33,3 +33,13 @@ test('commands follow their source channel route only when enabled', () => {
   assert.deepEqual(activityLogDestinations(config, 'message_create', 'memes'), []);
 });
 
+test('each routed log can choose its own event types and destination', () => {
+  const config = { mode: 'routed', events: ['message_delete', 'voice_join'], routes: [
+    { events: ['message_delete'], sourceIds: ['private-chat'], targetId: 'private-logs' },
+    { events: ['voice_join'], sourceIds: ['voice'], targetId: 'voice-logs' },
+  ] };
+  assert.deepEqual(activityLogDestinations(config, 'message_delete', 'private-chat'), ['private-logs']);
+  assert.deepEqual(activityLogDestinations(config, 'voice_join', 'private-chat'), []);
+  assert.deepEqual(activityLogDestinations(config, 'voice_join', 'voice'), ['voice-logs']);
+});
+
