@@ -14,6 +14,10 @@ test('free account receives only Customers', () => {
   assert.deepEqual(desiredCustomerRoles({ ...user, plan: 'free' }, null, config), [env.CUSTOMER_ROLE_ID]);
 });
 
+test('paid account without a subscription row receives its site plan role', () => {
+  assert.deepEqual(desiredCustomerRoles({ ...user, plan: 'business' }, null, config), [env.CUSTOMER_ROLE_ID, env.BUSINESS_ROLE_ID]);
+});
+
 test('active paid subscription receives its role, pending or expired subscription does not', () => {
   assert.deepEqual(desiredCustomerRoles(user, { plan: 'growth', status: 'active' }, config), [env.CUSTOMER_ROLE_ID, env.GROWTH_ROLE_ID]);
   assert.deepEqual(desiredCustomerRoles(user, { plan: 'growth', status: 'expired' }, config), [env.CUSTOMER_ROLE_ID]);
