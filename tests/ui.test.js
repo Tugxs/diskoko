@@ -263,6 +263,26 @@ test('updated template opens its current structure instead of an old saved draft
   assert.match(doc.querySelector('.ready-detail-heading .ready-edition-badge').textContent, /01/);
   dom.window.close();
 });
+test('template features open one compact card at a time and optional modules update the preview and usage', async () => {
+  const response = url => url === '/api/ready-templates' ? { templates: READY_TEMPLATES } : fixtureResponse(url);
+  const { dom, doc } = await page('ready-templates', response, 'studio.html', 'workspace.js', window => { window.structuredClone = structuredClone; window.HTMLElement.prototype.scrollIntoView = () => {}; });
+  doc.querySelector('[data-ready-choose="diskoko-store-ar"]').click();
+  doc.querySelector('[data-ready-step="features"]').click();
+  const cards = [...doc.querySelectorAll('.ready-feature-card')];
+  assert.ok(cards.length >= 10);
+  assert.equal(cards.filter(card => card.open).length, 0);
+  const module = doc.querySelector('.ready-module-card');
+  module.querySelector('summary').click(); await settle();
+  assert.equal(module.open, true);
+  const enabled = module.querySelector('[data-ready-field$=".enabled"]');
+  const before = doc.querySelector('#readyCounts').textContent;
+  enabled.checked = true; enabled.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.notEqual(doc.querySelector('#readyCounts').textContent, before);
+  assert.match(doc.querySelector('#readyPreview').textContent, /الاقتراحات/);
+  doc.querySelector('[data-ready-feature-card="ticket"] summary').click(); await settle();
+  assert.equal(module.open, false);
+  dom.window.close();
+});
 test('ready template history offers cancellation with a clear partial-work explanation', async () => {
   const response = url => url === '/api/ready-templates' ? { templates: READY_TEMPLATES }
     : url.endsWith('/ready-templates/runs') ? { runs: [{ id: 'run-1', name: 'Test Template', mode: 'replace', status: 'failed', completed_units: 2, updated_at: new Date().toISOString() }] }

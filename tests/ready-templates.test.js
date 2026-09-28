@@ -32,6 +32,26 @@ test('ready template usage counts roles, categories, channels and enabled system
   assert.equal(readyUsageUnits(streamer), 39);
 });
 
+test('optional template modules are relevant, reviewed, charged only when enabled, and never grant staff roles', () => {
+  for (const template of READY_TEMPLATES) {
+    const base = normalizeReadyDefinition(template.definition);
+    assert.ok(base.features.modules.length >= 6);
+    assert.ok(base.features.modules.every(module => module.enabled === false));
+    const selected = structuredClone(template.definition);
+    selected.features.modules[0].enabled = true;
+    const enabled = normalizeReadyDefinition(selected);
+    assert.equal(readyUsageUnits(enabled), readyUsageUnits(base) + 1);
+    const completed = readyCompletedUnits(enabled, [{ kind: 'feature-module', status: 'succeeded' }, { kind: 'feature-module', status: 'failed' }]);
+    assert.equal(completed, 1);
+    const roleModule = selected.features.modules.find(module => module.kind === 'interests');
+    if (roleModule) {
+      roleModule.enabled = true;
+      roleModule.roleKey = selected.roles.find(role => role.preset !== 'member')?.key;
+      assert.throws(() => normalizeReadyDefinition(selected), /رتبة عضو عادية/);
+    }
+  }
+});
+
 test('welcome composite and support artwork are retained only with valid settings', () => {
   const definition = structuredClone(READY_TEMPLATES[0].definition);
   definition.features.welcome.composite = true;
