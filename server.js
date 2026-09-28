@@ -18,6 +18,7 @@ import { mountNativeEvents } from "./lib/native-events.js";
 import { mountChannelControl } from "./lib/channel-control.js";
 import { isPublicStaticPath } from "./lib/public-files.js";
 import { BILLING_PLANS, BILLING_STATUSES, canonicalPlan, entitlementsFor, publicPlanCatalog, subscriptionAccess, usageAlert, upgradeQuote } from "./lib/billing.js";
+import { customerRoleConfig } from './lib/customer-roles.js';
 import { publicError } from "./lib/http-error.js";
 import { createDiscordRequestGate, discordRetryAfterMs } from "./lib/discord-rate-limit.js";
 import { validateDiscordWrite } from './lib/discord-preflight.js';
@@ -102,6 +103,13 @@ async function migrate() {
       payload JSONB NOT NULL DEFAULT '{}'::jsonb,
       processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE(provider, event_id)
+    );
+    CREATE TABLE IF NOT EXISTS customer_role_sync (
+      user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT
     );
     CREATE TABLE IF NOT EXISTS audit_logs (
       id BIGSERIAL PRIMARY KEY,
@@ -498,6 +506,11 @@ function safeReturnTo(value) {
   const target = String(value || "");
   return target.startsWith("/") && !target.startsWith("//") && !target.includes("\\") ? target : null;
 }
+async function requestCustomerRoleSync(userId, db = pool) {
+  if (!customerRoleConfig()) return;
+  await db.query(`INSERT INTO customer_role_sync(user_id) VALUES($1)
+    ON CONFLICT(user_id) DO UPDATE SET requested_at=NOW(),retry_at=NOW(),attempts=0,last_error=NULL`, [userId]);
+}
 function publicUser(row) {
   return { id: row.id, discordId: row.discord_id, username: row.username, displayName: row.display_name, avatar: row.avatar, email: row.email, plan: row.plan, status: row.status, isAdmin: isAdmin(row), createdAt: row.created_at };
 }
@@ -643,6 +656,7 @@ app.get("/api/health", async (_req, res) => {
 app.get("/auth/discord", rateLimit(12, 60_000), (req, res) => {
   const state = crypto.randomBytes(24).toString("hex");
   req.session.oauthState = state;
+  req.session.oauthLinkUserId = req.session.userId || null;
   req.session.returnTo = safeReturnTo(req.query.returnTo);
   const params = new URLSearchParams({ client_id: process.env.DISCORD_CLIENT_ID || "", redirect_uri: `${BASE_URL}/auth/discord/callback`, response_type: "code", scope: "identify email guilds", state, prompt: "consent" });
   res.redirect(`https://discord.com/oauth2/authorize?${params}`);
@@ -659,10 +673,21 @@ app.get("/auth/discord/callback", async (req, res, next) => {
     const profile = await discordResponse.json();
     const avatar = profile.avatar ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png?size=128` : null;
     const expires = new Date(Date.now() + Number(tokens.expires_in || 604800) * 1000);
-    const { rows } = await pool.query(`INSERT INTO users(discord_id,username,display_name,avatar,email,access_token,refresh_token,token_expires_at,last_login_at)
+    const linkUserId = req.session.oauthLinkUserId; delete req.session.oauthLinkUserId;
+    let rows;
+    if (linkUserId) {
+      const current = (await pool.query('SELECT id,discord_id FROM users WHERE id=$1', [linkUserId])).rows[0];
+      if (!current) return res.status(401).send('انتهت جلسة الحساب. سجّل الدخول مجددًا.');
+      const existing = (await pool.query('SELECT id FROM users WHERE discord_id=$1', [profile.id])).rows[0];
+      if (existing && String(existing.id) !== String(linkUserId)) return res.status(409).send('حساب Discord مرتبط بحساب آخر. تواصل مع الدعم لدمج الحسابين.');
+      if (current.discord_id && current.discord_id !== profile.id) return res.status(409).send('حسابك مرتبط بحساب Discord مختلف. تواصل مع الدعم لتغييره.');
+      ({ rows } = await pool.query(`UPDATE users SET discord_id=$1,access_token=$2,refresh_token=$3,token_expires_at=$4,updated_at=NOW() WHERE id=$5 RETURNING *`,
+        [profile.id, encrypt(tokens.access_token), encrypt(tokens.refresh_token), expires, linkUserId]));
+    } else ({ rows } = await pool.query(`INSERT INTO users(discord_id,username,display_name,avatar,email,access_token,refresh_token,token_expires_at,last_login_at)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,NOW()) ON CONFLICT(discord_id) DO UPDATE SET username=EXCLUDED.username,display_name=EXCLUDED.display_name,avatar=EXCLUDED.avatar,email=EXCLUDED.email,access_token=EXCLUDED.access_token,refresh_token=EXCLUDED.refresh_token,token_expires_at=EXCLUDED.token_expires_at,last_login_at=NOW(),updated_at=NOW() RETURNING *`,
-      [profile.id, profile.username, profile.global_name || profile.username, avatar, profile.email || null, encrypt(tokens.access_token), encrypt(tokens.refresh_token), expires]);
+      [profile.id, profile.username, profile.global_name || profile.username, avatar, profile.email || null, encrypt(tokens.access_token), encrypt(tokens.refresh_token), expires]));
     req.session.userId = rows[0].id;
+    await requestCustomerRoleSync(rows[0].id);
     void sendWelcomeEmail(rows[0]).catch((error) => console.error("Welcome email failed", error));
     await audit(rows[0].id, "login", "user", rows[0].id);
     const returnTo = safeReturnTo(req.session.returnTo); delete req.session.returnTo;
@@ -717,6 +742,7 @@ app.post("/api/webhooks/billing", async (req, res, next) => {
     // Account access and billing access are separate: expired billing must never delete or lock the account.
     await client.query("UPDATE users SET plan=$1,updated_at=NOW() WHERE id=$2", [["cancelled", "expired"].includes(payload.status) ? "free" : payload.plan, payload.userId]);
     await client.query("INSERT INTO audit_logs(actor_user_id,action,target_type,target_id,details) VALUES(NULL,$1,'user',$2,$3)", ["billing.subscription.updated", payload.userId, { event_id: eventId, provider: payload.provider, plan: payload.plan, status: payload.status }]);
+    await requestCustomerRoleSync(payload.userId, client);
     await client.query("COMMIT");
     res.json({ ok: true, eventId, plan: payload.plan, status: payload.status });
   } catch (error) { await client.query("ROLLBACK").catch(() => {}); next(error); } finally { client.release(); }
@@ -1127,4 +1153,3 @@ migrate().then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).th
     return discordBotFetch(pathname, { ...options, headers: { ...options.headers, Authorization: `Bot ${bot.token}` } });
   } });
 }).catch((error) => { console.error("Database migration failed", error); process.exit(1); });
-

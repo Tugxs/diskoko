@@ -3,6 +3,7 @@ import { getDiscordBotStatus, startDiscordBot, stopDiscordBot } from './discord-
 import { migrateAiBotConnections, restoreAiBots, stopAllAiBots, syncAiBots } from './lib/ai-bot-connections.js';
 import { claimDiscordJob, executeDiscordJob, migrateDiscordJobQueue, recoverDiscordJobQueue } from './lib/discord-job-queue.js';
 import { migrateGuildActivityLogs } from './lib/guild-activity-logs.js';
+import { customerRoleConfig, syncCustomerRoles } from './lib/customer-roles.js';
 
 const required = ['DATABASE_URL', 'ENCRYPTION_KEY', 'DISCORD_BOT_TOKEN'];
 const missing = required.filter(name => !process.env[name]);
@@ -13,6 +14,9 @@ let stopping = false;
 let running = false;
 let interval;
 let queueTimer;
+let customerRoleTimer;
+let customerRoleSweepTimer;
+let customerRoleCursor = 0;
 const activeJobs = new Set();
 
 async function pumpQueue() {
@@ -26,6 +30,35 @@ async function pumpQueue() {
     }
   } catch (error) { console.error('Discord queue poll failed', error); }
   finally { if (!stopping) queueTimer = setTimeout(() => void pumpQueue(), activeJobs.size ? 200 : 800); }
+}
+
+async function pumpCustomerRoles() {
+  if (stopping || !customerRoleConfig()) return;
+  try {
+    const { rows } = await pool.query(`SELECT user_id,requested_at,attempts FROM customer_role_sync WHERE retry_at<=NOW()
+      ORDER BY retry_at LIMIT 1`);
+    const job = rows[0];
+    if (!job) return;
+    try {
+      const result = await syncCustomerRoles(pool, job.user_id);
+      await pool.query('DELETE FROM customer_role_sync WHERE user_id=$1 AND requested_at=$2', [job.user_id, job.requested_at]);
+      if (result.status === 'synced' && result.changed) console.info('Customer roles updated', { userId: job.user_id, changed: result.changed });
+    } catch (error) {
+      await pool.query(`UPDATE customer_role_sync SET attempts=attempts+1,retry_at=NOW()+LEAST(1800,POWER(2,LEAST(attempts,10))*30)*INTERVAL '1 second',last_error=$2
+        WHERE user_id=$1 AND requested_at=$3`, [job.user_id, String(error.message).slice(0, 300), job.requested_at]);
+      console.error('Customer role sync failed', { userId: job.user_id, error: error.message });
+    }
+  } catch (error) { console.error('Customer role queue failed', error.message); }
+}
+
+async function sweepCustomerRoles() {
+  if (stopping || !customerRoleConfig()) return;
+  try {
+    const { rows } = await pool.query('SELECT id FROM users WHERE discord_id IS NOT NULL AND id>$1 ORDER BY id LIMIT 30', [customerRoleCursor]);
+    if (!rows.length) { customerRoleCursor = 0; return; }
+    customerRoleCursor = rows.at(-1).id;
+    for (const row of rows) await pool.query(`INSERT INTO customer_role_sync(user_id) VALUES($1) ON CONFLICT(user_id) DO NOTHING`, [row.id]);
+  } catch (error) { console.error('Customer role sweep failed', error.message); }
 }
 
 async function heartbeat() {
@@ -43,6 +76,8 @@ async function shutdown() {
   stopping = true;
   clearInterval(interval);
   clearTimeout(queueTimer);
+  clearInterval(customerRoleTimer);
+  clearInterval(customerRoleSweepTimer);
   const timeout = setTimeout(() => process.exit(1), 25_000).unref();
   try {
     await Promise.allSettled([...activeJobs]);
@@ -60,6 +95,10 @@ process.once('SIGINT', () => void shutdown());
 await migrateAiBotConnections(pool);
 await migrateDiscordJobQueue(pool);
 await migrateGuildActivityLogs(pool);
+await pool.query(`CREATE TABLE IF NOT EXISTS customer_role_sync (
+  user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT)`);
 await recoverDiscordJobQueue(pool);
 await startDiscordBot({ pool });
 await restoreAiBots(pool);
@@ -67,4 +106,7 @@ await heartbeat();
 interval = setInterval(() => void heartbeat(), 10_000);
 setInterval(() => void recoverDiscordJobQueue(pool).catch(error => console.error('Discord queue recovery failed', error.message)), 60_000).unref();
 void pumpQueue();
+customerRoleTimer = setInterval(() => void pumpCustomerRoles(), 1_500);
+customerRoleSweepTimer = setInterval(() => void sweepCustomerRoles(), 60_000);
+void sweepCustomerRoles();
 console.info('Diskoko bot worker started');
