@@ -6,6 +6,7 @@ import { canonicalPlan, subscriptionAccess } from './lib/billing.js';
 import { claimSupportTicket, handleInteractiveButton, reopenSupportTicket, repairLegacyTicketControls, sendWelcomeCard } from './lib/interactive-systems.js';
 import { waitForGatewayLoginSlot } from './lib/gateway-login-gate.js';
 import { registerGuildActivityLogs } from './lib/guild-activity-logs.js';
+import { upsertCustomerLinkPanel } from './lib/customer-link-panel.js';
 
 const BOT_NAME = "diskoko | ديسكوكو";
 
@@ -185,7 +186,7 @@ export async function startDiscordBot({ pool } = {}) {
 
   client.on(Events.GuildMemberAdd, member => {
     if (databasePool) void (async () => {
-      if (member.guild.id === process.env.CUSTOMER_GUILD_ID) {
+      if (member.guild.id === customerRoleConfig().guildId) {
         await databasePool.query(`INSERT INTO customer_role_sync(user_id)
           SELECT id FROM users WHERE discord_id=$1 ON CONFLICT(user_id) DO UPDATE
           SET requested_at=NOW(),retry_at=NOW(),attempts=0,last_error=NULL,revision=customer_role_sync.revision+1`, [member.id]);
@@ -227,6 +228,9 @@ export async function startDiscordBot({ pool } = {}) {
     });
 
     if (databasePool) void repairLegacyTicketControls(readyClient, databasePool).catch(error => console.error('Ticket controls repair failed', error.message));
+    if (databasePool) void upsertCustomerLinkPanel(readyClient, databasePool)
+      .then(result => console.log('Customer link panel ready', result))
+      .catch(error => console.error('Customer link panel failed', error.message));
 
     const rest = new REST({ version: "10" }).setToken(token);
     for (const guild of readyClient.guilds.cache.values()) {
