@@ -230,6 +230,19 @@ test('ready templates open as an independent section with both sources and a Dis
   assert.ok(doc.querySelector('[data-ready-step-pane="install"] .ready-executor-panel'));
   dom.window.close();
 });
+test('ready template history offers cancellation with a clear partial-work explanation', async () => {
+  const response = url => url === '/api/ready-templates' ? { templates: READY_TEMPLATES }
+    : url.endsWith('/ready-templates/runs') ? { runs: [{ id: 'run-1', name: 'Test Template', mode: 'replace', status: 'failed', completed_units: 2, updated_at: new Date().toISOString() }] }
+    : url.endsWith('/ready-templates/runs/run-1/cancel') ? { run: { status: 'cancelled', completed_units: 2 }, steps: [] }
+    : fixtureResponse(url);
+  const { dom, doc, requests } = await page('ready-templates', response);
+  assert.ok(doc.querySelector('[data-ready-cancel="run-1"]'));
+  doc.querySelector('[data-ready-cancel="run-1"]').click();
+  assert.match(doc.querySelector('#dialogContent').textContent, /ستبقى العناصر التي نُفذت/);
+  doc.querySelector('#confirmAction').click(); await settle();
+  assert.ok(requests.some(item => item.url.endsWith('/ready-templates/runs/run-1/cancel') && item.options.method === 'POST'));
+  dom.window.close();
+});
 test('community alerts show actionable paused giveaways and failed schedules', async () => {
   const response = url => url === `/api/workspace/${guild.id}` ? { ...workspace, alerts: [
     { id: 'giveaway', kind: 'giveaway', title: 'توقف إعلان الجيف أوي', detail: 'الرسالة الأصلية غير متاحة', channelId: 'channel', retryable: false },

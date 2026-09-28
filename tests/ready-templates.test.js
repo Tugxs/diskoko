@@ -1,7 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { READY_TEMPLATES, normalizeReadyDefinition, readyTemplateDiff, readyUsageUnits } from '../lib/ready-templates.js';
-import { readySnapshotFingerprint } from '../lib/ready-templates-api.js';
+import { readyCompletedUnits, readySnapshotFingerprint } from '../lib/ready-templates-api.js';
+
+test('stopped template counts completed roles and channels but not unfinished steps', () => {
+  const definition = normalizeReadyDefinition(READY_TEMPLATES[0].definition);
+  const steps = [{ kind: 'role', status: 'succeeded' }, { kind: 'category', status: 'succeeded' }, { kind: 'channel', status: 'failed' }, { kind: 'feature-welcome', status: 'pending' }, { kind: 'order', status: 'succeeded' }];
+  assert.equal(readyCompletedUnits(definition, steps), 2);
+  steps.push({ kind: 'feature-logs', status: 'succeeded' });
+  assert.equal(readyCompletedUnits(definition, steps), 3);
+});
 
 test('template review ignores Discord position renumbering and overwrite order, but detects real permission changes', () => {
   const original = { guild: { name: 'Test' }, channels: [{ id: '1', name: 'general', type: 0, parent_id: null, position: 0, topic: '', permission_overwrites: [{ id: 'a', type: 0, allow: '1', deny: '0' }, { id: 'b', type: 0, allow: '0', deny: '2' }] }], roles: [{ id: 'a', name: 'Member', position: 1, permissions: '0', color: 0, managed: false }] };
