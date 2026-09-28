@@ -35,17 +35,17 @@ async function pumpQueue() {
 async function pumpCustomerRoles() {
   if (stopping || !customerRoleConfig()) return;
   try {
-    const { rows } = await pool.query(`SELECT user_id,requested_at,attempts FROM customer_role_sync WHERE retry_at<=NOW()
+    const { rows } = await pool.query(`SELECT user_id,revision,attempts FROM customer_role_sync WHERE retry_at<=NOW()
       ORDER BY retry_at LIMIT 1`);
     const job = rows[0];
     if (!job) return;
     try {
       const result = await syncCustomerRoles(pool, job.user_id);
-      await pool.query('DELETE FROM customer_role_sync WHERE user_id=$1 AND requested_at=$2', [job.user_id, job.requested_at]);
+      await pool.query('DELETE FROM customer_role_sync WHERE user_id=$1 AND revision=$2', [job.user_id, job.revision]);
       if (result.status === 'synced' && result.changed) console.info('Customer roles updated', { userId: job.user_id, changed: result.changed });
     } catch (error) {
       await pool.query(`UPDATE customer_role_sync SET attempts=attempts+1,retry_at=NOW()+LEAST(1800,POWER(2,LEAST(attempts,10))*30)*INTERVAL '1 second',last_error=$2
-        WHERE user_id=$1 AND requested_at=$3`, [job.user_id, String(error.message).slice(0, 300), job.requested_at]);
+        WHERE user_id=$1 AND revision=$3`, [job.user_id, String(error.message).slice(0, 300), job.revision]);
       console.error('Customer role sync failed', { userId: job.user_id, error: error.message });
     }
   } catch (error) { console.error('Customer role queue failed', error.message); }
@@ -98,7 +98,8 @@ await migrateGuildActivityLogs(pool);
 await pool.query(`CREATE TABLE IF NOT EXISTS customer_role_sync (
   user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT)`);
+  attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, revision BIGINT NOT NULL DEFAULT 0);
+  ALTER TABLE customer_role_sync ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 0`);
 await recoverDiscordJobQueue(pool);
 await startDiscordBot({ pool });
 await restoreAiBots(pool);

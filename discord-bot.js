@@ -188,7 +188,7 @@ export async function startDiscordBot({ pool } = {}) {
       if (member.guild.id === process.env.CUSTOMER_GUILD_ID) {
         await databasePool.query(`INSERT INTO customer_role_sync(user_id)
           SELECT id FROM users WHERE discord_id=$1 ON CONFLICT(user_id) DO UPDATE
-          SET requested_at=NOW(),retry_at=NOW(),attempts=0,last_error=NULL`, [member.id]);
+          SET requested_at=NOW(),retry_at=NOW(),attempts=0,last_error=NULL,revision=customer_role_sync.revision+1`, [member.id]);
       }
       const linked = (await databasePool.query('SELECT 1 FROM ai_bot_connections WHERE guild_id=$1', [member.guild.id])).rowCount;
       if (!linked) await sendWelcomeCard(member, databasePool);
