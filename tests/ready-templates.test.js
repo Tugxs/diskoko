@@ -1,6 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { READY_TEMPLATES, normalizeReadyDefinition, readyTemplateDiff, readyUsageUnits } from '../lib/ready-templates.js';
+import { readySnapshotFingerprint } from '../lib/ready-templates-api.js';
+
+test('template review ignores Discord position renumbering and overwrite order, but detects real permission changes', () => {
+  const original = { guild: { name: 'Test' }, channels: [{ id: '1', name: 'general', type: 0, parent_id: null, position: 0, topic: '', permission_overwrites: [{ id: 'a', type: 0, allow: '1', deny: '0' }, { id: 'b', type: 0, allow: '0', deny: '2' }] }], roles: [{ id: 'a', name: 'Member', position: 1, permissions: '0', color: 0, managed: false }] };
+  const cosmetic = structuredClone(original);
+  cosmetic.channels[0].position = 9;
+  cosmetic.channels[0].permission_overwrites.reverse();
+  assert.equal(readySnapshotFingerprint(original), readySnapshotFingerprint(cosmetic));
+  cosmetic.channels[0].permission_overwrites[0].deny = '4';
+  assert.notEqual(readySnapshotFingerprint(original), readySnapshotFingerprint(cosmetic));
+});
 
 test('ready template usage counts roles, categories, channels and enabled systems', () => {
   const arabic = normalizeReadyDefinition(READY_TEMPLATES[0].definition);

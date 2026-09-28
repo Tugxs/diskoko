@@ -1198,7 +1198,12 @@ function readyReviewDialog(data) {
       } while (result.run.status === 'running');
       closeDialog(); await loadGuild(); toast('اكتمل تنصيب القالب على سيرفرك.');
     } catch (error) {
-      $('#closeDialog').disabled = false; $('#readyLater').disabled = false; $('#readyApply').disabled = false; $('#readyApply').textContent = 'متابعة التنفيذ'; modalError(error);
+      $('#closeDialog').disabled = false; $('#readyLater').disabled = false; $('#readyApply').disabled = false;
+      if (error.status === 409 && error.message.startsWith('انتهت صلاحية مراجعة القالب:')) {
+        $('#readyApply').textContent = 'تحديث المراجعة';
+        $('#readyApply').onclick = run(async () => { closeDialog(); $('#readyReview')?.click(); });
+      } else $('#readyApply').textContent = 'متابعة التنفيذ';
+      modalError(error);
     }
   });
 }
