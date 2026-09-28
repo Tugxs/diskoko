@@ -4,7 +4,7 @@ import { activityLogDestinations, deletedMessageDetail } from '../lib/guild-acti
 
 test('deleted message detail preserves safe content or explains missing content', () => {
   assert.match(deletedMessageDetail('hello\n@everyone'), /hello ⏎ @\u200beveryone/);
-  assert.match(deletedMessageDetail(''), /المحتوى غير متاح/);
+  assert.match(deletedMessageDetail(''), /Message Content Intent.*أعد ربطه/);
   assert.ok(deletedMessageDetail('a'.repeat(800)).length < 440);
 });
 

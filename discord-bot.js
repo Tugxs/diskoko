@@ -25,6 +25,7 @@ let retryTimer = null;
 let retryCount = 0;
 let starting = false;
 let memberIntentAllowed = true;
+let messageContentIntentAllowed = null;
 let cooldownTableReady = false;
 let externalStatus = null;
 let shuttingDown = false;
@@ -168,12 +169,23 @@ export async function startDiscordBot({ pool } = {}) {
     } catch (error) { console.error('Could not read Discord gateway cooldown', error.message); }
   }
 
-  // The intent is enabled in the Discord Developer Portal. Do not make a REST
-  // request (or change application flags) before every gateway connection.
+  // Check the application once per process so a disabled privileged intent
+  // never prevents the bot from connecting. A transient REST error is safe.
+  if (messageContentIntentAllowed == null) {
+    try {
+      const response = await fetch('https://discord.com/api/v10/oauth2/applications/@me', {
+        headers: { Authorization: `Bot ${token}` }, signal: AbortSignal.timeout(12_000),
+      });
+      if (response.ok) {
+        const application = await response.json();
+        messageContentIntentAllowed = Boolean(Number(application.flags || 0) & ((1 << 18) | (1 << 19)));
+      } else messageContentIntentAllowed = false;
+    } catch { messageContentIntentAllowed = false; }
+  }
   const memberJoins = memberIntentAllowed;
   state.memberJoins = memberJoins;
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates, ...(memberJoins ? [GatewayIntentBits.GuildMembers] : [])],
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates, ...(memberJoins ? [GatewayIntentBits.GuildMembers] : []), ...(messageContentIntentAllowed ? [GatewayIntentBits.MessageContent] : [])],
     partials: [Partials.Message, Partials.Channel],
     // A 429 without Retry-After can otherwise be retried immediately by the
     // REST client. Let our bounded reconnect schedule handle it instead.
@@ -196,7 +208,7 @@ export async function startDiscordBot({ pool } = {}) {
     })().catch(error => console.error('Welcome card delivery failed', member.guild.id, error.message));
   });
 
-  // Count events only after an administrator opts in. Never read or store message content.
+  // Count events only after an administrator opts in. This handler does not store message content.
   client.on(Events.MessageCreate, async (message) => {
     if (!databasePool || !message.guildId || message.author.bot) return;
     try {
@@ -337,7 +349,10 @@ export async function startDiscordBot({ pool } = {}) {
       ? { name: error.name, route: error.route, scope: error.scope, retryAfterMs: error.retryAfter }
       : error);
     await client.destroy().catch(() => {});
-    if (Number(error.code) === 4014 || /disallowed intents|4014/i.test(error.message || '')) memberIntentAllowed = false;
+    if (Number(error.code) === 4014 || /disallowed intents|4014/i.test(error.message || '')) {
+      if (messageContentIntentAllowed) messageContentIntentAllowed = false;
+      else memberIntentAllowed = false;
+    }
     retryCount++;
     const backoffMs = Math.min(300_000, 60_000 * 2 ** Math.min(retryCount - 1, 3));
     const retryMs = Math.max(backoffMs, Math.min(2_147_000_000, Number(error.retryAfter) || 0) + 1_000);
