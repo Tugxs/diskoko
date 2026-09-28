@@ -183,11 +183,13 @@ test('ready templates open as an independent section with both sources and a Dis
   assert.match(doc.body.textContent, /Diskoko Gaming Arabic/);
   assert.match(doc.body.textContent, /Diskoko Streamer/);
   assert.equal(doc.querySelectorAll('.ready-library-card').length, 4);
+  assert.deepEqual([...doc.querySelectorAll('.ready-library-card .ready-language-badge')].map(badge => badge.textContent), ['Arabic English', 'Arabic English', 'Arabic', 'Arabic']);
   doc.querySelector('[data-ready-filter="streamer"]').click();
   assert.equal(doc.querySelectorAll('.ready-library-card').length, 2);
   doc.querySelector('[data-ready-filter="all"]').click();
   assert.equal(doc.querySelector('.ready-executor-panel'), null);
   doc.querySelector('[data-ready-choose="server-my-arabic"]').click();
+  assert.equal(doc.querySelector('.ready-detail-heading .ready-language-badge').textContent, 'Arabic English');
   assert.equal(doc.querySelectorAll('.ready-executor-option').length, 2);
   assert.match(doc.querySelector('.ready-executor-option strong').textContent, /ديسكوكو/);
   assert.match(doc.querySelector('.ready-admin-banner').textContent, /Administrator/);
