@@ -40,8 +40,8 @@ test('existing role names resolve uniquely before any role change', async () => 
   const fetchImpl = async (url, options) => {
     calls.push([url, options.method]);
     if (url.endsWith('/roles')) return { ok: true, json: async () => ([
-      { id: env.CUSTOMER_ROLE_ID, name: 'Customers' }, { id: env.STARTER_ROLE_ID, name: 'Starter' },
-      { id: env.GROWTH_ROLE_ID, name: 'Growth' }, { id: env.BUSINESS_ROLE_ID, name: 'Business' },
+      { id: env.CUSTOMER_ROLE_ID, name: '✅ Customer' }, { id: env.STARTER_ROLE_ID, name: '✨ Starter' },
+      { id: env.GROWTH_ROLE_ID, name: '🚀 Growth' }, { id: env.BUSINESS_ROLE_ID, name: '💼 Business' },
     ]) };
     if (options.method === 'GET') return { ok: true, json: async () => ({ roles: [] }) };
     return { ok: true };
