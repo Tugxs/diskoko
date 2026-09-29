@@ -8,6 +8,7 @@ import { handleReadyModuleInteraction } from './lib/ready-template-modules.js';
 import { waitForGatewayLoginSlot } from './lib/gateway-login-gate.js';
 import { registerGuildActivityLogs } from './lib/guild-activity-logs.js';
 import { upsertCustomerLinkPanel } from './lib/customer-link-panel.js';
+import { upsertCommunityPanels } from './lib/community-panels.js';
 
 const BOT_NAME = "diskoko | ديسكوكو";
 
@@ -243,6 +244,7 @@ export async function startDiscordBot({ pool } = {}) {
     if (databasePool) void upsertCustomerLinkPanel(readyClient, databasePool)
       .then(result => console.log('Customer link panel ready', result))
       .catch(error => console.error('Customer link panel failed', error.message));
+    if (databasePool) void upsertCommunityPanels(readyClient, databasePool).catch(error => console.error('Community panels failed', error.message));
 
     const rest = new REST({ version: "10" }).setToken(token);
     for (const guild of readyClient.guilds.cache.values()) {
