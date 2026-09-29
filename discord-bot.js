@@ -9,6 +9,7 @@ import { waitForGatewayLoginSlot } from './lib/gateway-login-gate.js';
 import { registerGuildActivityLogs } from './lib/guild-activity-logs.js';
 import { upsertCustomerLinkPanel } from './lib/customer-link-panel.js';
 import { upsertCommunityPanels } from './lib/community-panels.js';
+import { handleAccountPanelInteraction, upsertAccountPanel } from './lib/account-panel.js';
 
 const BOT_NAME = "diskoko | ديسكوكو";
 
@@ -245,6 +246,7 @@ export async function startDiscordBot({ pool } = {}) {
       .then(result => console.log('Customer link panel ready', result))
       .catch(error => console.error('Customer link panel failed', error.message));
     if (databasePool) void upsertCommunityPanels(readyClient, databasePool).catch(error => console.error('Community panels failed', error.message));
+    if (databasePool) void upsertAccountPanel(readyClient, databasePool).then(result => console.log('Account panel ready', result)).catch(error => console.error('Account panel failed', error.message));
 
     const rest = new REST({ version: "10" }).setToken(token);
     for (const guild of readyClient.guilds.cache.values()) {
@@ -269,6 +271,11 @@ export async function startDiscordBot({ pool } = {}) {
   client.on("guildCreate", async (guild) => { state.guilds = client.guilds.cache.size; const rest = new REST({ version: "10" }).setToken(token); if (await registerGuildCommands(rest, client.user.id, guild.id, token)) state.commands.registered += COMMAND_JSON.length; else state.commands.failed += COMMAND_JSON.length; });
   client.on("guildDelete", () => { state.guilds = client.guilds.cache.size; });
   client.on(Events.InteractionCreate, async (interaction) => {
+    if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith('diskoko-account:')) {
+      try { await handleAccountPanelInteraction(interaction, databasePool); }
+      catch (error) { console.error('Account panel interaction failed', error); if (interaction.deferred || interaction.replied) await interaction.editReply('تعذر عرض معلومات حسابك الآن. حاول لاحقًا.').catch(() => {}); else await interaction.reply({ content: 'تعذر عرض معلومات حسابك الآن.', ephemeral: true }).catch(() => {}); }
+      return;
+    }
     if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith('diskoko:')) {
       try { if (!await handleReadyModuleInteraction(interaction, databasePool)) await handleInteractiveButton(interaction, databasePool); }
       catch (error) { console.error('Interactive button failed:', error); if (interaction.deferred || interaction.replied) await interaction.editReply('تعذر إكمال العملية الآن. حاول مرة أخرى.').catch(() => {}); else await interaction.reply({ content: 'تعذر إكمال العملية الآن.', ephemeral: true }).catch(() => {}); }
@@ -371,4 +378,3 @@ export async function startDiscordBot({ pool } = {}) {
     return null;
   } finally { clearTimeout(timeout); }
 }
-
