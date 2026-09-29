@@ -132,3 +132,32 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 @media(max-width:680px){.resource-editor .form-grid,.permission-group,.permission-matrix{grid-template-columns:1fr}}
 
 .resource-select{flex:0 0 19px;margin:0 0 0 8px}.access-result{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:13px 15px;border:1px solid var(--line);border-radius:11px;background:var(--panel2)}.access-result b{font-size:12px}.access-result span{font-weight:700;color:var(--purple)}.access-result small{grid-column:1/-1}.change-diff{display:grid;gap:5px;margin:8px 0 0;padding:0 18px;color:var(--muted);font-size:11px}.change-diff .after{color:var(--green)}#accessSummary{margin:16px 0}.resource-editor .actions{justify-content:flex-start;flex-wrap:wrap}.permission-matrix small{display:block;margin-top:5px}@media(max-width:680px){.access-result{grid-template-columns:1fr}.access-result small{grid-column:1}}
+.bot-workshop-status{position:relative;overflow:hidden;isolation:isolate;padding:28px;background:radial-gradient(circle at 12% 12%,rgba(153,108,255,.22),transparent 35%),linear-gradient(135deg,#191a30 0%,#111722 68%,#101b27 100%);border:1px solid rgba(170,143,255,.3)}
+.bot-workshop-orbit{position:absolute;inset-inline-start:-36px;top:-48px;width:250px;height:250px;border:1px solid rgba(169,133,255,.23);border-radius:50%;display:grid;place-items:center;pointer-events:none;opacity:.85}
+.bot-workshop-orbit:before,.bot-workshop-orbit:after{content:"";position:absolute;border:1px solid rgba(169,133,255,.18);border-radius:50%;inset:24px}
+.bot-workshop-orbit:after{inset:53px}
+.bot-workshop-orbit span{font-size:52px;color:#ae8bff;text-shadow:0 0 32px rgba(161,112,255,.7);animation:bot-workshop-pulse 5s ease-in-out infinite}
+.bot-workshop-orbit i{position:absolute;width:8px;height:8px;border-radius:50%;background:#8bd9ff;box-shadow:0 0 14px #8bd9ff;top:22px;left:77px}
+.bot-workshop-orbit i+ i{top:auto;bottom:43px;left:auto;right:22px;background:#bb9cff;box-shadow:0 0 14px #bb9cff}
+.bot-workshop-intro{position:relative;max-width:610px;margin-bottom:24px}
+.bot-workshop-intro small{color:#baa7ff;font-weight:700;letter-spacing:.03em}
+.bot-workshop-intro h2{font-size:clamp(23px,3vw,36px);line-height:1.25;margin:10px 0}
+.bot-workshop-intro p{color:var(--muted);line-height:1.8;margin:0}
+.bot-workshop-identity{position:relative;max-width:690px;padding:16px;border:1px solid rgba(173,158,229,.25);border-radius:16px;background:rgba(12,15,28,.52);backdrop-filter:blur(10px)}
+.bot-workshop-status>.form-note,.bot-workshop-status>.actions,.bot-workshop-status>.bot-workshop-checks{position:relative;max-width:690px}
+.bot-workshop-status>.actions{margin:14px 0}
+.bot-workshop-checks{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0}
+.bot-workshop-checks span{padding:8px 11px;border:1px solid rgba(167,153,217,.25);border-radius:999px;background:rgba(16,19,34,.55);color:var(--muted);font-size:12px}
+.bot-workshop-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:20px 0 28px}
+.bot-workshop-steps span{padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--muted);display:flex;align-items:center;gap:9px}
+.bot-workshop-steps b{color:#aa8bff}
+.bot-workshop-steps .done{border-color:rgba(75,205,167,.4);color:var(--text)}
+.bot-workshop-steps .current{border-color:#aa8bff;box-shadow:0 0 0 1px rgba(170,139,255,.2),0 10px 30px rgba(81,49,160,.14);color:var(--text)}
+.bot-workshop-gallery .bot-preset{min-height:210px;transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;background:linear-gradient(160deg,rgba(164,126,255,.06),transparent 52%),var(--panel)}
+.bot-workshop-gallery .bot-preset:hover{transform:translateY(-4px);border-color:rgba(170,139,255,.55);box-shadow:0 16px 35px rgba(4,6,18,.24)}
+.bot-workshop-gallery .bot-preset .server-image{background:rgba(160,121,255,.16);color:#bba6ff}
+.bot-workshop-gallery .bot-preset p{font-size:13px;line-height:1.7}
+.bot-workshop-gallery .bot-preset button:disabled{opacity:.55;cursor:not-allowed}
+@keyframes bot-workshop-pulse{50%{transform:scale(1.1);filter:brightness(1.2)}}
+@media(max-width:700px){.bot-workshop-status{padding:20px}.bot-workshop-orbit{opacity:.22}.bot-workshop-steps{grid-template-columns:1fr}.bot-workshop-gallery{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.bot-workshop-orbit span{animation:none}.bot-workshop-gallery .bot-preset{transition:none}.bot-workshop-gallery .bot-preset:hover{transform:none}}

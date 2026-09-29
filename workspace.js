@@ -722,38 +722,54 @@ async function showPlan(id, returnToWorkspace = false) {
   };
 }
 
-const botPresets = [
-  { kind: 'general', icon: '◈', title: 'بوت عام', description: 'هوية خاصة لمجتمعك؛ اختر أوامره بعد ربط تطبيق Discord.', commands: [['help', 'المساعدة'], ['rules', 'القوانين'], ['info', 'معلومات السيرفر']] },
-  { kind: 'games', icon: '♟', title: 'بوت ألعاب', description: 'مساحة لأوامر الألعاب والتحديات والنقاط بعد تشغيل البوت الخاص.', commands: [['dice', 'رمي النرد'], ['coin', 'عملة عشوائية'], ['trivia', 'أسئلة سريعة']] },
-  { kind: 'music', icon: '♫', title: 'بوت موسيقى', description: 'تصميم بوت صوتي خاص؛ تشغيل الموسيقى يحتاج عامل صوت وربط مصدر مسموح.', commands: [['play', 'تشغيل'], ['skip', 'تخطي'], ['queue', 'قائمة التشغيل'], ['stop', 'إيقاف']] },
-  { kind: 'welcome', icon: '✦', title: 'بوت ترحيب', description: 'جهّز رسائل الاستقبال وأوامر تعريف الأعضاء.', commands: [['welcome', 'الترحيب'], ['rules', 'القوانين'], ['roles', 'الرتب']] },
-  { kind: 'moderation', icon: '◇', title: 'بوت إشراف', description: 'خطط لأوامر الإشراف مع مراجعة الصلاحيات قبل التشغيل.', commands: [['warn', 'تحذير'], ['mute', 'كتم مؤقت'], ['logs', 'السجل']] },
-  { kind: 'assistant', icon: '✧', title: 'بوت ذكاء اصطناعي', description: 'مساعد منفصل لسيرفرك. يحتاج ربط جهاز الذكاء الاصطناعي أولًا.', commands: [['ask', 'اسأل المساعد'], ['plan', 'خطط لتعديل السيرفر']] },
+const botWorkshopFeatures = [
+  { icon: '✦', title: 'ترحيب الأعضاء', detail: 'رسالة تلقائية باسم بوتك عند دخول عضو جديد.', category: 'الرسائل', template: 'رسالة ترحيب تلقائية', needsMembers: true },
+  { icon: '◈', title: 'لوحة الدعم', detail: 'زر يفتح تذكرة خاصة للعضو وفريق الدعم.', category: 'تذاكر الدعم', template: 'لوحة تذاكر الدعم' },
+  { icon: '💡', title: 'الاقتراحات', detail: 'استقبال الاقتراحات ومراجعتها قبل التصويت.', category: 'مميزات السيرفر', template: 'لوحة الاقتراحات' },
+  { icon: '🚨', title: 'البلاغات الخاصة', detail: 'بلاغ يصل للإدارة دون نشره للعامة.', category: 'مميزات السيرفر', template: 'البلاغات الخاصة' },
+  { icon: '🎯', title: 'رتب الاهتمامات', detail: 'الأعضاء يختارون رتبة اهتمامهم من لوحة تفاعلية.', category: 'مميزات السيرفر', template: 'اختيار الاهتمامات' },
+  { icon: '🗓️', title: 'تسجيل الفعاليات', detail: 'تسجيل الحضور أو إلغاؤه مع حد للمقاعد.', category: 'مميزات السيرفر', template: 'التسجيل في الفعاليات' },
 ];
 async function bots() {
   const guild = state.guild, epoch = state.epoch;
-  $('#workspace').innerHTML = head('تصاميم بوتاتك', 'هذه مسودات لهوية البوت وأوامره؛ تشغيل بوتك الخاص يتم من إعدادات السيرفر.') + '<div class="loading" role="status">جارٍ تحميل بوتاتك…</div>';
-  const { bots: items } = await api(`/api/custom-bots?guildId=${encodeURIComponent(guild)}`);
+  $('#workspace').innerHTML = head('ورشة بوتك الخاص', 'اربط بوتًا تملكه، اختره للتنفيذ، ثم ركّب ميزات حقيقية على سيرفرك.') + '<div class="loading" role="status">جارٍ فحص بوتك…</div>';
+  let bot = null, connectionError = '';
+  try { ({ bot } = await api(`/api/ai/bot-connection?guildId=${encodeURIComponent(guild)}`)); }
+  catch (error) { connectionError = error.message; }
   if (guild !== state.guild || epoch !== state.epoch || screen() !== 'bots') return;
-  const capacity = state.account?.usage?.customBots || { used: items.length, limit: state.account?.limits?.customBots || 1 };
-  const available = capacity.used < capacity.limit;
-  const free = (state.account?.limits?.plan || state.account?.user?.plan) === 'free';
-  const cards = items.map(bot => {
-    const preset = botPresets.find(item => item.kind === bot.definition?.kind) || botPresets[0];
-    return `<article class="server-card bot-instance"><div class="server-title"><span class="server-image">${preset.icon}</span><div class="row-main"><h3>${esc(bot.name)}</h3><small>${esc(preset.title)} · ${esc(state.data.guild.name)}</small></div>${badge('تصميم محفوظ', 'purple')}</div><p class="form-note">${esc(bot.description || preset.description)}</p><div class="bot-command-tags">${(bot.definition?.commands || []).map(key => `<span>/${esc(key)}</span>`).join('') || '<small>لا أوامر مختارة</small>'}</div><div class="notice info"><div><b>خطوة الربط التالية</b><p>أنشئ تطبيق البوت في Discord Developer Portal باسمك. الربط والتشغيل المستقل سيظهران هنا بعد تجهيز عامل البوتات؛ هذا التصميم لم يُثبت في Discord بعد.</p></div></div><div class="actions"><button class="btn secondary" data-edit-bot="${bot.id}">تعديل التصميم</button><a class="btn text" href="https://discord.com/developers/applications" target="_blank" rel="noopener">فتح بوابة Discord ↗</a></div></article>`;
-  }).join('');
-  $('#workspace').innerHTML = head('تصاميم بوتاتك', 'احفظ فكرة بوتك هنا. لربط بوت يعمل فعليًا، انتقل إلى إعدادات السيرفر واختر بوتك الخاص.') + connectionNotice() + `<div class="notice info"><div><b>${fmt(capacity.used)} من ${fmt(capacity.limit)} تصاميم بوت في باقتك</b><p>Free: 1 · Starter: 5 · Growth: 10 · Business: 20. إنشاء التطبيق وربطه وتشغيله خطوات منفصلة.</p></div>${!available ? '<a class="btn secondary" href="/account.html#subscription">عرض الباقات</a>' : ''}</div><div class="section-title"><h3>مسودات هذا السيرفر</h3><small>المسودة لا تنشئ تطبيق Discord تلقائيًا</small></div><div class="server-grid">${cards || `<div class="panel">${empty('لم تصمم بوتًا لهذا السيرفر بعد', 'اختر نوعًا من البوتات الجاهزة أدناه وسمّه باسم مجتمعك.')}</div>`}</div><div class="section-title"><h3>اختر فكرة لتصميم بوت</h3><small>للتخطيط فقط؛ ربط البوت العامل يتم من إعدادات السيرفر</small></div><div class="server-grid bot-gallery">${botPresets.map(preset => `<article class="server-card bot-preset"><div class="server-title"><span class="server-image">${preset.icon}</span><div><h3>${preset.title}</h3><small>${preset.kind === 'assistant' && free ? 'يتطلب Starter أو أعلى' : 'تصميم قابل للتخصيص'}</small></div></div><p>${preset.description}</p><button class="btn ${preset.kind === 'assistant' ? 'secondary' : 'primary'}" data-create-bot="${preset.kind}" ${!available ? 'disabled' : ''}>${!available ? 'وصلت لحد الباقة' : preset.kind === 'assistant' && free ? 'ترقية الباقة' : 'اختيار هذا النوع'}</button></article>`).join('')}</div>`;
-  document.querySelectorAll('[data-create-bot]').forEach(button => button.onclick = () => {
-    const preset = botPresets.find(item => item.kind === button.dataset.createBot);
-    if (preset.kind === 'assistant' && free) { location.href = '/account.html#subscription'; return; }
-    modal(`تصميم ${preset.title}`, `<form id="createBotForm" class="form-grid"><p>${esc(preset.description)}</p><label>اسم البوت<input id="newBotName" maxlength="80" required value="${esc(state.data.guild.name)} — ${esc(preset.title)}"></label><label>وصفه المختصر<textarea id="newBotDescription" maxlength="300" rows="3">${esc(preset.description)}</textarea></label><p class="form-note">سيُحفظ التصميم في حسابك فقط. تركيب تطبيق Discord وتشغيله يأتيان بعد إكمال الربط.</p><button class="btn primary" type="submit">حفظ التصميم</button></form>`);
-    $('#createBotForm').onsubmit = run(async event => { event.preventDefault(); const submit = event.submitter; submit.disabled = true; try { await api('/api/custom-bots', { method: 'POST', body: JSON.stringify({ guildId: guild, kind: preset.kind, name: $('#newBotName').value, description: $('#newBotDescription').value }) }); if (state.account?.usage?.customBots) state.account.usage.customBots.used++; closeDialog(); await bots(); toast('حُفظ تصميم البوت في حسابك.'); } finally { submit.disabled = false; } });
+  const statusText = connectionError ? 'تعذر فحص الاتصال' : !bot ? 'لم تربط بوتك بعد' : !bot.online ? 'البوت غير متصل' : !bot.selected ? 'البوت متصل، لكن التنفيذ على ديسكوكو' : 'بوتك متصل ومختار للتنفيذ';
+  const nextStep = connectionError ? 'حدّث الصفحة أو افتح إعدادات البوت إذا استمرت المشكلة.' : !bot ? 'أنشئ تطبيق بوت في Discord وأضفه للسيرفر، ثم اربطه من هنا.' : !bot.online ? 'راجع اتصال البوت أو انتظر موعد إعادة المحاولة قبل تركيب المميزات.' : !bot.selected ? 'اختر بوتك الخاص للتنفيذ حتى تُنشر المميزات باسمه.' : 'اختر ميزة أدناه، وأرسل طلبها، ثم راجع الإعدادات قبل النشر.';
+  $('#workspace').innerHTML = head('ورشة بوتك الخاص', 'بوت ديسكوكو العام منفصل. هنا تجهز بوتًا خاصًا تملكه لهذا السيرفر، وتختار ما ينفذه باسمه.') + connectionNotice() + `
+    <section class="panel bot-workshop-status"><div class="bot-workshop-orbit" aria-hidden="true"><span>◈</span><i></i><i></i></div><div class="bot-workshop-intro"><small>مساحة البوت الخاص · ${esc(state.data.guild.name)}</small><h2>هويتك في سيرفرك، بإعداد واحد واضح.</h2><p>اربط تطبيقك، اختره للتنفيذ، ثم أضف ما يحتاجه مجتمعك. كل ميزة تمر على المعاينة والموافقة قبل النشر.</p></div><div class="server-title bot-workshop-identity"><span class="server-image">🤖</span><div class="row-main"><h3>${esc(bot?.name || 'بوتك الخاص')}</h3><small>${esc(statusText)}</small></div>${badge(bot?.online && bot.selected ? 'جاهز' : 'يحتاج خطوة', bot?.online && bot.selected ? 'good' : 'warn')}</div>
+    <p class="form-note">${esc(nextStep)}</p><div class="actions">
+    ${!bot && !connectionError ? '<button class="btn primary" id="botWorkshopConnect">ربط بوتي الخاص</button>' : ''}
+    ${bot?.online && !bot.selected ? '<button class="btn primary" id="botWorkshopSelect">اختيار بوتي للتنفيذ</button>' : ''}
+    <a class="btn secondary" href="/ai-bot-guide.html" target="_blank" rel="noopener noreferrer">شرح الإنشاء والربط ↗</a>
+    <button class="btn secondary" id="botWorkshopRefresh" type="button">تحديث الحالة</button></div>
+    ${bot ? `<div class="bot-workshop-checks"><span>${bot.online ? '✓ متصل' : '○ غير متصل'}</span><span>${bot.memberJoins ? '✓ استقبال الأعضاء مفعّل' : '○ الترحيب يحتاج Server Members Intent'}</span><span>${bot.messageContent ? '✓ محتوى الرسائل مفعّل' : '○ نص الرسائل المحذوفة يحتاج Message Content Intent'}</span></div>` : ''}
+    <small class="form-note">يمكن ربط بوت خاص واحد بهذا السيرفر حاليًا. إنشاء تطبيق البوت وصلاحياته يتمان في Discord؛ نحفظ رمز الربط مشفرًا.</small></section>
+    <div class="bot-workshop-steps" aria-label="خطوات تجهيز البوت"><span class="${bot ? 'done' : 'current'}"><b>01</b> ربط البوت</span><span class="${bot?.online && bot.selected ? 'done' : bot ? 'current' : ''}"><b>02</b> اختياره للتنفيذ</span><span class="${bot?.online && bot.selected ? 'current' : ''}"><b>03</b> تركيب الميزات</span></div>
+    <div class="section-title"><h3>ميزات تركّبها على بوتك</h3><small>اختر ميزة، ثم أكمل بياناتها ومراجعتها في مكتبة AI</small></div>
+    <div class="server-grid bot-workshop-gallery">${botWorkshopFeatures.map((feature, index) => `<article class="server-card bot-preset"><div class="server-title"><span class="server-image">${feature.icon}</span><div><h3>${feature.title}</h3><small>ميزة قابلة للتركيب</small></div></div><p>${feature.detail}</p><button class="btn primary" type="button" data-bot-feature="${index}" ${bot?.online && bot.selected && (!feature.needsMembers || bot.memberJoins) ? '' : 'disabled'}>${feature.needsMembers && bot?.online && bot.selected && !bot.memberJoins ? 'فعّل استقبال الأعضاء أولًا' : 'إعداد الميزة'}</button></article>`).join('')}</div>`;
+  $('#botWorkshopRefresh').onclick = () => bots().catch(error => toast(error.message));
+  if ($('#botWorkshopSelect')) $('#botWorkshopSelect').onclick = run(async event => {
+    event.currentTarget.disabled = true;
+    try { await api('/api/ai/bot-connection/selection', { method: 'POST', body: JSON.stringify({ guildId: guild, executor: 'custom' }) }); await bots(); toast('بوتك الخاص أصبح منفذ هذا السيرفر.'); }
+    catch (error) { await bots(); throw error; }
   });
-  document.querySelectorAll('[data-edit-bot]').forEach(button => button.onclick = () => {
-    const bot = items.find(item => String(item.id) === button.dataset.editBot);
-    const preset = botPresets.find(item => item.kind === bot.definition?.kind) || botPresets[0];
-    modal('تعديل تصميم البوت', `<form id="editBotForm" class="form-grid"><label>اسم البوت<input id="editBotName" maxlength="80" required value="${esc(bot.name)}"></label><label>وصف البوت<textarea id="editBotDescription" maxlength="300" rows="3">${esc(bot.description)}</textarea></label><div><b>أوامر هذا النوع</b>${preset.commands.map(([key, label]) => `<label class="check-row"><input class="custom-command" type="checkbox" value="${key}" ${(bot.definition?.commands || []).includes(key) ? 'checked' : ''}> /${key} · ${label}</label>`).join('')}</div><p class="form-note">هذه أوامر التصميم. لا تُسجّل في Discord حتى يكتمل ربط البوت وتشغيله.</p><button class="btn primary" type="submit">حفظ التعديل</button></form>`);
-    $('#editBotForm').onsubmit = run(async event => { event.preventDefault(); const submit = event.submitter; submit.disabled = true; try { await api(`/api/custom-bots/${bot.id}`, { method: 'PUT', body: JSON.stringify({ name: $('#editBotName').value, description: $('#editBotDescription').value, commands: [...document.querySelectorAll('.custom-command:checked')].map(input => input.value) }) }); closeDialog(); await bots(); toast('تحدّث تصميم البوت.'); } finally { submit.disabled = false; } });
+  if ($('#botWorkshopConnect')) $('#botWorkshopConnect').onclick = () => {
+    modal('ربط بوتك الخاص', `<p>أنشئ تطبيق بوت وأضفه إلى ${esc(state.data.guild.name)}، ثم ألصق رمزه هنا. لا ترسل الرمز في محادثة أو قناة.</p><label>رمز البوت<input id="workshopBotToken" type="password" autocomplete="off" spellcheck="false"></label><p class="form-note">للترحيب التلقائي فعّل Server Members Intent. لعرض نص الرسائل المحذوفة فعّل Message Content Intent.</p><a href="/ai-bot-guide.html" target="_blank" rel="noopener noreferrer">شرح الربط بالصور ↗</a>`, '<button class="btn secondary" id="workshopBotCancel" type="button">إلغاء</button><button class="btn primary" id="workshopBotSave" type="button">تحقق واربط</button>');
+    $('#workshopBotCancel').onclick = closeDialog;
+    $('#workshopBotSave').onclick = run(async () => {
+      const button = $('#workshopBotSave'); button.disabled = true;
+      try { const result = await api('/api/ai/bot-connection', { method: 'POST', body: JSON.stringify({ guildId: guild, token: $('#workshopBotToken').value }) }); closeDialog(); await bots(); toast(result.pending ? 'حُفظ الربط؛ سيتصل بوتك بعد انتهاء مهلة Discord.' : 'تم ربط بوتك الخاص.'); }
+      catch (error) { modalError(error); if (error.inviteUrl?.startsWith('https://discord.com/oauth2/authorize?')) { const link = document.createElement('a'); link.href = error.inviteUrl; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'أضف البوت إلى السيرفر ↗'; $('#dialogError').append(document.createElement('br'), link); } button.disabled = false; }
+    });
+  };
+  document.querySelectorAll('[data-bot-feature]').forEach(button => button.onclick = () => {
+    const feature = botWorkshopFeatures[Number(button.dataset.botFeature)];
+    sessionStorage.setItem(`diskoko-workshop-feature:${guild}`, JSON.stringify({ category: feature.category, title: feature.template }));
+    location.hash = '#assistant';
   });
 }
 async function prepareAiImage(file) {
@@ -1600,6 +1616,20 @@ async function assistant() {
   };
   $('#aiLibrarySearch').oninput = renderLibrary;
   renderLibrary();
+  const workshopKey = `diskoko-workshop-feature:${guild}`;
+  const workshopSelection = sessionStorage.getItem(workshopKey);
+  if (workshopSelection) {
+    sessionStorage.removeItem(workshopKey);
+    try {
+      const { category, title } = JSON.parse(workshopSelection);
+      const index = aiPromptLibrary.findIndex(item => item.category === category && item.title === title);
+      if (index >= 0) {
+        libraryCategory = category;
+        renderLibrary();
+        $('#aiLibraryList').querySelector(`[data-ai-template="${index}"]`)?.click();
+      }
+    } catch { /* تجاهل اختيارًا قديمًا غير صالح */ }
+  }
   let attachedFile = null;
   let previewUrl = '';
   const showAttachment = () => { const bar = $('#aiAttachment'); if (previewUrl) URL.revokeObjectURL(previewUrl); previewUrl = attachedFile?.type.startsWith('image/') ? URL.createObjectURL(attachedFile) : ''; bar.hidden = !attachedFile; bar.innerHTML = attachedFile ? `${previewUrl ? `<img src="${previewUrl}" alt="معاينة الصورة المرفقة">` : '📎'}<span>${esc(attachedFile.name)} · ${previewUrl ? 'ستظهر مع رسالتك ويمكن إرفاقها عند النشر في Discord. تحليل محتواها يتطلب اتصال نموذج الرؤية المحلي.' : 'سيضاف محتواه إلى سؤالك'}</span><button id="aiRemoveFile" type="button" class="btn small secondary">إزالة</button>` : ''; if (attachedFile) $('#aiRemoveFile').onclick = () => { attachedFile = null; $('#aiFile').value = ''; showAttachment(); }; };

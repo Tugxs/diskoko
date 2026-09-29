@@ -860,54 +860,6 @@ app.get("/api/custom-templates", requireUser, async (req, res, next) => { try { 
 app.post("/api/custom-templates", requireUser, requireWriteAccess, async (req, res, next) => { try { await requirePlanCapacity(req.user, "customTemplates"); const name = String(req.body.name || "قالب جديد").trim().slice(0, 80); const description = String(req.body.description || "").trim().slice(0, 300); const definition = req.body.definition && typeof req.body.definition === "object" ? req.body.definition : { categories: [], channels: [], roles: [] }; const { rows } = await pool.query("INSERT INTO custom_templates(user_id,name,description,definition) VALUES($1,$2,$3,$4) RETURNING *", [req.user.id, name, description, definition]); await pool.query("INSERT INTO template_versions(template_id,version,definition) VALUES($1,1,$2)", [rows[0].id, definition]); await audit(req.user.id, "custom_template.create", "custom_template", rows[0].id, { name }); res.status(201).json({ template: rows[0] }); } catch (e) { next(e); } });
 app.put("/api/custom-templates/:id", requireUser, requireWriteAccess, async (req, res, next) => { try { const current = (await pool.query("SELECT * FROM custom_templates WHERE id=$1 AND user_id=$2", [req.params.id, req.user.id])).rows[0]; if (!current) return res.status(404).json({ error: "القالب غير موجود" }); const definition = req.body.definition && typeof req.body.definition === "object" ? req.body.definition : current.definition; const name = String(req.body.name || current.name).trim().slice(0, 80); const description = String(req.body.description ?? current.description).trim().slice(0, 300); const version = Number(current.version || 1) + 1; const { rows } = await pool.query("UPDATE custom_templates SET name=$1,description=$2,definition=$3,version=$4,updated_at=NOW() WHERE id=$5 AND user_id=$6 RETURNING *", [name, description, definition, version, current.id, req.user.id]); await pool.query("INSERT INTO template_versions(template_id,version,definition) VALUES($1,$2,$3)", [current.id, version, definition]); await audit(req.user.id, "custom_template.update", "custom_template", current.id, { version }); res.json({ template: rows[0] }); } catch (e) { next(e); } });
 app.delete("/api/custom-templates/:id", requireUser, requireWriteAccess, async (req, res, next) => { try { const result = await pool.query("DELETE FROM custom_templates WHERE id=$1 AND user_id=$2", [req.params.id, req.user.id]); if (!result.rowCount) return res.status(404).json({ error: "القالب غير موجود" }); await audit(req.user.id, "custom_template.delete", "custom_template", req.params.id); res.json({ ok: true }); } catch (e) { next(e); } });
-const BOT_PRESET_KINDS = new Set(["general", "games", "music", "welcome", "moderation", "assistant"]);
-const BOT_PRESET_COMMANDS = Object.freeze({ general: ["help", "rules", "info"], games: ["dice", "coin", "trivia"], music: ["play", "skip", "queue", "stop"], welcome: ["welcome", "rules", "roles"], moderation: ["warn", "mute", "logs"], assistant: ["ask", "plan"] });
-app.get("/api/custom-bots", requireUser, async (req, res, next) => { try {
-  const guildId = req.query.guildId ? String(req.query.guildId) : null;
-  if (guildId && !await authorizedGuild(req.user, guildId)) return res.status(403).json({ error: "لا تملك صلاحية إدارة هذا السيرفر" });
-  const { rows } = await pool.query("SELECT id,guild_id,name,slug,description,definition,status,version,created_at,updated_at FROM custom_bots WHERE user_id=$1 AND status <> 'deleted' AND ($2::text IS NULL OR guild_id=$2) ORDER BY updated_at DESC", [req.user.id, guildId]);
-  res.json({ bots: rows });
-} catch (e) { next(e); } });
-app.post("/api/custom-bots", requireUser, requireWriteAccess, async (req, res, next) => { try {
-  const guildId = String(req.body.guildId || "");
-  const guild = await authorizedGuild(req.user, guildId);
-  if (!guild) return res.status(403).json({ error: "اختر سيرفرًا تملك صلاحية إدارته" });
-  const kind = String(req.body.kind || "general");
-  if (!BOT_PRESET_KINDS.has(kind)) return res.status(400).json({ error: "نوع البوت غير مدعوم" });
-  if (kind === "assistant" && canonicalPlan(req.user.plan) === "free") return res.status(403).json({ error: "بوت الذكاء الاصطناعي متاح من باقة Starter. طوّر باقتك أولًا." });
-  const name = String(req.body.name || "Bot جديد").trim().slice(0, 80);
-  if (!name) return res.status(400).json({ error: "أدخل اسم البوت" });
-  const slug = `bot-${crypto.randomUUID().slice(0, 12)}`;
-  const description = String(req.body.description || "").trim().slice(0, 300);
-  const definition = { kind, guild_id: guildId, commands: BOT_PRESET_COMMANDS[kind], capabilities: [], approval_required: true };
-  const client = await pool.connect(); let rows;
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
-    await requirePlanCapacity(req.user, "customBots", client);
-    ({ rows } = await client.query("INSERT INTO custom_bots(user_id,guild_id,name,slug,description,definition,status) VALUES($1,$2,$3,$4,$5,$6,'draft') RETURNING id,guild_id,name,slug,description,definition,status,version,created_at,updated_at", [req.user.id, guildId, name, slug, description, definition]));
-    await client.query("COMMIT");
-  } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
-  await audit(req.user.id, "custom_bot.create", "custom_bot", rows[0].id, { guildId, kind, name });
-  res.status(201).json({ bot: rows[0] });
-} catch (e) { next(e); } });
-app.put("/api/custom-bots/:id", requireUser, requireWriteAccess, async (req, res, next) => { try {
-  const current = (await pool.query("SELECT * FROM custom_bots WHERE id=$1 AND user_id=$2 AND status <> 'deleted'", [req.params.id, req.user.id])).rows[0];
-  if (!current) return res.status(404).json({ error: "البوت غير موجود" });
-  if (current.guild_id && !await authorizedGuild(req.user, current.guild_id)) return res.status(403).json({ error: "لم تعد تملك صلاحية إدارة سيرفر هذا البوت" });
-  const kind = BOT_PRESET_KINDS.has(current.definition?.kind) ? current.definition.kind : "general";
-  const allowed = BOT_PRESET_COMMANDS[kind];
-  const commands = req.body.commands === undefined ? current.definition?.commands || [] : req.body.commands;
-  if (!Array.isArray(commands) || commands.length > allowed.length || commands.some(key => !allowed.includes(key)) || new Set(commands).size !== commands.length) return res.status(400).json({ error: "اختر أوامر صحيحة من نوع هذا البوت" });
-  const definition = { kind, guild_id: current.guild_id, commands, capabilities: [], approval_required: true };
-  const name = String(req.body.name ?? current.name).trim().slice(0, 80);
-  if (!name) return res.status(400).json({ error: "أدخل اسم البوت" });
-  const description = String(req.body.description ?? current.description).trim().slice(0, 300);
-  const version = Number(current.version || 1) + 1;
-  const { rows } = await pool.query("UPDATE custom_bots SET name=$1,description=$2,definition=$3,version=$4,updated_at=NOW() WHERE id=$5 AND user_id=$6 RETURNING id,guild_id,name,slug,description,definition,status,version,created_at,updated_at", [name, description, definition, version, current.id, req.user.id]);
-  await audit(req.user.id, "custom_bot.update", "custom_bot", current.id, { version, commands });
-  res.json({ bot: rows[0] });
-} catch (e) { next(e); } });
 app.patch("/api/guilds/:guildId/settings/name", requireUser, requireWriteAccess, async (req, res, next) => { try { const guild = await authorizedGuild(req.user, req.params.guildId); if (!guild) return res.status(403).json({ error: "لا تملك صلاحية إدارة هذا السيرفر" }); const name = String(req.body.name || "").trim().slice(0, 100); if (name.length < 2) return res.status(400).json({ error: "اكتب اسمًا من حرفين على الأقل" }); const result = await discordBotFetch(`/guilds/${guild.id}`, { method: "PATCH", body: JSON.stringify({ name }) }); if (!result.ok) return res.status(result.status === 403 ? 403 : 502).json({ error: "لم يسمح Discord بتغيير الاسم. تحقق من صلاحية إدارة السيرفر." }); await pool.query("UPDATE guild_connections SET guild_name=$1,updated_at=NOW() WHERE user_id=$2 AND guild_id=$3", [name, req.user.id, guild.id]); await audit(req.user.id, "guild.rename", "guild", guild.id, { from: guild.name, to: name }); res.json({ ok: true, guild: { id: guild.id, name: result.data.name } }); } catch (e) { next(e); } });
 function draftDesign(body) {
   const design = body?.design;

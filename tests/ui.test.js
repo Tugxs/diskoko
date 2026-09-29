@@ -336,10 +336,29 @@ test('adding a resource stages a guild-specific draft without calling mutation A
   assert.equal(doc.querySelector('#draftBar').hidden, false); assert.match(dom.window.localStorage.getItem(`diskoko:review:1:${guild.id}`), /ترحيب/);
   assert.equal(requests.filter(req => req.options.method && req.options.method !== 'GET').length, 0); dom.window.close();
 });
-test('bot pages separate designs, live commands and AI connection state', async () => {
-  const { dom, doc } = await page('bots'); assert.equal(doc.querySelectorAll('[data-create-bot]').length, 6); assert.match(doc.body.textContent, /تصميم محفوظ|تصميم قابل للتخصيص/); dom.window.close();
+test('bot workshop shows real connection steps without offering inactive drafts as bots', async () => {
+  const { dom, doc } = await page('bots');
+  assert.ok(doc.querySelector('#botWorkshopConnect'));
+  assert.equal(doc.querySelectorAll('[data-create-bot]').length, 0);
+  assert.equal(doc.querySelectorAll('[data-bot-feature]').length, 6);
+  assert.equal(doc.querySelectorAll('[data-bot-feature]:disabled').length, 6);
+  assert.match(doc.body.textContent, /ورشة بوتك الخاص/);
+  dom.window.close();
   const commandPage = await page('commands'); assert.equal(commandPage.doc.querySelectorAll('.command-check').length, 3); assert.equal(commandPage.doc.querySelector('#botEnabled').checked, true); commandPage.dom.window.close();
   const assistantPage = await page('assistant'); assert.match(assistantPage.doc.body.textContent, /الجهاز المحلي غير متصل/); assert.match(assistantPage.doc.body.textContent, /AI ديسكوكو/); assistantPage.dom.window.close();
+});
+test('bot workshop opens a real library feature with the customer bot selected', async () => {
+  const response = url => url === `/api/ai/bot-connection?guildId=${guild.id}`
+    ? { bot: { id: 'bot-1', name: 'بوت السيرفر', online: true, selected: true, memberJoins: true, messageContent: true } }
+    : fixtureResponse(url);
+  const { dom, doc } = await page('bots', response);
+  assert.equal(doc.querySelectorAll('[data-bot-feature]:disabled').length, 0);
+  doc.querySelector('[data-bot-feature="2"]').click();
+  await settle();
+  assert.match(doc.body.textContent, /AI ديسكوكو/);
+  assert.match(doc.querySelector('#aiTemplateDraft')?.textContent || '', /لوحة الاقتراحات/);
+  assert.match(doc.querySelector('#assistantPrompt')?.value || '', /اقتراح/);
+  dom.window.close();
 });
 test('AI bot card guides connection and sends the token only in the protected connect request', async () => {
   const response = url => url === `/api/ai/bot-connection?guildId=${guild.id}` ? { bot: null }
