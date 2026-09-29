@@ -341,11 +341,26 @@ test('bot workshop shows real connection steps without offering inactive drafts 
   assert.ok(doc.querySelector('#botWorkshopConnect'));
   assert.equal(doc.querySelectorAll('[data-create-bot]').length, 0);
   assert.equal(doc.querySelectorAll('[data-bot-feature]').length, 6);
+  assert.equal(doc.querySelectorAll('[data-bot-design]').length, 4);
   assert.equal(doc.querySelectorAll('[data-bot-feature]:disabled').length, 6);
   assert.match(doc.body.textContent, /ورشة بوتك الخاص/);
   dom.window.close();
   const commandPage = await page('commands'); assert.equal(commandPage.doc.querySelectorAll('.command-check').length, 3); assert.equal(commandPage.doc.querySelector('#botEnabled').checked, true); commandPage.dom.window.close();
   const assistantPage = await page('assistant'); assert.match(assistantPage.doc.body.textContent, /الجهاز المحلي غير متصل/); assert.match(assistantPage.doc.body.textContent, /AI ديسكوكو/); assistantPage.dom.window.close();
+});
+test('private command builder chooses a bot and previews a link panel', async () => {
+  const response = url => url === `/api/ai/bots?guildId=${guild.id}`
+    ? { bots: [{ id: 'bot-1', name: 'بوت العميل', label: 'بوت الأفلام', online: true, selected: true }], quota: { used: 1, limit: 10 } }
+    : url === `/api/ai/bots/bot-1/commands?guildId=${guild.id}` ? { commands: [], limit: 10 }
+      : fixtureResponse(url);
+  const { dom, doc } = await page('commands', response);
+  assert.match(doc.querySelector('#customCommandBot').textContent, /بوت الأفلام/);
+  doc.querySelector('#customCommandKind').value = 'card';
+  doc.querySelector('#customCommandKind').dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.equal(doc.querySelector('#customCommandTitle').required, true);
+  assert.equal(doc.querySelectorAll('[data-command-link-url]').length, 4);
+  assert.equal(doc.querySelector('#customCommandExtraLinks').hidden, false);
+  dom.window.close();
 });
 test('bot workshop opens a real library feature with the customer bot selected', async () => {
   const response = url => url === `/api/ai/bot-connection?guildId=${guild.id}`
@@ -382,20 +397,16 @@ test('AI bot card guides connection and sends the token only in the protected co
   dom.window.close();
 });
 
-test('server settings can select a customer bot while Diskoko is offline', async () => {
+test('server settings direct multi-bot management to the workshop while Diskoko is offline', async () => {
   const response = url => url === `/api/ai/bot-connection?guildId=${guild.id}` ? { bot: null }
     : url === '/api/ai/bot-connection' ? { bot: { id: 'bot-1', name: 'بوت العميل', online: true } }
       : url === `/api/workspace/${guild.id}` ? { ...workspace, bot: { ...workspace.bot, online: false } }
         : fixtureResponse(url);
   const { dom, doc, requests } = await page('settings', response);
   assert.match(doc.body.textContent, /بوت التنفيذ لهذا السيرفر/);
-  doc.querySelector('#settingsBotConnect').click();
-  doc.querySelector('#settingsBotToken').value = 'b'.repeat(60);
-  doc.querySelector('#settingsBotSave').click(); await settle();
-  const sent = requests.find(entry => entry.url === '/api/ai/bot-connection' && entry.options.method === 'POST');
-  assert.equal(JSON.parse(sent.options.body).guildId, guild.id);
-  assert.equal(JSON.parse(sent.options.body).token, 'b'.repeat(60));
-  assert.doesNotMatch(doc.body.textContent, /b{60}/);
+  assert.match(doc.querySelector('#settingsBotConnection').textContent, /بوتات هذا السيرفر/);
+  assert.match([...doc.querySelectorAll('#settingsBotConnection a.btn')].map(link => link.getAttribute('href')).join(' '), /#bots/);
+  assert.equal(requests.some(entry => entry.options?.method === 'POST'), false);
   dom.window.close();
 });
 
@@ -754,10 +765,10 @@ test('unreadable guild does not enable editing', async () => {
 test('account offers one direct primary route per guild', async () => {
   const { dom, doc } = await page('servers', fixtureResponse, 'account.html', 'account.js');
   assert.equal(doc.querySelectorAll('.server-card a.btn.primary').length, 2);
-  assert.equal(doc.querySelectorAll('.server-card button').length, 4);
+  assert.equal(doc.querySelectorAll('.server-card button').length, 2);
   assert.match(doc.querySelector('.server-card a').href, /studio\?guild=.*#overview/);
   assert.match(doc.body.textContent, /ربط بوت ديسكوكو/);
-  assert.match(doc.body.textContent, /ربط بوتي الخاص/);
+  assert.match(doc.body.textContent, /إدارة البوتات الخاصة/);
   dom.window.close();
 });
 test('subscription page shows four plans, annual savings and real usage', async () => {

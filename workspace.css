@@ -133,6 +133,10 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 
 .resource-select{flex:0 0 19px;margin:0 0 0 8px}.access-result{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:13px 15px;border:1px solid var(--line);border-radius:11px;background:var(--panel2)}.access-result b{font-size:12px}.access-result span{font-weight:700;color:var(--purple)}.access-result small{grid-column:1/-1}.change-diff{display:grid;gap:5px;margin:8px 0 0;padding:0 18px;color:var(--muted);font-size:11px}.change-diff .after{color:var(--green)}#accessSummary{margin:16px 0}.resource-editor .actions{justify-content:flex-start;flex-wrap:wrap}.permission-matrix small{display:block;margin-top:5px}@media(max-width:680px){.access-result{grid-template-columns:1fr}.access-result small{grid-column:1}}
 .bot-workshop-status{position:relative;overflow:hidden;isolation:isolate;padding:28px;background:radial-gradient(circle at 12% 12%,rgba(153,108,255,.22),transparent 35%),linear-gradient(135deg,#191a30 0%,#111722 68%,#101b27 100%);border:1px solid rgba(170,143,255,.3)}
+.bot-workshop-status{display:grid;grid-template-columns:minmax(0,1fr) 156px;gap:12px 22px;align-items:center}
+.bot-workshop-status>.bot-workshop-intro{grid-column:1;grid-row:1;max-width:none;min-width:0;margin:0;z-index:1}
+.bot-workshop-status>.bot-workshop-orbit{grid-column:2;grid-row:1;position:relative;inset:auto;width:140px;height:140px;opacity:.55;justify-self:center}
+.bot-workshop-status>.bot-workshop-identity,.bot-workshop-status>.form-note,.bot-workshop-status>.actions,.bot-workshop-status>.bot-workshop-checks{grid-column:1/-1;max-width:none}
 .bot-workshop-orbit{position:absolute;inset-inline-start:-36px;top:-48px;width:250px;height:250px;border:1px solid rgba(169,133,255,.23);border-radius:50%;display:grid;place-items:center;pointer-events:none;opacity:.85}
 .bot-workshop-orbit:before,.bot-workshop-orbit:after{content:"";position:absolute;border:1px solid rgba(169,133,255,.18);border-radius:50%;inset:24px}
 .bot-workshop-orbit:after{inset:53px}
@@ -168,6 +172,19 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 .bot-workshop-permissions .bot-workshop-checks span{padding:6px 9px;border-radius:999px;border:1px solid var(--line);font-size:11px}
 .bot-workshop-permissions .bot-workshop-checks .good{color:#7fe0b5;border-color:rgba(75,205,167,.4)}
 .bot-workshop-permissions .bot-workshop-checks .missing{color:#f4aeaa;border-color:rgba(243,123,120,.35)}
+.bot-design-gallery{margin-bottom:22px}
+.bot-design-card{display:flex;flex-direction:column;gap:16px;min-height:250px;background:linear-gradient(150deg,rgba(139,112,239,.16),transparent 60%),var(--panel);border:1px solid rgba(170,143,255,.23)}
+.bot-design-card:hover{border-color:rgba(170,143,255,.7);transform:translateY(-3px)}
+.bot-design-art{display:grid;place-items:center;width:54px;height:54px;border-radius:17px;background:linear-gradient(145deg,#6746c9,#33235c);color:white;font-size:30px;box-shadow:0 12px 25px rgba(72,42,151,.3)}
+.bot-design-card small{color:#bca8ff}.bot-design-card h3{margin:7px 0}.bot-design-card p{color:var(--muted);line-height:1.7;flex:1}.bot-design-card button{align-self:flex-start;margin-top:auto}
+.command-builder{margin-bottom:22px}
+.command-builder>.panel-body{padding:24px}
+.command-builder details{border:1px solid var(--line);border-radius:14px;padding:15px;background:rgba(151,129,219,.05)}
+.command-builder summary,.command-diskoko-settings>summary{cursor:pointer;font-weight:750;color:var(--text)}
+.command-builder form{margin-top:16px}
+.command-builder [hidden],.command-diskoko-settings [hidden]{display:none!important}
+.command-diskoko-settings{padding:18px;margin-bottom:22px}
+.command-diskoko-settings>.grid-2{margin-top:16px}
 @keyframes bot-workshop-pulse{50%{transform:scale(1.1);filter:brightness(1.2)}}
-@media(max-width:700px){.bot-workshop-status{padding:20px}.bot-workshop-orbit{opacity:.22}.bot-workshop-steps{grid-template-columns:1fr}.bot-workshop-gallery{grid-template-columns:1fr}}
+@media(max-width:700px){.bot-workshop-status{padding:20px;grid-template-columns:1fr}.bot-workshop-status>.bot-workshop-orbit{display:none}.bot-workshop-steps{grid-template-columns:1fr}.bot-workshop-gallery,.bot-design-gallery{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.bot-workshop-orbit span{animation:none}.bot-workshop-gallery .bot-preset{transition:none}.bot-workshop-gallery .bot-preset:hover{transform:none}}

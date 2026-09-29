@@ -524,7 +524,7 @@ async function planCapacity(user, kind, db = pool) {
     return { used: rows[0].count, limit: limits.servers };
   }
   if (kind === "customBots") {
-    const { rows } = await db.query("SELECT COUNT(*)::int AS count FROM custom_bots WHERE user_id=$1 AND status <> 'deleted'", [user.id]);
+    const { rows } = await db.query("SELECT COUNT(*)::int AS count FROM customer_bot_registry WHERE owner_id=$1", [user.id]);
     return { used: rows[0].count, limit: limits.customBots };
   }
   if (kind === "customTemplates") {
@@ -772,7 +772,7 @@ app.post("/api/billing/upgrade-requests", requireUser, async (req, res, next) =>
   res.status(201).json({ request: rows[0], message: 'استلمنا طلب الترقية. سنفتح الدفع فور ربط بوابة الدفع.' });
 } catch (e) { if (e.message.includes('كوبون')) return res.status(400).json({ error: e.message }); next(e); } });
 app.get("/api/account/overview", requireUser, async (req, res, next) => { try {
-  const [subscriptionResult, guildResult, connections, activity, customBots, customTemplates, scheduledMessages, changeSets, invoices, upgradeRequest, projects, linkedBots] = await Promise.all([
+  const [subscriptionResult, guildResult, connections, activity, customBots, customTemplates, scheduledMessages, changeSets, invoices, upgradeRequest, projects, linkedBots, botCounts] = await Promise.all([
     pool.query("SELECT plan,status,billing_interval,current_period_start,current_period_end,grace_until,cancel_at_period_end,amount_sar,currency,provider,created_at,updated_at FROM subscriptions WHERE user_id=$1 ORDER BY updated_at DESC LIMIT 1", [req.user.id]),
     manageableGuilds(req.user).then(guilds => ({ guilds, unavailable: false })).catch(error => {
       if (error.status !== 503) throw error;
@@ -785,17 +785,19 @@ app.get("/api/account/overview", requireUser, async (req, res, next) => { try {
     pool.query("SELECT id,plan,billing_interval,coupon_code,subtotal,discount,total,status,created_at,updated_at FROM billing_upgrade_requests WHERE user_id=$1 AND status='pending' ORDER BY updated_at DESC LIMIT 1", [req.user.id]),
     pool.query("SELECT id,name,guild_id,deployment_status,archived_at,created_at,updated_at FROM projects WHERE user_id=$1 ORDER BY archived_at NULLS FIRST,updated_at DESC", [req.user.id]),
     pool.query("SELECT guild_id,bot_user_id,bot_name,retry_at FROM ai_bot_connections WHERE guild_id IN (SELECT guild_id FROM guild_connections WHERE user_id=$1)", [req.user.id]),
+    pool.query("SELECT guild_id,COUNT(*)::int AS count FROM customer_bot_registry WHERE owner_id=$1 GROUP BY guild_id", [req.user.id]),
   ]);
   const subscription = subscriptionResult.rows[0] || { plan: canonicalPlan(req.user.plan), status: canonicalPlan(req.user.plan) === 'free' ? 'trial' : 'active', current_period_end: null, billing_interval: null };
   const access = subscriptionAccess(subscription);
   const byGuild = new Map(connections.rows.map((row) => [String(row.guild_id), row]));
   const byLinkedBot = new Map(linkedBots.rows.map((row) => [String(row.guild_id), row]));
+  const botsByGuild = new Map(botCounts.rows.map(row => [String(row.guild_id), Number(row.count)]));
   // An upstream Discord outage must not hide the user's account. Cached entries
   // are display-only; all server changes still require a fresh permission check.
   const guilds = guildResult.guilds || connections.rows.filter(row => row.install_status === 'installed' || byLinkedBot.has(String(row.guild_id))).map(row => ({ id: row.guild_id, name: row.guild_name || 'سيرفر مرتبط', icon: null, owner: false, permissions: null }));
   const usage = { servers: await planCapacity(req.user, 'servers'), customBots, customTemplates, scheduledMessages, changeSetsPerMonth: changeSets };
   const alerts = Object.entries(usage).flatMap(([key, capacity]) => { const alert = usageAlert(capacity); return alert ? [{ key, ...alert }] : []; });
-  res.json({ user: publicUser(req.user), plan: subscription, access, limits: entitlementsFor(req.user), usage, alerts, invoices: invoices.rows, upgradeRequest: upgradeRequest.rows[0] || null, plans: publicPlanCatalog(), projects: projects.rows, discordUnavailable: guildResult.unavailable, servers: guilds.map((guild) => ({ id: guild.id, name: guild.name, icon: guild.icon, owner: guild.owner, permissions: guild.permissions, connection: byGuild.get(String(guild.id)) || { guild_id: guild.id, guild_name: guild.name, install_status: "not_connected" }, linkedBot: byLinkedBot.get(String(guild.id)) ? { id: byLinkedBot.get(String(guild.id)).bot_user_id, name: byLinkedBot.get(String(guild.id)).bot_name, retryAt: byLinkedBot.get(String(guild.id)).retry_at } : null })), activity: activity.rows });
+  res.json({ user: publicUser(req.user), plan: subscription, access, limits: entitlementsFor(req.user), usage, alerts, invoices: invoices.rows, upgradeRequest: upgradeRequest.rows[0] || null, plans: publicPlanCatalog(), projects: projects.rows, discordUnavailable: guildResult.unavailable, servers: guilds.map((guild) => ({ id: guild.id, name: guild.name, icon: guild.icon, owner: guild.owner, permissions: guild.permissions, botCount: botsByGuild.get(String(guild.id)) || 0, connection: byGuild.get(String(guild.id)) || { guild_id: guild.id, guild_name: guild.name, install_status: "not_connected" }, linkedBot: byLinkedBot.get(String(guild.id)) ? { id: byLinkedBot.get(String(guild.id)).bot_user_id, name: byLinkedBot.get(String(guild.id)).bot_name, retryAt: byLinkedBot.get(String(guild.id)).retry_at } : null })), activity: activity.rows });
 } catch (e) { next(e); } });
 app.get("/api/account/subscription-events", requireUser, async (req, res, next) => { try { const { rows } = await pool.query("SELECT provider,event_id,event_type,provider_ref,payload,processed_at FROM subscription_events WHERE user_id=$1 ORDER BY processed_at DESC LIMIT 50", [req.user.id]); res.json({ events: rows }); } catch (e) { next(e); } });
 app.get("/api/account/entitlements", requireUser, async (req, res, next) => { try { const [servers, customBots, customTemplates, scheduledMessages, changeSetsPerMonth] = await Promise.all([planCapacity(req.user, "servers"), planCapacity(req.user, "customBots"), planCapacity(req.user, "customTemplates"), planCapacity(req.user, "scheduledMessages"), planCapacity(req.user, "changeSetsPerMonth")]); res.json({ plan: canonicalPlan(req.user.plan), limits: entitlementsFor(req.user), usage: { servers, customBots, customTemplates, scheduledMessages, changeSetsPerMonth } }); } catch (e) { next(e); } });
@@ -1099,7 +1101,8 @@ migrate().then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).th
     void restoreAiBots(pool).catch(error => console.error('Connected AI bots restore failed', error.message));
   }
   startScheduleRunner({ pool, authorizedGuild, discordBotFetch: async (pathname, options, job) => {
-    const bot = await botTokenForPublication(pool, job.guild_id);
+    const bot = job.bot_user_id ? await connectedBot(pool, job.guild_id, job.bot_user_id) : await botTokenForPublication(pool, job.guild_id);
+    if (job.bot_user_id && !bot) return { ok: false, status: 410, data: { message: 'Connected bot removed' } };
     return discordBotFetch(pathname, bot ? { ...options, headers: { ...options.headers, Authorization: `Bot ${bot.token}` } } : options);
   } });
   startGiveawayRunner({ pool, discordBotFetch: async (pathname, options, giveaway) => {
@@ -1109,3 +1112,4 @@ migrate().then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).th
     return discordBotFetch(pathname, { ...options, headers: { ...options.headers, Authorization: `Bot ${bot.token}` } });
   } });
 }).catch((error) => { console.error("Database migration failed", error); process.exit(1); });
+

@@ -159,6 +159,7 @@ test('stale changes are rejected but an already applied edit can be resumed', ()
 test('invalid schedule time, size and timezone are rejected', () => {
   const valid = { content: 'Hello', run_at: '2030-01-01T12:00:00Z', repeat: 'once', timezone: 'Asia/Riyadh', channel_id: 'one' };
   assert.equal(normalizeSchedule(valid, 0).channel_id, 'one');
+  assert.equal(normalizeSchedule({ ...valid, repeat: 'monthly' }, 0).repeat, 'monthly');
   assert.throws(() => normalizeSchedule({ ...valid, content: 'x'.repeat(2001) }, 0));
   assert.throws(() => normalizeSchedule({ ...valid, timezone: 'bad-zone' }, 0));
   assert.throws(() => normalizeSchedule({ ...valid, run_at: 'invalid' }, 0));
@@ -172,5 +173,13 @@ test('saved reorder history retains its original visible position after live dat
   assert.equal(op.position_before_display, 2);
   current.channels.find(row => row.id === 'third').position = 0;
   assert.equal(op.position_before_display, 2);
+  assert.equal(Object.hasOwn(operationBody(op),'position_before_display'), false);
+});
+
+test('saved reorder keeps the position shown to the customer when Discord snapshot ordering changes', () => {
+  const current = structuredClone(snapshot);
+  current.channels.push({ id:'third', name:'third', type:0, parent_id:'category', position:20 });
+  const op = normalizeOperations([{ action:'update', resource_type:'channel', resource_id:'third', name:'third', position:0, position_changed:true, position_before_display:1 }], current)[0];
+  assert.equal(op.position_before_display, 1);
   assert.equal(Object.hasOwn(operationBody(op),'position_before_display'), false);
 });

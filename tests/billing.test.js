@@ -13,7 +13,7 @@ test('annual pricing always gives exactly two months free', () => {
 });
 
 test('bot design limits match the announced plans', () => {
-  assert.deepEqual(publicPlanCatalog().map(plan => plan.customBots), [1, 5, 10, 20]);
+  assert.deepEqual(publicPlanCatalog().map(plan => plan.customBots), [1, 2, 5, 10]);
 });
 
 test('past due subscriptions keep full access only inside grace period', () => {
