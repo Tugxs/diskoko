@@ -11,6 +11,7 @@ import { upsertCustomerLinkPanel } from './lib/customer-link-panel.js';
 import { upsertCommunityPanels } from './lib/community-panels.js';
 import { handleAccountPanelInteraction, upsertAccountPanel } from './lib/account-panel.js';
 import { handleControlInteraction, upsertControlPanel } from './lib/control-account.js';
+import { customerRoleConfig } from './lib/customer-roles.js';
 
 const BOT_NAME = "diskoko | ديسكوكو";
 
@@ -33,6 +34,19 @@ let messageContentIntentAllowed = null;
 let cooldownTableReady = false;
 let externalStatus = null;
 let shuttingDown = false;
+
+export async function handleGuildMemberJoin(member, pool, { roleConfig = customerRoleConfig, welcome = sendWelcomeCard } = {}) {
+  try {
+    if (member.guild.id === roleConfig().guildId) {
+      await pool.query(`INSERT INTO customer_role_sync(user_id)
+        SELECT id FROM users WHERE discord_id=$1 ON CONFLICT(user_id) DO UPDATE
+        SET requested_at=NOW(),retry_at=NOW(),attempts=0,last_error=NULL,revision=customer_role_sync.revision+1`, [member.id]);
+    }
+  } catch (error) {
+    console.error('Customer role sync enqueue failed', member.guild.id, error.message);
+  }
+  return welcome(member, pool);
+}
 
 function scheduleReconnect(retryMs) {
   if (shuttingDown) return;
@@ -201,14 +215,8 @@ export async function startDiscordBot({ pool } = {}) {
   const activityLogger = databasePool ? registerGuildActivityLogs(client, databasePool) : null;
 
   client.on(Events.GuildMemberAdd, member => {
-    if (databasePool) void (async () => {
-      if (member.guild.id === customerRoleConfig().guildId) {
-        await databasePool.query(`INSERT INTO customer_role_sync(user_id)
-          SELECT id FROM users WHERE discord_id=$1 ON CONFLICT(user_id) DO UPDATE
-          SET requested_at=NOW(),retry_at=NOW(),attempts=0,last_error=NULL,revision=customer_role_sync.revision+1`, [member.id]);
-      }
-      await sendWelcomeCard(member, databasePool);
-    })().catch(error => console.error('Welcome card delivery failed', member.guild.id, error.message));
+    if (databasePool) void handleGuildMemberJoin(member, databasePool)
+      .catch(error => console.error('Welcome card delivery failed', member.guild.id, error.message));
   });
 
   // Count events only after an administrator opts in. This handler does not store message content.
