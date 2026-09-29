@@ -35,17 +35,23 @@ let cooldownTableReady = false;
 let externalStatus = null;
 let shuttingDown = false;
 
-export async function handleGuildMemberJoin(member, pool, { roleConfig = customerRoleConfig, welcome = sendWelcomeCard } = {}) {
-  try {
-    if (member.guild.id === roleConfig().guildId) {
-      await pool.query(`INSERT INTO customer_role_sync(user_id)
-        SELECT id FROM users WHERE discord_id=$1 ON CONFLICT(user_id) DO UPDATE
-        SET requested_at=NOW(),retry_at=NOW(),attempts=0,last_error=NULL,revision=customer_role_sync.revision+1`, [member.id]);
-    }
-  } catch (error) {
-    console.error('Customer role sync enqueue failed', member.guild.id, error.message);
-  }
-  return welcome(member, pool);
+export async function enqueueCustomerRoleSync(member, pool, roleConfig = customerRoleConfig) {
+  if (member.guild.id !== roleConfig().guildId) return false;
+  await pool.query(`INSERT INTO customer_role_sync(user_id)
+    SELECT id FROM users WHERE discord_id=$1 ON CONFLICT(user_id) DO UPDATE
+    SET requested_at=NOW(),retry_at=NOW(),attempts=0,last_error=NULL,revision=customer_role_sync.revision+1`, [member.id]);
+  return true;
+}
+
+export function registerMemberJoinHandlers(client, pool, { welcome = sendWelcomeCard, roles = enqueueCustomerRoleSync } = {}) {
+  client.on(Events.GuildMemberAdd, member => {
+    void Promise.resolve().then(() => welcome(member, pool))
+      .catch(error => console.error('Welcome card delivery failed', member.guild.id, error.message));
+  });
+  client.on(Events.GuildMemberAdd, member => {
+    void Promise.resolve().then(() => roles(member, pool))
+      .catch(error => console.error('Customer role sync enqueue failed', member.guild.id, error.message));
+  });
 }
 
 function scheduleReconnect(retryMs) {
@@ -214,10 +220,7 @@ export async function startDiscordBot({ pool } = {}) {
   });
   const activityLogger = databasePool ? registerGuildActivityLogs(client, databasePool) : null;
 
-  client.on(Events.GuildMemberAdd, member => {
-    if (databasePool) void handleGuildMemberJoin(member, databasePool)
-      .catch(error => console.error('Welcome card delivery failed', member.guild.id, error.message));
-  });
+  if (databasePool) registerMemberJoinHandlers(client, databasePool);
 
   // Count events only after an administrator opts in. This handler does not store message content.
   client.on(Events.MessageCreate, async (message) => {
