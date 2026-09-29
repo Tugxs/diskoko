@@ -1104,8 +1104,8 @@ migrate().then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).th
   } });
   startGiveawayRunner({ pool, discordBotFetch: async (pathname, options, giveaway) => {
     if (!giveaway?.publishing_bot_id) return discordBotFetch(pathname, options);
-    const bot = await connectedBot(pool, giveaway.guild_id);
-    if (!bot || bot.id !== giveaway.publishing_bot_id) return { ok: false, status: 410, data: { message: 'Connected bot removed' } };
+    const bot = await connectedBot(pool, giveaway.guild_id, giveaway.publishing_bot_id);
+    if (!bot) return { ok: false, status: 410, data: { message: 'Connected bot removed' } };
     return discordBotFetch(pathname, { ...options, headers: { ...options.headers, Authorization: `Bot ${bot.token}` } });
   } });
 }).catch((error) => { console.error("Database migration failed", error); process.exit(1); });

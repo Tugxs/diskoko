@@ -733,23 +733,31 @@ const botWorkshopFeatures = [
 async function bots() {
   const guild = state.guild, epoch = state.epoch;
   $('#workspace').innerHTML = head('ورشة بوتك الخاص', 'اربط بوتًا تملكه، اختره للتنفيذ، ثم ركّب ميزات حقيقية على سيرفرك.') + '<div class="loading" role="status">جارٍ فحص بوتك…</div>';
-  let bot = null, connectionError = '';
-  try { ({ bot } = await api(`/api/ai/bot-connection?guildId=${encodeURIComponent(guild)}`)); }
+  let bot = null, managedBots = [], connectionError = '';
+  try {
+    const [selected, registry] = await Promise.all([
+      api(`/api/ai/bot-connection?guildId=${encodeURIComponent(guild)}`),
+      api(`/api/ai/bots?guildId=${encodeURIComponent(guild)}`),
+    ]);
+    bot = selected.bot; managedBots = registry.bots || [];
+  }
   catch (error) { connectionError = error.message; }
   if (guild !== state.guild || epoch !== state.epoch || screen() !== 'bots') return;
   const statusText = connectionError ? 'تعذر فحص الاتصال' : !bot ? 'لم تربط بوتك بعد' : !bot.online ? 'البوت غير متصل' : !bot.selected ? 'البوت متصل، لكن التنفيذ على ديسكوكو' : 'بوتك متصل ومختار للتنفيذ';
-  const nextStep = connectionError ? 'حدّث الصفحة أو افتح إعدادات البوت إذا استمرت المشكلة.' : !bot ? 'أنشئ تطبيق بوت في Discord وأضفه للسيرفر، ثم اربطه من هنا.' : !bot.online ? 'راجع اتصال البوت أو انتظر موعد إعادة المحاولة قبل تركيب المميزات.' : !bot.selected ? 'اختر بوتك الخاص للتنفيذ حتى تُنشر المميزات باسمه.' : 'اختر ميزة أدناه، وأرسل طلبها، ثم راجع الإعدادات قبل النشر.';
+  const nextStep = connectionError ? 'حدّث الصفحة أو افتح إعدادات البوت إذا استمرت المشكلة.' : !bot ? 'اربط بوتك الأول، ثم يمكنك إضافة بوتات أخرى وتوزيع الميزات بينها.' : !bot.online ? 'راجع اتصال البوت المختار أو اختر بوتًا آخر متصلًا.' : !bot.selected ? 'اختر بوتًا خاصًا للتنفيذ حتى تُنشر المميزات باسمه.' : 'اختر ميزة أدناه. ستُنشر باسم البوت المختار بعد مراجعتك.';
   $('#workspace').innerHTML = head('ورشة بوتك الخاص', 'بوت ديسكوكو العام منفصل. هنا تجهز بوتًا خاصًا تملكه لهذا السيرفر، وتختار ما ينفذه باسمه.') + connectionNotice() + `
     <section class="panel bot-workshop-status"><div class="bot-workshop-orbit" aria-hidden="true"><span>◈</span><i></i><i></i></div><div class="bot-workshop-intro"><small>مساحة البوت الخاص · ${esc(state.data.guild.name)}</small><h2>هويتك في سيرفرك، بإعداد واحد واضح.</h2><p>اربط تطبيقك، اختره للتنفيذ، ثم أضف ما يحتاجه مجتمعك. كل ميزة تمر على المعاينة والموافقة قبل النشر.</p></div><div class="server-title bot-workshop-identity"><span class="server-image">🤖</span><div class="row-main"><h3>${esc(bot?.name || 'بوتك الخاص')}</h3><small>${esc(statusText)}</small></div>${badge(bot?.online && bot.selected ? 'جاهز' : 'يحتاج خطوة', bot?.online && bot.selected ? 'good' : 'warn')}</div>
     <p class="form-note">${esc(nextStep)}</p><div class="actions">
-    ${!bot && !connectionError ? '<button class="btn primary" id="botWorkshopConnect">ربط بوتي الخاص</button>' : ''}
+    ${!connectionError ? `<button class="btn primary" id="botWorkshopConnect" ${managedBots.length >= 3 ? 'disabled' : ''}>+ ربط بوت خاص</button>` : ''}
     ${bot?.online && !bot.selected ? '<button class="btn primary" id="botWorkshopSelect">اختيار بوتي للتنفيذ</button>' : ''}
     <a class="btn secondary" href="/ai-bot-guide.html" target="_blank" rel="noopener noreferrer">شرح الإنشاء والربط ↗</a>
     <button class="btn secondary" id="botWorkshopRefresh" type="button">تحديث الحالة</button></div>
     ${bot ? `<div class="bot-workshop-checks"><span>${bot.online ? '✓ متصل' : '○ غير متصل'}</span><span>${bot.memberJoins ? '✓ استقبال الأعضاء مفعّل' : '○ الترحيب يحتاج Server Members Intent'}</span><span>${bot.messageContent ? '✓ محتوى الرسائل مفعّل' : '○ نص الرسائل المحذوفة يحتاج Message Content Intent'}</span></div>` : ''}
-    <small class="form-note">يمكن ربط بوت خاص واحد بهذا السيرفر حاليًا. إنشاء تطبيق البوت وصلاحياته يتمان في Discord؛ نحفظ رمز الربط مشفرًا.</small></section>
+    <small class="form-note">اربط حتى 3 بوتات خاصة بهذا السيرفر. تختار واحدًا للتنفيذ الجديد؛ وتبقى لوحات البوتات الأخرى تعمل ما دامت متصلة. رموز الربط محفوظة مشفرة.${managedBots.length >= 3 ? ' وصلت للحد؛ افصل بوتًا قبل إضافة آخر.' : ''}</small></section>
+    <div class="section-title"><h3>بوتات هذا السيرفر <span class="badge purple">${fmt(managedBots.length)}</span></h3><small>لكل بوت اتصال مستقل. الاسم هنا للتمييز داخل لوحة التحكم فقط.</small></div>
+    <div class="server-grid bot-workshop-fleet">${managedBots.map(item => `<article class="server-card bot-workshop-bot ${item.selected ? 'selected' : ''}"><div class="server-title"><span class="server-image">🤖</span><div class="row-main"><h3>${esc(item.label)}</h3><small>${esc(item.name)} · ${item.online ? 'متصل' : 'غير متصل'}</small></div>${badge(item.selected ? 'منفذ افتراضي' : item.online ? 'متصل' : 'يحتاج مراجعة', item.selected ? 'good' : item.online ? 'purple' : 'warn')}</div><div class="bot-workshop-checks"><span>${item.memberJoins ? '✓ ترحيب' : '○ يحتاج استقبال الأعضاء'}</span><span>${item.messageContent ? '✓ محتوى الرسائل' : '○ محتوى الرسائل مغلق'}</span></div><div class="actions">${item.online && !item.selected ? `<button class="btn small primary" data-select-managed-bot="${esc(item.id)}">استخدامه للتنفيذ</button>` : ''}<button class="btn small secondary" data-settings-managed-bot="${esc(item.id)}">إعدادات البوت</button></div></article>`).join('') || '<div class="panel"><p class="form-note">ما ربطت بوتًا خاصًا بعد. ابدأ بربط أول بوت، ثم تقدر تضيف غيره.</p></div>'}</div>
     <div class="bot-workshop-steps" aria-label="خطوات تجهيز البوت"><span class="${bot ? 'done' : 'current'}"><b>01</b> ربط البوت</span><span class="${bot?.online && bot.selected ? 'done' : bot ? 'current' : ''}"><b>02</b> اختياره للتنفيذ</span><span class="${bot?.online && bot.selected ? 'current' : ''}"><b>03</b> تركيب الميزات</span></div>
-    <div class="section-title"><h3>ميزات تركّبها على بوتك</h3><small>اختر ميزة، ثم أكمل بياناتها ومراجعتها في مكتبة AI</small></div>
+    <div class="section-title"><h3>ميزات البوت المختار</h3><small>التنفيذ الجديد على ${esc(bot?.selected ? bot.name : 'بوتك بعد اختياره')}؛ اختر ميزة وأكمل مراجعتها</small></div>
     <div class="server-grid bot-workshop-gallery">${botWorkshopFeatures.map((feature, index) => `<article class="server-card bot-preset"><div class="server-title"><span class="server-image">${feature.icon}</span><div><h3>${feature.title}</h3><small>ميزة قابلة للتركيب</small></div></div><p>${feature.detail}</p><button class="btn primary" type="button" data-bot-feature="${index}" ${bot?.online && bot.selected && (!feature.needsMembers || bot.memberJoins) ? '' : 'disabled'}>${feature.needsMembers && bot?.online && bot.selected && !bot.memberJoins ? 'فعّل استقبال الأعضاء أولًا' : 'إعداد الميزة'}</button></article>`).join('')}</div>`;
   $('#botWorkshopRefresh').onclick = () => bots().catch(error => toast(error.message));
   if ($('#botWorkshopSelect')) $('#botWorkshopSelect').onclick = run(async event => {
@@ -758,14 +766,69 @@ async function bots() {
     catch (error) { await bots(); throw error; }
   });
   if ($('#botWorkshopConnect')) $('#botWorkshopConnect').onclick = () => {
-    modal('ربط بوتك الخاص', `<p>أنشئ تطبيق بوت وأضفه إلى ${esc(state.data.guild.name)}، ثم ألصق رمزه هنا. لا ترسل الرمز في محادثة أو قناة.</p><label>رمز البوت<input id="workshopBotToken" type="password" autocomplete="off" spellcheck="false"></label><p class="form-note">للترحيب التلقائي فعّل Server Members Intent. لعرض نص الرسائل المحذوفة فعّل Message Content Intent.</p><a href="/ai-bot-guide.html" target="_blank" rel="noopener noreferrer">شرح الربط بالصور ↗</a>`, '<button class="btn secondary" id="workshopBotCancel" type="button">إلغاء</button><button class="btn primary" id="workshopBotSave" type="button">تحقق واربط</button>');
+    modal('إضافة بوت خاص', `<p>أنشئ تطبيق بوت وأضفه إلى ${esc(state.data.guild.name)}، ثم ألصق رمزه هنا. لا ترسل الرمز في محادثة أو قناة. لن يتوقف أي بوت مرتبط عند إضافة هذا البوت.</p><label>رمز البوت<input id="workshopBotToken" type="password" autocomplete="off" spellcheck="false"></label><p class="form-note">للترحيب التلقائي فعّل Server Members Intent. لعرض نص الرسائل المحذوفة فعّل Message Content Intent.</p><a href="/ai-bot-guide.html" target="_blank" rel="noopener noreferrer">شرح الربط بالصور ↗</a>`, '<button class="btn secondary" id="workshopBotCancel" type="button">إلغاء</button><button class="btn primary" id="workshopBotSave" type="button">تحقق وأضف</button>');
     $('#workshopBotCancel').onclick = closeDialog;
     $('#workshopBotSave').onclick = run(async () => {
       const button = $('#workshopBotSave'); button.disabled = true;
-      try { const result = await api('/api/ai/bot-connection', { method: 'POST', body: JSON.stringify({ guildId: guild, token: $('#workshopBotToken').value }) }); closeDialog(); await bots(); toast(result.pending ? 'حُفظ الربط؛ سيتصل بوتك بعد انتهاء مهلة Discord.' : 'تم ربط بوتك الخاص.'); }
+      try { const result = await api('/api/ai/bots', { method: 'POST', body: JSON.stringify({ guildId: guild, token: $('#workshopBotToken').value }) }); closeDialog(); await bots(); toast(result.pending ? 'أُضيف البوت؛ سيتصل بعد انتهاء مهلة Discord.' : 'أُضيف بوتك الخاص. اختره للتنفيذ متى أردت.'); }
       catch (error) { modalError(error); if (error.inviteUrl?.startsWith('https://discord.com/oauth2/authorize?')) { const link = document.createElement('a'); link.href = error.inviteUrl; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'أضف البوت إلى السيرفر ↗'; $('#dialogError').append(document.createElement('br'), link); } button.disabled = false; }
     });
   };
+  document.querySelectorAll('[data-select-managed-bot]').forEach(button => button.onclick = run(async () => {
+    button.disabled = true;
+    try { await api('/api/ai/bots/select', { method: 'POST', body: JSON.stringify({ guildId: guild, botId: button.dataset.selectManagedBot }) }); await bots(); toast('هذا البوت أصبح منفذ المميزات الجديدة. اللوحات المنشورة بالبوتات الأخرى مستمرة.'); }
+    catch (error) { await bots(); throw error; }
+  }));
+  document.querySelectorAll('[data-settings-managed-bot]').forEach(button => button.onclick = () => {
+    const item = managedBots.find(candidate => candidate.id === button.dataset.settingsManagedBot);
+    if (!item) return;
+    modal(`إعدادات ${esc(item.label)}`, `<div class="form-grid"><p>اسم تطبيق Discord: <b>${esc(item.name)}</b> · ${item.online ? 'متصل' : 'غير متصل'}</p><label>اسم للتمييز داخل ديسكوكو<input id="workshopBotLabel" maxlength="80" value="${esc(item.label)}"></label><label>لقب البوت داخل هذا السيرفر<input id="workshopBotNickname" maxlength="32" placeholder="جارٍ قراءة اللقب من Discord…" disabled></label><button class="btn secondary" id="workshopBotNicknameSave" type="button" disabled>تغيير اللقب في Discord</button><div id="workshopBotPermissions" class="bot-workshop-permissions" role="status">جارٍ فحص صلاحيات البوت في السيرفر…</div><details class="bot-workshop-command-editor"><summary>أوامر هذا البوت في Discord</summary><p class="form-note">أنشئ أمرًا يرد به هذا البوت فعلًا. لن نعدل أي أمر أنشأته خارج ديسكوكو.</p><div id="workshopBotCommands" role="status">جارٍ تحميل الأوامر…</div><form id="workshopBotCommandForm" class="form-grid"><label>اسم الأمر بعد /<input id="workshopCommandName" maxlength="32" required placeholder="مساعدة"></label><label>وصف الأمر في Discord<input id="workshopCommandDescription" maxlength="100" required placeholder="يعرض روابط المساعدة"></label><label>رد البوت<textarea id="workshopCommandResponse" maxlength="2000" required rows="3" placeholder="أهلًا! هذه روابط المساعدة…"></textarea></label><label class="check-row"><input id="workshopCommandPrivate" type="checkbox">الرد لصاحب الأمر فقط</label><button class="btn primary" type="submit">إنشاء الأمر في Discord</button></form></details><p class="form-note">اسم اللوحة للتمييز هنا فقط؛ اللقب يتغير فعلًا داخل السيرفر. صلاحيات القنوات الخاصة قد تختلف عن صلاحيات السيرفر. لتحديث الرمز، ألصقه مجددًا من صفحة إضافة بوت. للترحيب: ${item.memberJoins ? 'استقبال الأعضاء مفعّل' : 'فعّل Server Members Intent ثم حدّث الربط'}. لنص الرسائل المحذوفة: ${item.messageContent ? 'مفعّل' : 'فعّل Message Content Intent ثم حدّث الربط'}.</p><a href="/ai-bot-guide.html" target="_blank" rel="noopener noreferrer">شرح إعدادات Discord ↗</a></div>`, '<button class="btn secondary" id="workshopBotClose" type="button">إغلاق</button><button class="btn secondary" id="workshopBotRemove" type="button">فصل البوت</button><button class="btn primary" id="workshopBotLabelSave" type="button">حفظ اسم اللوحة</button>');
+    $('#workshopBotClose').onclick = closeDialog;
+    api(`/api/ai/bots/${encodeURIComponent(item.id)}/profile?guildId=${encodeURIComponent(guild)}`).then(profile => {
+      const nickname = $('#workshopBotNickname'); if (!nickname) return;
+      nickname.value = profile.nickname || ''; nickname.placeholder = 'بدون لقب خاص'; nickname.disabled = false;
+      $('#workshopBotNicknameSave').disabled = false;
+      const target = $('#workshopBotPermissions');
+      if (target) target.innerHTML = profile.permissions ? `<b>صلاحيات السيرفر</b><div class="bot-workshop-checks">${[['administrator','Administrator'],['manageChannels','إدارة القنوات'],['manageRoles','إدارة الرتب'],['viewChannel','عرض القنوات'],['sendMessages','إرسال الرسائل'],['embedLinks','البطاقات والروابط']].map(([key, label]) => `<span class="${profile.permissions[key] ? 'good' : 'missing'}">${profile.permissions[key] ? '✓' : '○'} ${label}</span>`).join('')}</div><small>أعلى رتبة للبوت في الترتيب: ${fmt(profile.permissions.highestRolePosition)}. يجب أن تكون أعلى من الرتب التي سيعدلها.</small>` : 'تعذر فحص الصلاحيات الآن؛ تحقق من رتبة البوت داخل Discord.';
+    }).catch(error => { const nickname = $('#workshopBotNickname'); if (nickname) nickname.placeholder = error.message; const target = $('#workshopBotPermissions'); if (target) target.textContent = error.message; });
+    $('#workshopBotNicknameSave').onclick = run(async () => {
+      const save = $('#workshopBotNicknameSave'); save.disabled = true;
+      try { await api(`/api/ai/bots/${encodeURIComponent(item.id)}/nickname`, { method: 'PATCH', body: JSON.stringify({ guildId: guild, nickname: $('#workshopBotNickname').value }) }); toast('تغير لقب البوت داخل السيرفر في Discord.'); }
+      catch (error) { modalError(error); }
+      finally { save.disabled = false; }
+    });
+    const loadCommands = async () => {
+      const target = $('#workshopBotCommands'); if (!target) return;
+      try {
+        const { commands, limit } = await api(`/api/ai/bots/${encodeURIComponent(item.id)}/commands?guildId=${encodeURIComponent(guild)}`);
+        if (!target.isConnected) return;
+        target.innerHTML = commands.length ? commands.map(command => `<div class="row"><div class="row-main"><b>/${esc(command.name)}</b><small>${esc(command.description)} · ${command.ephemeral ? 'رد خاص' : 'رد ظاهر في القناة'}</small></div><button class="btn small secondary" type="button" data-remove-bot-command="${esc(command.name)}">حذف</button></div>`).join('') : '<p class="form-note">لا توجد أوامر أُنشئت من ديسكوكو لهذا البوت بعد.</p>';
+        $('#workshopBotCommandForm').hidden = commands.length >= limit;
+        target.querySelectorAll('[data-remove-bot-command]').forEach(remove => remove.onclick = () => confirmDialog('حذف الأمر؟', `سيُحذف /${remove.dataset.removeBotCommand} من Discord، ولن يرد البوت عليه بعد ذلك.`, 'حذف الأمر', async () => {
+          await api(`/api/ai/bots/${encodeURIComponent(item.id)}/commands/${encodeURIComponent(remove.dataset.removeBotCommand)}`, { method: 'DELETE', body: JSON.stringify({ guildId: guild }) });
+          closeDialog(); toast('حُذف الأمر من Discord.'); await bots();
+        }));
+      } catch (error) { if (target.isConnected) target.textContent = error.message; }
+    };
+    void loadCommands();
+    $('#workshopBotCommandForm').onsubmit = run(async event => {
+      event.preventDefault(); const save = event.submitter; save.disabled = true;
+      try {
+        await api(`/api/ai/bots/${encodeURIComponent(item.id)}/commands`, { method: 'POST', body: JSON.stringify({ guildId: guild, name: $('#workshopCommandName').value, description: $('#workshopCommandDescription').value, response: $('#workshopCommandResponse').value, ephemeral: $('#workshopCommandPrivate').checked }) });
+        $('#workshopBotCommandForm').reset(); await loadCommands(); toast('سُجّل الأمر في Discord وأصبح البوت يرد عليه.');
+      } catch (error) { modalError(error); }
+      finally { save.disabled = false; }
+    });
+    $('#workshopBotLabelSave').onclick = run(async () => {
+      const save = $('#workshopBotLabelSave'); save.disabled = true;
+      try { await api(`/api/ai/bots/${encodeURIComponent(item.id)}`, { method: 'PATCH', body: JSON.stringify({ guildId: guild, label: $('#workshopBotLabel').value }) }); closeDialog(); await bots(); toast('حُفظ اسم البوت داخل لوحة التحكم.'); }
+      catch (error) { modalError(error); save.disabled = false; }
+    });
+    $('#workshopBotRemove').onclick = () => confirmDialog('فصل هذا البوت؟', 'ستتوقف اللوحات والتفاعلات التي نشرها هذا البوت حتى تعيد ربطه. لن تُحذف رسائله السابقة من Discord.', 'فصل البوت', async () => {
+      await api(`/api/ai/bots/${encodeURIComponent(item.id)}`, { method: 'DELETE', body: JSON.stringify({ guildId: guild }) });
+      closeDialog(); await bots(); toast('فُصل البوت. يمكنك ربطه من جديد عند الحاجة.');
+    });
+  });
   document.querySelectorAll('[data-bot-feature]').forEach(button => button.onclick = () => {
     const feature = botWorkshopFeatures[Number(button.dataset.botFeature)];
     sessionStorage.setItem(`diskoko-workshop-feature:${guild}`, JSON.stringify({ category: feature.category, title: feature.template }));

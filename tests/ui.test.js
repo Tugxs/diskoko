@@ -350,8 +350,11 @@ test('bot workshop shows real connection steps without offering inactive drafts 
 test('bot workshop opens a real library feature with the customer bot selected', async () => {
   const response = url => url === `/api/ai/bot-connection?guildId=${guild.id}`
     ? { bot: { id: 'bot-1', name: 'بوت السيرفر', online: true, selected: true, memberJoins: true, messageContent: true } }
+    : url === `/api/ai/bots?guildId=${guild.id}`
+      ? { bots: [{ id: 'bot-1', name: 'بوت السيرفر', label: 'بوت الترحيب', online: true, selected: true, memberJoins: true, messageContent: true }] }
     : fixtureResponse(url);
   const { dom, doc } = await page('bots', response);
+  assert.match(doc.querySelector('.bot-workshop-fleet').textContent, /بوت الترحيب/);
   assert.equal(doc.querySelectorAll('[data-bot-feature]:disabled').length, 0);
   doc.querySelector('[data-bot-feature="2"]').click();
   await settle();

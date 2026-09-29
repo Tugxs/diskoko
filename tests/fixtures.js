@@ -17,6 +17,7 @@ export function fixtureResponse(url) {
     { key: 'about', title: 'عن ديسكوكو', description: 'يعرّف الأعضاء بوظيفة البوت.', example: 'ديسكوكو', status: 'available' },
   ] };
   if (url.startsWith('/api/custom-bots?')) return { bots: [] };
+  if (url.startsWith('/api/ai/bots?')) return { bots: [] };
   if (url.includes('/schedules')) return { schedules: [] };
   if (url.includes('/analytics')) return { totals: { messages: 0, active_members: 0 }, members: [], channels: [], daily: [], days: 7 };
   if (url === '/api/workspace-templates') return { templates: [{ key: 'gaming', name: 'مجتمع ألعاب', categories: [{ name: 'مجتمع', channels: ['عام'] }], roles: ['عضو'], operations: [{ resource_type: 'channel', name: 'عام' }, { resource_type: 'role', name: 'عضو' }] }] };
