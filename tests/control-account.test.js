@@ -1,13 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-import { applyEffect, boostProgress, controlPanelPayload, handleControlInteraction, safeDiscordCdnUrl } from '../lib/control-account.js';
+import { applyEffect, boostProgress, controlPanelPayload, handleControlInteraction, nitroProgress, safeDiscordCdnUrl } from '../lib/control-account.js';
 
 test('Control Account has three independent tool menus and branded art', async () => {
   const payload = await controlPanelPayload();
   assert.equal(payload.components.length, 3);
-  assert.deepEqual(payload.components.map(row => row.toJSON().components[0].options.length), [6, 4, 2]);
+  assert.deepEqual(payload.components.map(row => row.toJSON().components[0].options.length), [7, 4, 2]);
   assert.ok(payload.files[0].attachment.length > 10_000);
+});
+
+test('Nitro date calculator advances through official milestone months', () => {
+  const progress = nitroProgress(new Date('2025-09-29T00:00:00Z'), new Date('2026-09-29T00:00:00Z'));
+  assert.equal(progress.current[0], 'platinum');
+  assert.equal(progress.next[0], 'diamond');
+  assert.equal(progress.progress, 0);
 });
 
 test('boost timeline uses the server boost start and never unlocks early', () => {
