@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-import { applyEffect, boostProgress, controlPanelPayload, handleControlInteraction, nitroProgress, safeDiscordCdnUrl } from '../lib/control-account.js';
+import { applyEffect, boostProgress, brandedCard, controlPanelPayload, handleControlInteraction, nitroProgress, safeDiscordCdnUrl } from '../lib/control-account.js';
 
 test('Control Account has three independent tool menus and branded art', async () => {
   const payload = await controlPanelPayload();
@@ -15,6 +15,14 @@ test('Nitro date calculator advances through official milestone months', () => {
   assert.equal(progress.current[0], 'platinum');
   assert.equal(progress.next[0], 'diamond');
   assert.equal(progress.progress, 0);
+});
+
+test('Boost and Nitro cards render badge artwork', async () => {
+  for (const title of ['Boost · 6M', 'Nitro · RUBY']) {
+    const card = await brandedCard(title, 'Next badge in 30 days', { progress: 50 });
+    assert.equal((await sharp(card).metadata()).format, 'jpeg');
+    assert.ok(card.length > 20_000);
+  }
 });
 
 test('boost timeline uses the server boost start and never unlocks early', () => {
