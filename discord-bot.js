@@ -10,6 +10,7 @@ import { registerGuildActivityLogs } from './lib/guild-activity-logs.js';
 import { upsertCustomerLinkPanel } from './lib/customer-link-panel.js';
 import { upsertCommunityPanels } from './lib/community-panels.js';
 import { handleAccountPanelInteraction, upsertAccountPanel } from './lib/account-panel.js';
+import { handleControlInteraction, upsertControlPanel } from './lib/control-account.js';
 
 const BOT_NAME = "diskoko | ديسكوكو";
 
@@ -247,6 +248,7 @@ export async function startDiscordBot({ pool } = {}) {
       .catch(error => console.error('Customer link panel failed', error.message));
     if (databasePool) void upsertCommunityPanels(readyClient, databasePool).catch(error => console.error('Community panels failed', error.message));
     if (databasePool) void upsertAccountPanel(readyClient, databasePool).then(result => console.log('Account panel ready', result)).catch(error => console.error('Account panel failed', error.message));
+    if (databasePool) void upsertControlPanel(readyClient, databasePool).then(result => console.log('Control Account ready', result)).catch(error => console.error('Control Account failed', error.message));
 
     const rest = new REST({ version: "10" }).setToken(token);
     for (const guild of readyClient.guilds.cache.values()) {
@@ -271,6 +273,11 @@ export async function startDiscordBot({ pool } = {}) {
   client.on("guildCreate", async (guild) => { state.guilds = client.guilds.cache.size; const rest = new REST({ version: "10" }).setToken(token); if (await registerGuildCommands(rest, client.user.id, guild.id, token)) state.commands.registered += COMMAND_JSON.length; else state.commands.failed += COMMAND_JSON.length; });
   client.on("guildDelete", () => { state.guilds = client.guilds.cache.size; });
   client.on(Events.InteractionCreate, async (interaction) => {
+    if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && interaction.customId.startsWith('diskoko-control:')) {
+      try { await handleControlInteraction(interaction); }
+      catch (error) { console.error('Control Account interaction failed', error); if (interaction.deferred || interaction.replied) await interaction.editReply({ content: error.message?.startsWith('حجم الملف') || error.message?.startsWith('استخدم رابط') || error.message?.startsWith('ارفع صورة') ? error.message : 'تعذرت العملية الآن. تأكد من الملف أو الرابط وحاول مجددًا.', embeds: [], files: [], components: [] }).catch(() => {}); else await interaction.reply({ content: 'تعذرت العملية الآن. حاول مجددًا.', ephemeral: true }).catch(() => {}); }
+      return;
+    }
     if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith('diskoko-account:')) {
       try { await handleAccountPanelInteraction(interaction, databasePool); }
       catch (error) { console.error('Account panel interaction failed', error); if (interaction.deferred || interaction.replied) await interaction.editReply('تعذر عرض معلومات حسابك الآن. حاول لاحقًا.').catch(() => {}); else await interaction.reply({ content: 'تعذر عرض معلومات حسابك الآن.', ephemeral: true }).catch(() => {}); }
