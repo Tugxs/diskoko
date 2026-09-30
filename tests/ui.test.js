@@ -386,6 +386,27 @@ test('bot workshop creates a reusable YouTube panel without a setup-time video',
   assert.equal(body.links, undefined);
   dom.window.close();
 });
+test('music workshop previews a panel and creates a voice-backed command', async () => {
+  const response = url => url === `/api/ai/bot-connection?guildId=${guild.id}`
+    ? { bot: { id: 'bot-1', name: 'بوت السيرفر', online: true, selected: true } }
+    : url === `/api/ai/bots?guildId=${guild.id}`
+      ? { bots: [{ id: 'bot-1', name: 'بوت السيرفر', label: 'بوت الموسيقى', online: true, selected: true }] }
+      : fixtureResponse(url);
+  const { dom, doc, requests } = await page('bots', response);
+  doc.querySelector('#createMusicPanel').click();
+  doc.querySelector('#musicPanelTitle').value = 'استديو السيرفر';
+  doc.querySelector('#musicPanelTitle').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  assert.equal(doc.querySelector('#musicPanelPreviewTitle').textContent, 'استديو السيرفر');
+  doc.querySelector('#musicPanelForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  await settle();
+  const sent = requests.find(entry => entry.url === '/api/ai/bots/bot-1/commands' && entry.options.method === 'POST');
+  assert.ok(sent);
+  const body = JSON.parse(sent.options.body);
+  assert.equal(body.responseKind, 'music_panel');
+  assert.equal(body.panelConfig.title, 'استديو السيرفر');
+  assert.equal(body.panelConfig.defaultVolume, 80);
+  dom.window.close();
+});
 test('AI bot card guides connection and sends the token only in the protected connect request', async () => {
   const response = url => url === `/api/ai/bot-connection?guildId=${guild.id}` ? { bot: null }
     : url === '/api/ai/bot-connection' ? { bot: { id: 'bot-1', name: 'بوت السيرفر', online: true } }
