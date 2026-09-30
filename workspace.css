@@ -220,3 +220,25 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 .bot-workshop-starters>summary{cursor:pointer;font-weight:750}
 .bot-workshop-starters>summary small{display:block;color:var(--muted);font-size:12px;font-weight:400;margin-top:6px}
 .bot-workshop-starters>.server-grid{margin-top:16px}
+
+/* Interactive command music card designer */
+.music-panel-preview{position:relative;display:grid;grid-template-columns:minmax(120px,34%) 1fr;gap:20px;min-height:270px;padding:24px 20px 66px;border:2px solid var(--music-accent);border-radius:24px;background:radial-gradient(circle at 85% 12%,color-mix(in srgb,var(--music-accent) 24%,transparent),transparent 45%),linear-gradient(135deg,#0d0c18,#1d122c 65%,#100b20);box-shadow:inset 0 0 0 9px rgba(6,5,15,.5),0 18px 35px rgba(0,0,0,.25)}
+.music-panel-preview[data-frame="minimal"]{border-color:#62566e;box-shadow:inset 0 0 0 8px rgba(6,5,15,.45)}
+.music-panel-preview[data-frame="glass"]{background:linear-gradient(130deg,#211831,#392648 54%,#131020);box-shadow:inset 0 0 0 8px rgba(255,255,255,.035),0 18px 35px rgba(0,0,0,.25)}
+.music-panel-preview .music-card-art{height:210px;min-width:0;display:grid;place-items:center;border-radius:17px;border:2px solid var(--music-accent);background:linear-gradient(145deg,#221934,#100d1c);background-size:cover;background-position:center;font-size:72px;color:var(--music-accent);overflow:hidden;text-align:center}
+.music-panel-preview .music-card-copy{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:10px;padding-inline-end:38px}
+.music-panel-preview .music-card-status{align-self:flex-start;padding:4px 12px;border-radius:99px;background:color-mix(in srgb,var(--music-accent) 22%,transparent);color:#dfceff;font-size:11px;letter-spacing:.1em;direction:ltr}
+.music-panel-preview .music-card-copy strong{font-size:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.music-panel-preview .music-card-copy p{margin:0;color:#b8a6cf;font-size:13px}
+.music-panel-preview .music-card-progress{height:5px;margin-top:12px;border-radius:10px;background:#53445f;overflow:hidden;direction:ltr}
+.music-panel-preview .music-card-progress i{display:block;width:28%;height:100%;background:var(--music-accent)}
+.music-panel-preview .music-card-times{display:flex;justify-content:space-between;color:#d5c6e8;font-size:12px;direction:ltr}
+.music-panel-preview .music-card-times b{font-weight:500}
+.music-panel-preview .music-card-controls{color:#e2d5f2;font-size:19px;direction:ltr}
+.music-panel-preview .music-card-brand{position:absolute;top:18px;right:18px;display:grid;justify-items:center;gap:4px}
+.music-panel-preview .music-card-brand span{width:42px;height:42px;border:2px solid var(--music-accent);border-radius:50%;display:grid;place-items:center;background:#2d1a48;background-size:cover;background-position:center;color:#f5eaff;font-weight:bold}
+.music-panel-preview .music-card-brand small{font-size:9px;letter-spacing:.1em;color:#cbb6e8;direction:ltr}
+.music-panel-preview .music-panel-preview-button{position:absolute;bottom:13px;right:20px;margin:0;padding:7px 12px}
+.music-panel-preview.compact{grid-template-columns:minmax(95px,26%) 1fr}
+.music-panel-preview.compact .music-card-art{height:170px}
+@media(max-width:600px){.music-panel-preview{gap:12px;padding:18px 12px 58px}.music-panel-preview .music-card-art{height:155px;font-size:45px}.music-panel-preview .music-card-copy{padding-inline-end:0}.music-panel-preview .music-card-copy strong{font-size:15px}.music-panel-preview .music-card-controls{font-size:14px}.music-panel-preview .music-card-brand{top:8px;right:8px}.music-panel-preview .music-card-brand span{width:28px;height:28px;font-size:11px}.music-panel-preview .music-card-brand small{font-size:7px}}
