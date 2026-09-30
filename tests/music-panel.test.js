@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleMusicInteraction, musicPanelMessage, musicRoomPicker, musicSourceTitle, normalizeMusicPanel, validateMusicSource } from '../lib/music-panel.js';
+import { handleMusicInteraction, musicPanelMessage, musicRoomPicker, musicSourceTitle, normalizeMusicPanel, resolveMusicTrack, validateMusicSource } from '../lib/music-panel.js';
+import { youtubeVideoId } from '../lib/youtube-panel.js';
 
 test('music panel validates identity and exposes controls only while playing', () => {
   const config = normalizeMusicPanel({ title: 'استديو', color: '#AA33CC', defaultVolume: 40 });
@@ -11,14 +12,18 @@ test('music panel validates identity and exposes controls only while playing', (
   const playing = musicPanelMessage(config, 'موسيقى', { channelId: '123', queue: [{ title: 'مقطع' }], paused: false });
   assert.equal(playing.components.length, 2);
   assert.match(playing.embeds[0].description, /<#123>/);
+  const youtube = musicPanelMessage(config, 'موسيقى', { channelId: '123', queue: [{ kind: 'youtube', id: 'jNQXAC9IVRw', title: 'Me at the zoo' }], paused: false });
+  assert.match(youtube.embeds[0].image.url, /jNQXAC9IVRw/);
 });
 
-test('audio source accepts approved direct hosts and rejects YouTube and private endpoints', () => {
+test('audio source validates links and derives direct-file titles', async () => {
   assert.ok(validateMusicSource('https://cdn.discordapp.com/attachments/123/file.mp3'));
   assert.equal(validateMusicSource('https://youtube.com/watch?v=dQw4w9WgXcQ'), null);
   assert.equal(validateMusicSource('https://localhost/audio.mp3'), null);
   assert.equal(validateMusicSource('http://cdn.discordapp.com/file.mp3'), null);
   assert.equal(musicSourceTitle('https://cdn.discordapp.com/attachments/123/My_Song-2026.mp3?x=1'), 'My Song 2026');
+  assert.equal(youtubeVideoId('https://www.youtube.com/watch?v=jNQXAC9IVRw'), 'jNQXAC9IVRw');
+  assert.deepEqual(await resolveMusicTrack('https://cdn.discordapp.com/attachments/123/file.mp3'), { kind: 'direct', url: 'https://cdn.discordapp.com/attachments/123/file.mp3', title: 'file' });
 });
 
 test('room choice opens a channel picker before asking for the audio URL', async () => {
@@ -42,13 +47,11 @@ test('room selection requests the audio link only when the member can use that r
   assert.equal(modal.components[0].components[0].custom_id, 'audio_url');
 });
 
-test('a YouTube page is rejected before joining a voice channel', async () => {
+test('an unsupported link is rejected before joining a voice channel', async () => {
   const pool = { query: async () => ({ rows: [{ panel_config: {} }] }) };
   const roomId = '123456789012345678';
   let reply;
-  const interaction = { customId: `diskoko:music:add:موسيقى:${roomId}`, guildId: 'guild', member: { voice: { channelId: roomId } }, fields: { getTextInputValue: key => key === 'audio_url' ? 'https://youtube.com/watch?v=dQw4w9WgXcQ' : 'أغنية' }, reply: async value => { reply = value; } };
+  const interaction = { customId: `diskoko:music:add:موسيقى:${roomId}`, guildId: 'guild', member: { voice: { channelId: roomId } }, fields: { getTextInputValue: () => 'https://example.com/file.mp3' }, deferReply: async () => {}, editReply: async value => { reply = value; } };
   assert.equal(await handleMusicInteraction(interaction, pool, 'bot', {}), true);
-  assert.match(reply.content, /YouTube/);
-  assert.equal(reply.ephemeral, true);
+  assert.match(reply, /الرابط غير صالح/);
 });
-
