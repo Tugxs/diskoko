@@ -176,6 +176,7 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 .bot-design-card{display:flex;flex-direction:column;gap:16px;min-height:250px;background:linear-gradient(150deg,rgba(139,112,239,.16),transparent 60%),var(--panel);border:1px solid rgba(170,143,255,.23)}
 .bot-design-card:hover{border-color:rgba(170,143,255,.7);transform:translateY(-3px)}
 .bot-design-art{display:grid;place-items:center;width:54px;height:54px;border-radius:17px;background:linear-gradient(145deg,#6746c9,#33235c);color:white;font-size:30px;box-shadow:0 12px 25px rgba(72,42,151,.3)}
+.bot-game-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.bot-game-list span{padding:12px;border:1px solid var(--line);border-radius:10px;background:#1a1d2b;color:#b7b7c9;font-size:11px;cursor:default}
 .bot-design-card small{color:#bca8ff}.bot-design-card h3{margin:7px 0}.bot-design-card p{color:var(--muted);line-height:1.7;flex:1}.bot-design-card button{align-self:flex-start;margin-top:auto}
 .command-builder{margin-bottom:22px}
 .command-builder>.panel-body{padding:24px}

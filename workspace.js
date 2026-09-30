@@ -85,7 +85,7 @@ const fmt = value => new Intl.NumberFormat('ar-SA').format(value ?? 0);
 const date = value => value ? new Date(value).toLocaleString('ar-SA', { dateStyle: 'medium', timeStyle: 'short' }) : 'لم يتم بعد';
 const state = { account: null, guild: new URLSearchParams(location.search).get('guild'), data: null, loading: true, error: null, tab: 'channels', channelFilter: 'permanent', draft: [], templates: null, readyCatalog: null, readyRuns: [], readyDraft: null, readyDraftCache: {}, readyKey: null, readyMode: 'add', readyStep: 'structure', readyFilter: 'all', readySearch: '', epoch: 0, days: 7 };
 function temporaryTicketChannel(channel) { return /^(?:تذكرة|ticket)[-・_]/i.test(String(channel.name || '')); }
-const sections = [ ['overview', '⌂', 'نظرة عامة'], ['alerts', '⚠', 'التنبيهات'], ['builder', '▤', 'القنوات والرتب'], ['ready-templates', '▣', 'قوالب جاهزة'], ['bots', '◈', 'تصاميم بوتاتي'], ['commands', '⌘', 'الأوامر'], ['assistant', '✦', 'AI ديسكوكو'], ['automation', '◷', 'الرسائل المجدولة'], ['analytics', '⌁', 'النشاط والتحليلات'], ['safety', '◇', 'الأمان والصلاحيات'], ['activity', '≡', 'سجل التغييرات'], ['settings', '⚙', 'إعدادات السيرفر'] ];
+const sections = [ ['overview', '⌂', 'نظرة عامة'], ['alerts', '⚠', 'التنبيهات'], ['builder', '▤', 'القنوات والرتب'], ['ready-templates', '▣', 'قوالب جاهزة'], ['bots', '◈', 'اللوحات التفاعلية'], ['commands', '⌘', 'الأوامر'], ['assistant', '✦', 'AI ديسكوكو'], ['automation', '◷', 'الرسائل المجدولة'], ['analytics', '⌁', 'النشاط والتحليلات'], ['safety', '◇', 'الأمان والصلاحيات'], ['activity', '≡', 'سجل التغييرات'], ['settings', '⚙', 'إعدادات السيرفر'] ];
 const aliases = { dashboard: 'overview', 'bot-settings': 'commands', 'custom-bot': 'bots', 'server-detail': 'builder', preview: 'builder', 'custom-template': 'builder', newserver: 'builder' };
 function screen() { const hash = location.hash.slice(1); return aliases[hash] || (sections.some(([key]) => key === hash) || hash === 'servers' ? hash : 'overview'); }
 let csrfPromise;
@@ -260,7 +260,7 @@ function overview() {
     : { title: 'سيرفرك جاهز للخطوة التالية', detail: 'ابدأ بقالب جاهز أو اضبط قنواتك ورتبك. ستراجع التغييرات قبل نشرها.', label: 'استكشف القوالب الجاهزة', target: 'ready-templates' };
   const overviewMetrics = `<div class="metrics overview-metrics">${metric('أعضاء السيرفر', d.members, 'عدد تقريبي من Discord', '♧')}${metric('القنوات', d.channels?.filter(channel => channel.type !== 4).length, readable ? `${fmt(d.channels.filter(channel => channel.type === 4).length)} تصنيفات` : 'تعذر جلب البنية الآن', '▤')}${metric('مسودات التغيير', drafts + localDrafts, `${fmt(drafts)} محفوظة · ${fmt(localDrafts)} على هذا الجهاز`, '≡')}${metric('رسائل قادمة', upcoming, schedules.next_at ? `أقرب موعد: ${date(schedules.next_at)}` : 'لا توجد رسائل مجدولة', '◷')}</div>`;
   const readiness = `<div class="rows"><div class="row"><span class="row-icon">◈</span><div class="row-main"><b>قراءة السيرفر</b><small>${readable ? `تم التحقق ${date(d.connection.checked_at)}` : 'القنوات والرتب غير متاحة الآن'}</small></div>${status(d.connection.status)}</div><div class="row"><span class="row-icon">🤖</span><div class="row-main"><b>${d.bot?.custom ? 'بوتك الخاص' : 'بوت ديسكوكو'}</b><small>${esc(d.bot?.username || 'البوت المنفذ لهذا السيرفر')}</small></div>${badge(botOnline ? 'متصل' : 'غير متصل', botOnline ? 'good' : 'warn')}</div><div class="row"><span class="row-icon">⚠</span><div class="row-main"><b>المشاكل النشطة</b><small>${alerts.length ? 'افتح التنبيهات للاطلاع على الحل' : 'لا توجد تنبيهات تحتاج إجراءً الآن'}</small></div>${badge(alerts.length ? `${fmt(alerts.length)} تحتاج متابعة` : 'لا توجد', alerts.length ? 'warn' : 'good')}</div><div class="row"><span class="row-icon">⌁</span><div class="row-main"><b>تحليلات النشاط</b><small>جمع الأعداد يحتاج موافقتك</small></div>${badge(d.preferences.analytics_enabled ? 'مفعّلة' : 'غير مفعّلة', d.preferences.analytics_enabled ? 'good' : 'neutral')}</div></div>`;
-  const navigation = [['alerts', 'التنبيهات'], ['bots', 'تصاميم بوتاتي'], ['commands', 'الأوامر'], ['analytics', 'النشاط والتحليلات'], ['safety', 'الأمان والصلاحيات'], ['activity', 'سجل التغييرات'], ['settings', 'إعدادات السيرفر']];
+  const navigation = [['alerts', 'التنبيهات'], ['bots', 'اللوحات التفاعلية'], ['commands', 'الأوامر'], ['analytics', 'النشاط والتحليلات'], ['safety', 'الأمان والصلاحيات'], ['activity', 'سجل التغييرات'], ['settings', 'إعدادات السيرفر']];
   $('#workspace').innerHTML = head('نظرة عامة على سيرفرك', 'حالة المجتمع وما يحتاج إجراءً، في مكان واحد.', `<div class="actions"><button class="btn secondary" id="overviewRefresh" type="button">تحديث البيانات ↻</button><a class="btn secondary" href="https://discord.com/channels/${encodeURIComponent(state.guild)}" target="_blank" rel="noopener">فتح Discord ↗</a></div>`) + connectionNotice() + `<section class="hero overview-hero"><div><span class="eyebrow">${esc(d.guild.name)} · آخر تحقق ${date(d.connection.checked_at)}</span><h2>${priority.title}</h2><p>${priority.detail}</p><div class="actions">${action(priority.label, priority.target, 'primary')}${localDrafts ? '<button class="btn secondary" id="overviewLocalDraft" type="button">مراجعة تعديلات هذا الجهاز</button>' : ''}</div></div><div class="hero-art" aria-hidden="true"><span>${alerts.length ? '⚠' : '◈'}</span></div></section>${overviewMetrics}${failed || running ? `<div class="overview-work-note">${failed ? `<span>${fmt(failed)} خطط تعثرت وتحتاج مراجعة</span>` : ''}${running ? `<span>${fmt(running)} خطط قيد التنفيذ</span>` : ''}${action('عرض سجل التغييرات', 'activity', 'text')}</div>` : ''}${alerts.length ? panel('يحتاج انتباهك', alertRows(alerts.slice(0, 2)), action('كل التنبيهات', 'alerts', 'text')) : ''}<div class="section-title"><h3>ابدأ من هنا</h3><small>اختر ما تريد إنجازه</small></div><div class="quick-actions overview-quick-actions">${[['ready-templates', '▣', 'القوالب الجاهزة', 'هيكل متكامل قابل للتعديل'], ['builder', '▤', 'القنوات والرتب', 'اضبط بنية السيرفر خطوة بخطوة'], ['assistant', '✦', 'ديسكوكو AI', 'صمّم وراجع قبل التنفيذ'], ['automation', '◷', 'الرسائل المجدولة', 'جهّز ما سيُنشر لاحقًا']].map(([key, icon, title, sub]) => `<a class="quick-action" href="${url(key)}"><span class="quick-icon">${icon}</span><span><strong>${title}</strong><small>${sub}</small></span><em>←</em></a>`).join('')}</div><div class="grid-2 overview-bottom">${panel('حالة التشغيل', readiness, `<a class="btn text" href="${url('settings')}">إدارة الاتصال</a>`)}${panel('آخر ما حدث', overviewTimeline(d), action('سجل التغييرات كاملًا', 'activity', 'text'))}</div>${panel('أدوات الإدارة والمتابعة', `<div class="overview-directory">${navigation.map(([key, label]) => `<a href="${url(key)}">${esc(label)} <span aria-hidden="true">←</span></a>`).join('')}</div>`)}`;
   $('#overviewRefresh').onclick = run(() => loadGuild());
   $('#overviewLocalDraft')?.addEventListener('click', () => reviewLocal());
@@ -722,23 +722,14 @@ async function showPlan(id, returnToWorkspace = false) {
   };
 }
 
-const botWorkshopFeatures = [
-  { icon: '✦', title: 'ترحيب الأعضاء', detail: 'رسالة تلقائية باسم بوتك عند دخول عضو جديد.', category: 'الرسائل', template: 'رسالة ترحيب تلقائية', needsMembers: true },
-  { icon: '◈', title: 'لوحة الدعم', detail: 'زر يفتح تذكرة خاصة للعضو وفريق الدعم.', category: 'تذاكر الدعم', template: 'لوحة تذاكر الدعم' },
-  { icon: '💡', title: 'الاقتراحات', detail: 'استقبال الاقتراحات ومراجعتها قبل التصويت.', category: 'مميزات السيرفر', template: 'لوحة الاقتراحات' },
-  { icon: '🚨', title: 'البلاغات الخاصة', detail: 'بلاغ يصل للإدارة دون نشره للعامة.', category: 'مميزات السيرفر', template: 'البلاغات الخاصة' },
-  { icon: '🎯', title: 'رتب الاهتمامات', detail: 'الأعضاء يختارون رتبة اهتمامهم من لوحة تفاعلية.', category: 'مميزات السيرفر', template: 'اختيار الاهتمامات' },
-  { icon: '🗓️', title: 'تسجيل الفعاليات', detail: 'تسجيل الحضور أو إلغاؤه مع حد للمقاعد.', category: 'مميزات السيرفر', template: 'التسجيل في الفعاليات' },
-];
 const botWorkshopDesigns = [
-  { icon: '♫', title: 'لوحة الموسيقى', tag: 'استماع', description: 'قائمة قوائم تشغيل أو مقاطع تفتح مصادرها الأصلية. رتّب الروابط حسب ذوق مجتمعك.', command: 'موسيقى', commandDescription: 'يعرض روابط الموسيقى المختارة', heading: 'موسيقى مجتمعنا', response: 'اختر قائمة التشغيل التي تناسبك من الروابط أدناه. يبدأ التشغيل في موقع المصدر.' },
-  { icon: '▣', title: 'لوحة الأفلام والمسلسلات', tag: 'مشاهدة', description: 'اختيارات تضعها أنت مع روابط المشاهدة ومواعيد اللقاء. كل عضو يفتح المصدر بحسابه.', command: 'أفلام', commandDescription: 'يعرض اختيارات الأفلام والمسلسلات', heading: 'اختيارات المشاهدة', response: 'هذه اختيارات مجتمعنا للمشاهدة. افتح الرابط المناسب في حسابك لدى مزود الخدمة.' },
-  { icon: '✧', title: 'لوحة الفعاليات', tag: 'مجتمع', description: 'دليل سريع للفعاليات: التسجيل، الجدول، القوانين أو رابط البث في لوحة واحدة.', command: 'فعاليات', commandDescription: 'يعرض فعاليات المجتمع وروابطها', heading: 'فعاليات مجتمعنا', response: 'اطلع على فعالياتنا القادمة وروابط المشاركة من الأزرار أدناه.' },
-  { icon: '◇', title: 'لوحة المتجر', tag: 'متجر', description: 'اعرض الأقسام والمنتجات والدعم في أزرار مرتبة بدل روابط متناثرة في القنوات.', command: 'متجر', commandDescription: 'يعرض أقسام المتجر وروابطه', heading: 'متجر مجتمعنا', response: 'تصفح الأقسام أو تواصل مع الدعم من الروابط أدناه.' },
+  { icon: '♫', title: 'لوحة الموسيقى', tag: 'صوت + بطاقة', description: 'صمّم بطاقة المقطع وحدد قناة العرض والقناة الصوتية وأمر الاستدعاء. التحكم بالصوت يتطلب مشغّلًا متصلًا بمصدر مسموح ببثّه.', actions: 'إضافة مقطع · إيقاف · التالي · تكرار · مستوى الصوت' },
+  { icon: '▶', title: 'لوحة يوتيوب', tag: 'فيديو حي', description: 'يعرض البوت صورة الفيديو ورابطه في Discord. زر المشاهدة يفتح صفحة فيديو كاملة بمشغّل YouTube الرسمي.', actions: 'إضافة رابط · مشاهدة الفيديو' },
+  { icon: '✦', title: 'لوحة الألعاب', tag: 'قيد التجهيز', description: 'معاينة قائمة الألعاب داخل اللوحة. اختيار اللعبة معلق حاليًا ولا يفتح لعبة أو ينفذ أمرًا.', actions: 'أسئلة سريعة · حجر ورقة مقص · تخمين رقم · تحدي معلومات' },
 ];
 async function bots() {
   const guild = state.guild, epoch = state.epoch;
-  $('#workspace').innerHTML = head('ورشة بوتك الخاص', 'اربط بوتًا تملكه، اختره للتنفيذ، ثم ركّب ميزات حقيقية على سيرفرك.') + '<div class="loading" role="status">جارٍ فحص بوتك…</div>';
+  $('#workspace').innerHTML = head('اللوحات التفاعلية', 'اختر البوت الذي يعرض اللوحة ويستجيب لأزرارها داخل Discord.') + '<div class="loading" role="status">جارٍ فحص بوتك…</div>';
   let bot = null, managedBots = [], botQuota = null, connectionError = '';
   try {
     const [selected, registry] = await Promise.all([
@@ -751,7 +742,7 @@ async function bots() {
   if (guild !== state.guild || epoch !== state.epoch || screen() !== 'bots') return;
   const statusText = connectionError ? 'تعذر فحص الاتصال' : !bot && managedBots.length ? 'بوتاتك مربوطة، والتنفيذ الحالي على ديسكوكو' : !bot ? 'لم تربط بوتك بعد' : !bot.online ? 'البوت غير متصل' : !bot.selected ? 'البوت متصل، لكن التنفيذ على ديسكوكو' : 'بوتك متصل ومختار للتنفيذ';
   const nextStep = connectionError ? 'حدّث الصفحة أو افتح إعدادات البوت إذا استمرت المشكلة.' : !bot && managedBots.length ? 'اختر أحد البوتات المتصلة أدناه ليصبح منفذ الميزات الجديدة.' : !bot ? 'اربط بوتك الأول، ثم يمكنك إضافة بوتات أخرى وتوزيع الميزات بينها.' : !bot.online ? 'راجع اتصال البوت المختار أو اختر بوتًا آخر متصلًا.' : !bot.selected ? 'اختر بوتًا خاصًا للتنفيذ حتى تُنشر المميزات باسمه.' : 'اختر ميزة أدناه. ستُنشر باسم البوت المختار بعد مراجعتك.';
-  $('#workspace').innerHTML = head('إدارة بوتاتك الخاصة', 'اعرف حالة كل بوت وما يديره في السيرفر، ثم افتح الإعداد الذي تريد تغييره.') + connectionNotice() + `
+  $('#workspace').innerHTML = head('اللوحات التفاعلية', 'صمّم تجربة الموسيقى أو الفيديو أو الألعاب، ثم اربطها بالبوت والقناة والأمر المناسب.') + connectionNotice() + `
     <section class="panel bot-workshop-status"><div class="bot-workshop-orbit" aria-hidden="true"><span>◈</span><i></i><i></i></div><div class="bot-workshop-intro"><small>مساحة البوت الخاص · ${esc(state.data.guild.name)}</small><h2>بوتاتك، بهوية واضحة ومميزات تختارها.</h2><p>اربط أكثر من بوت، وحدد أيها ينفذ كل تصميم أو أمر. البوت العام من ديسكوكو يظل مستقلًا.</p></div><div class="server-title bot-workshop-identity"><span class="server-image">🤖</span><div class="row-main"><h3>${esc(bot?.name || (managedBots.length ? 'بوت ديسكوكو ينفذ حاليًا' : 'بوتك الخاص'))}</h3><small>${esc(statusText)}</small></div>${badge(bot?.online && bot.selected ? 'جاهز' : 'يحتاج خطوة', bot?.online && bot.selected ? 'good' : 'warn')}</div>
     <p class="form-note">${esc(nextStep)}</p><div class="actions">
     ${!connectionError ? `<button class="btn primary" id="botWorkshopConnect" ${botQuota && botQuota.used >= botQuota.limit ? 'disabled' : ''}>${managedBots.length ? '+ إضافة بوت آخر' : '+ ربط بوتك الأول'}</button>` : ''}
@@ -762,11 +753,30 @@ async function bots() {
     <small class="form-note">${botQuota ? `بوتات خطتك: ${fmt(botQuota.used)} من ${fmt(botQuota.limit)} على حسابك كله. ` : ''}تختار واحدًا للتنفيذ الجديد؛ وتبقى لوحات البوتات الأخرى تعمل ما دامت متصلة. رموز الربط محفوظة مشفرة.${botQuota && botQuota.used >= botQuota.limit ? ' وصلت للحد؛ افصل بوتًا أو راجع الاشتراك قبل إضافة آخر.' : ''}</small></section>
     <div class="section-title"><h3>بوتات هذا السيرفر <span class="badge purple">${fmt(managedBots.length)}</span></h3><small>لكل بوت اتصال مستقل. الاسم هنا للتمييز داخل لوحة التحكم فقط.</small></div>
     <div class="server-grid bot-workshop-fleet">${managedBots.map(item => `<article class="server-card bot-workshop-bot ${item.selected ? 'selected' : ''}"><div class="server-title"><span class="server-image">🤖</span><div class="row-main"><h3>${esc(item.label)}</h3><small>${esc(item.name)} · ${item.online ? 'متصل' : 'غير متصل'}</small></div>${badge(item.selected ? 'منفذ افتراضي' : item.online ? 'متصل' : 'يحتاج مراجعة', item.selected ? 'good' : item.online ? 'purple' : 'warn')}</div><div class="bot-workshop-checks"><span>${item.memberJoins ? '✓ استقبال الأعضاء' : '○ يحتاج استقبال الأعضاء'}</span><span>${item.messageContent ? '✓ محتوى الرسائل' : '○ محتوى الرسائل مغلق'}</span></div><div class="bot-workshop-assignments"><b>مهام هذا البوت المسجلة في ديسكوكو</b><span>${fmt(item.assignments?.commands?.length || 0)} أوامر ولوحات</span><span>${fmt(item.assignments?.scheduled || 0)} نشر مجدول</span><span>${item.assignments?.welcome ? '✓ الترحيب الحالي' : '— لا يدير الترحيب'}</span><span>${item.assignments?.logs ? '✓ سجلات النشاط' : '— لا يدير السجلات'}</span><span>${fmt(item.assignments?.modules || 0)} ميزات تفاعلية</span>${item.assignments?.commands?.length ? `<small>الأوامر: ${item.assignments.commands.slice(0, 3).map(command => `/${esc(command.name)}`).join('، ')}${item.assignments.commands.length > 3 ? '…' : ''}</small>` : ''}</div><div class="actions">${item.online && !item.selected ? `<button class="btn small primary" data-select-managed-bot="${esc(item.id)}">استخدامه للتنفيذ</button>` : ''}<button class="btn small secondary" data-manage-bot-commands="${esc(item.id)}">إدارة الأوامر واللوحات</button><button class="btn small secondary" data-settings-managed-bot="${esc(item.id)}">الهوية والصلاحيات</button></div></article>`).join('') || '<div class="panel"><p class="form-note">ما ربطت بوتًا خاصًا بعد. ابدأ بربط أول بوت، ثم تقدر تضيف غيره.</p></div>'}</div>
-    <details class="bot-workshop-starters"><summary>نماذج بداية للأوامر واللوحات <small>اختيار النموذج يملأ محرر الأوامر؛ لن ينشر شيئًا قبل حفظك.</small></summary><div class="server-grid bot-design-gallery">${botWorkshopDesigns.map((design, index) => `<article class="server-card bot-design-card"><span class="bot-design-art" aria-hidden="true">${design.icon}</span><div><small>${design.tag}</small><h3>${design.title}</h3><p>${design.description}</p></div><button class="btn primary" type="button" data-bot-design="${index}" ${managedBots.some(item => item.online) ? '' : 'disabled'}>فتح في محرر الأوامر ←</button></article>`).join('')}</div></details>
-    <div class="bot-workshop-steps" aria-label="خطوات تجهيز البوت"><span class="${bot ? 'done' : 'current'}"><b>01</b> ربط البوت</span><span class="${bot?.online && bot.selected ? 'done' : bot ? 'current' : ''}"><b>02</b> اختياره للتنفيذ</span><span class="${bot?.online && bot.selected ? 'current' : ''}"><b>03</b> تركيب الميزات</span></div>
-    <div class="section-title"><h3>ميزات البوت المختار</h3><small>التنفيذ الجديد على ${esc(bot?.selected ? bot.name : 'بوتك بعد اختياره')}؛ اختر ميزة وأكمل مراجعتها</small></div>
-    <div class="server-grid bot-workshop-gallery">${botWorkshopFeatures.map((feature, index) => `<article class="server-card bot-preset"><div class="server-title"><span class="server-image">${feature.icon}</span><div><h3>${feature.title}</h3><small>ميزة قابلة للتركيب</small></div></div><p>${feature.detail}</p><button class="btn primary" type="button" data-bot-feature="${index}" ${bot?.online && bot.selected && (!feature.needsMembers || bot.memberJoins) ? '' : 'disabled'}>${feature.needsMembers && bot?.online && bot.selected && !bot.memberJoins ? 'فعّل استقبال الأعضاء أولًا' : 'إعداد الميزة'}</button></article>`).join('')}</div>`;
+    <div class="section-title"><h3>أنواع اللوحات</h3><small>لكل لوحة إعداداتها وأفعالها. لا تُنشر أزرار قبل توصيلها بتنفيذ فعلي.</small></div>
+    <div class="server-grid bot-design-gallery">${botWorkshopDesigns.map((design, index) => `<article class="server-card bot-design-card"><span class="bot-design-art" aria-hidden="true">${design.icon}</span><div><small>${design.tag}</small><h3>${design.title}</h3><p>${design.description}</p><small>${index === 1 ? 'الوظائف المتاحة' : 'الخيارات المعروضة'}: ${design.actions}</small></div>${index === 1 ? `<button class="btn primary" type="button" id="createYoutubePanel" ${managedBots.some(item => item.online) ? '' : 'disabled'}>${managedBots.some(item => item.online) ? 'إنشاء لوحة يوتيوب' : 'اربط بوتًا متصلًا أولًا'}</button>` : index === 2 ? '<div class="bot-game-list" aria-label="معاينة الألعاب المعلقة"><span>أسئلة سريعة</span><span>حجر ورقة مقص</span><span>تخمين رقم</span><span>تحدي معلومات</span></div><small class="form-note">معاينة فقط · الألعاب معلقة ولا تستجيب للضغط الآن.</small>' : '<small class="form-note">التشغيل الصوتي والتحكم به يحتاجان مشغّلًا متصلًا بمصدر صوت مسموح ببثّه.</small>'}</article>`).join('')}</div>
+    <div class="bot-workshop-steps" aria-label="خطوات تجهيز اللوحة"><span class="${bot ? 'done' : 'current'}"><b>01</b> ربط البوت</span><span class="${bot?.online && bot.selected ? 'done' : bot ? 'current' : ''}"><b>02</b> اختيار البوت والقناة</span><span><b>03</b> تصميم اللوحة وتوصيل الأفعال</span></div>`;
   $('#botWorkshopRefresh').onclick = () => bots().catch(error => toast(error.message));
+  if ($('#createYoutubePanel')) $('#createYoutubePanel').onclick = () => {
+    const available = managedBots.filter(item => item.online);
+    modal('إنشاء لوحة يوتيوب', `<form id="youtubePanelForm" class="form-grid"><p class="form-note">سيُنشئ الأمر لوحة بصورة الفيديو وزر مشاهدة يفتح مشغّل YouTube الرسمي بصفحة كاملة. التشغيل والتحكم بالصوت داخل صفحة المشاهدة.</p><label>البوت الذي يعرض اللوحة<select id="youtubePanelBot" required>${available.map(item => `<option value="${esc(item.id)}" ${item.selected ? 'selected' : ''}>${esc(item.label)}</option>`).join('')}</select></label><label>اسم أمر Discord بعد /<input id="youtubePanelCommand" required maxlength="32" pattern="[-_\\p{L}\\p{N}]+" value="يوتيوب"></label><label>رابط فيديو YouTube<input id="youtubePanelUrl" type="url" required placeholder="https://www.youtube.com/watch?v=..."></label><label>عنوان اللوحة<input id="youtubePanelTitle" maxlength="100" required value="مشاهدة الفيديو"></label><label>وصف قصير<input id="youtubePanelDescription" maxlength="500" value="اضغط مشاهدة لفتح الفيديو بمشغّل YouTube الرسمي."></label><label>صورة خاصة للبطاقة (رابط HTTPS اختياري)<input id="youtubePanelImage" type="url" placeholder="اتركه فارغًا لاستخدام صورة الفيديو"></label><p class="form-note">هذه اللوحة لفيديو واحد. يمكنك إنشاء أمر آخر لفيديو آخر. لا يتحكم الزر في تشغيل فيديو الأعضاء من داخل Discord.</p></form>`, '<button class="btn secondary" type="button" id="youtubePanelCancel">إلغاء</button><button class="btn primary" type="submit" form="youtubePanelForm" id="youtubePanelSave">إنشاء الأمر واللوحة</button>');
+    $('#youtubePanelCancel').onclick = closeDialog;
+    $('#youtubePanelForm').onsubmit = run(async event => {
+      event.preventDefault();
+      const button = $('#youtubePanelSave'); button.disabled = true;
+      try {
+        const url = new URL($('#youtubePanelUrl').value);
+        const host = url.hostname.toLowerCase();
+        const videoId = host === 'youtu.be' ? url.pathname.slice(1) : ['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(host) && url.pathname === '/watch' ? url.searchParams.get('v') : ['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(host) && url.pathname.startsWith('/shorts/') ? url.pathname.split('/')[2] : '';
+        if (!/^[A-Za-z0-9_-]{11}$/.test(videoId || '')) throw Error('أدخل رابط فيديو YouTube صالحًا من watch أو shorts أو youtu.be.');
+        const customImage = $('#youtubePanelImage').value.trim();
+        if (customImage && new URL(customImage).protocol !== 'https:') throw Error('رابط الصورة الخاصة يجب أن يبدأ بـ HTTPS.');
+        const watchUrl = `${location.origin}/watch.html?v=${encodeURIComponent(videoId)}`;
+        await api(`/api/ai/bots/${encodeURIComponent($('#youtubePanelBot').value)}/commands`, { method: 'POST', body: JSON.stringify({ guildId: guild, name: $('#youtubePanelCommand').value, description: 'يعرض لوحة مشاهدة فيديو YouTube', response: $('#youtubePanelDescription').value, responseKind: 'card', cardTitle: $('#youtubePanelTitle').value, imageUrl: customImage || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`, links: [{ label: '▶ مشاهدة الفيديو', url: watchUrl }] }) });
+        closeDialog(); toast('أُنشئ الأمر في Discord. جرّبه من السيرفر لمشاهدة اللوحة.');
+      } catch (error) { modalError(error); button.disabled = false; }
+    });
+  };
   if ($('#botWorkshopSelect')) $('#botWorkshopSelect').onclick = run(async event => {
     event.currentTarget.disabled = true;
     try { await api('/api/ai/bot-connection/selection', { method: 'POST', body: JSON.stringify({ guildId: guild, executor: 'custom' }) }); await bots(); toast('بوتك الخاص أصبح منفذ هذا السيرفر.'); }
@@ -829,16 +839,7 @@ async function bots() {
       closeDialog(); await bots(); toast('فُصل البوت. يمكنك ربطه من جديد عند الحاجة.');
     });
   });
-  document.querySelectorAll('[data-bot-feature]').forEach(button => button.onclick = () => {
-    const feature = botWorkshopFeatures[Number(button.dataset.botFeature)];
-    sessionStorage.setItem(`diskoko-workshop-feature:${guild}`, JSON.stringify({ category: feature.category, title: feature.template }));
-    location.hash = '#assistant';
-  });
-  document.querySelectorAll('[data-bot-design]').forEach(button => button.onclick = () => {
-    const design = botWorkshopDesigns[Number(button.dataset.botDesign)];
-    sessionStorage.setItem(`diskoko-bot-design:${guild}`, JSON.stringify({ ...design, botId: managedBots.find(item => item.selected && item.online)?.id || managedBots.find(item => item.online)?.id }));
-    location.hash = '#commands';
-  });
+
 }
 async function prepareAiImage(file) {
   if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) throw Error('اختر صورة PNG أو JPG أو WebP أصغر من 10 ميجابايت.');
@@ -2215,22 +2216,7 @@ async function commands() {
     const requestedBot = sessionStorage.getItem(`diskoko-command-bot:${guild}`);
     if (requestedBot) { sessionStorage.removeItem(`diskoko-command-bot:${guild}`); if (registry.bots.some(item => item.id === requestedBot)) $('#customCommandBot').value = requestedBot; }
     await loadPrivate();
-    const savedDesign = sessionStorage.getItem(`diskoko-bot-design:${guild}`);
-    if (savedDesign) {
-      sessionStorage.removeItem(`diskoko-bot-design:${guild}`);
-      try {
-        const design = JSON.parse(savedDesign);
-        if (registry.bots.some(item => item.id === design.botId)) $('#customCommandBot').value = design.botId;
-        $('#customCommandName').value = design.command || '';
-        $('#customCommandDescription').value = design.commandDescription || '';
-        $('#customCommandKind').value = 'card';
-        $('#customCommandTitle').value = design.heading || '';
-        $('#customCommandResponse').value = design.response || '';
-        $('#customCommandKind').onchange();
-        $('#customCommandCreate').open = true;
-        void loadPrivate();
-      } catch { /* Ignore an outdated saved design. */ }
-    }
+
   }
   const examples = Object.fromEntries(commandCatalog.map(command => [command.key, command.example]));
   document.querySelectorAll('[data-preview]').forEach(button => { button.onclick = () => { $('#botPreview').textContent = examples[button.dataset.preview]; }; });

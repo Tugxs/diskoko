@@ -336,14 +336,15 @@ test('adding a resource stages a guild-specific draft without calling mutation A
   assert.equal(doc.querySelector('#draftBar').hidden, false); assert.match(dom.window.localStorage.getItem(`diskoko:review:1:${guild.id}`), /ترحيب/);
   assert.equal(requests.filter(req => req.options.method && req.options.method !== 'GET').length, 0); dom.window.close();
 });
-test('bot workshop shows real connection steps without offering inactive drafts as bots', async () => {
+test('bot workshop separates connected bots from the three panel types', async () => {
   const { dom, doc } = await page('bots');
   assert.ok(doc.querySelector('#botWorkshopConnect'));
   assert.equal(doc.querySelectorAll('[data-create-bot]').length, 0);
-  assert.equal(doc.querySelectorAll('[data-bot-feature]').length, 6);
-  assert.equal(doc.querySelectorAll('[data-bot-design]').length, 4);
-  assert.equal(doc.querySelectorAll('[data-bot-feature]:disabled').length, 6);
-  assert.match(doc.body.textContent, /ورشة بوتك الخاص/);
+  assert.equal(doc.querySelectorAll('[data-bot-feature]').length, 0);
+  assert.equal(doc.querySelectorAll('.bot-design-card').length, 3);
+  assert.match(doc.body.textContent, /اللوحات التفاعلية/);
+  assert.match(doc.body.textContent, /لوحة الألعاب/);
+  assert.equal(doc.querySelector('#createYoutubePanel').disabled, true);
   dom.window.close();
   const commandPage = await page('commands'); assert.equal(commandPage.doc.querySelectorAll('.command-check').length, 3); assert.equal(commandPage.doc.querySelector('#botEnabled').checked, true); commandPage.dom.window.close();
   const assistantPage = await page('assistant'); assert.match(assistantPage.doc.body.textContent, /الجهاز المحلي غير متصل/); assert.match(assistantPage.doc.body.textContent, /AI ديسكوكو/); assistantPage.dom.window.close();
@@ -362,20 +363,24 @@ test('private command builder chooses a bot and previews a link panel', async ()
   assert.equal(doc.querySelector('#customCommandExtraLinks').hidden, false);
   dom.window.close();
 });
-test('bot workshop opens a real library feature with the customer bot selected', async () => {
+test('bot workshop creates a YouTube viewing card on the selected customer bot', async () => {
   const response = url => url === `/api/ai/bot-connection?guildId=${guild.id}`
     ? { bot: { id: 'bot-1', name: 'بوت السيرفر', online: true, selected: true, memberJoins: true, messageContent: true } }
     : url === `/api/ai/bots?guildId=${guild.id}`
       ? { bots: [{ id: 'bot-1', name: 'بوت السيرفر', label: 'بوت الترحيب', online: true, selected: true, memberJoins: true, messageContent: true }] }
     : fixtureResponse(url);
-  const { dom, doc } = await page('bots', response);
+  const { dom, doc, requests } = await page('bots', response);
   assert.match(doc.querySelector('.bot-workshop-fleet').textContent, /بوت الترحيب/);
-  assert.equal(doc.querySelectorAll('[data-bot-feature]:disabled').length, 0);
-  doc.querySelector('[data-bot-feature="2"]').click();
+  doc.querySelector('#createYoutubePanel').click();
+  doc.querySelector('#youtubePanelUrl').value = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+  doc.querySelector('#youtubePanelForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
   await settle();
-  assert.match(doc.body.textContent, /AI ديسكوكو/);
-  assert.match(doc.querySelector('#aiTemplateDraft')?.textContent || '', /لوحة الاقتراحات/);
-  assert.match(doc.querySelector('#assistantPrompt')?.value || '', /اقتراح/);
+  const sent = requests.find(entry => entry.url === '/api/ai/bots/bot-1/commands' && entry.options.method === 'POST');
+  assert.ok(sent);
+  const body = JSON.parse(sent.options.body);
+  assert.equal(body.responseKind, 'card');
+  assert.match(body.links[0].url, /watch\.html\?v=dQw4w9WgXcQ/);
+  assert.match(body.imageUrl, /dQw4w9WgXcQ/);
   dom.window.close();
 });
 test('AI bot card guides connection and sends the token only in the protected connect request', async () => {
