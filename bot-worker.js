@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { youtubeAudioInfo, youtubeAudioStream } from './lib/youtube-audio.js';
 import { getDiscordBotStatus, startDiscordBot, stopDiscordBot } from './discord-bot.js';
 import { migrateAiBotConnections, restoreAiBots, stopAllAiBots, syncAiBots } from './lib/ai-bot-connections.js';
 import { claimDiscordJob, executeDiscordJob, migrateDiscordJobQueue, recoverDiscordJobQueue } from './lib/discord-job-queue.js';
@@ -112,3 +113,12 @@ customerRoleTimer = setInterval(() => void pumpCustomerRoles(), 1_500);
 customerRoleSweepTimer = setInterval(() => void sweepCustomerRoles(), 60_000);
 void sweepCustomerRoles();
 console.info('Diskoko bot worker started');
+void (async () => {
+  try {
+    const info = await youtubeAudioInfo('0DLyn9D8LOk');
+    const stream = await youtubeAudioStream(info.id);
+    const bytes = await new Promise((resolve, reject) => { stream.once('data', chunk => resolve(chunk.length)); stream.once('error', reject); stream.once('end', () => reject(Error('empty audio stream'))); });
+    stream.destroy();
+    console.info('YouTube audio probe passed', { videoId: info.id, bytes });
+  } catch (error) { console.error('YouTube audio probe failed', { message: error.message }); }
+})();
