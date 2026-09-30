@@ -363,7 +363,7 @@ test('private command builder chooses a bot and previews a link panel', async ()
   assert.equal(doc.querySelector('#customCommandExtraLinks').hidden, false);
   dom.window.close();
 });
-test('bot workshop creates a YouTube viewing card on the selected customer bot', async () => {
+test('bot workshop creates a reusable YouTube panel without a setup-time video', async () => {
   const response = url => url === `/api/ai/bot-connection?guildId=${guild.id}`
     ? { bot: { id: 'bot-1', name: 'بوت السيرفر', online: true, selected: true, memberJoins: true, messageContent: true } }
     : url === `/api/ai/bots?guildId=${guild.id}`
@@ -372,15 +372,18 @@ test('bot workshop creates a YouTube viewing card on the selected customer bot',
   const { dom, doc, requests } = await page('bots', response);
   assert.match(doc.querySelector('.bot-workshop-fleet').textContent, /بوت الترحيب/);
   doc.querySelector('#createYoutubePanel').click();
-  doc.querySelector('#youtubePanelUrl').value = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+  assert.equal(doc.querySelector('#youtubePanelUrl'), null);
+  doc.querySelector('#youtubePanelTitle').value = 'قاعة الأفلام';
+  doc.querySelector('#youtubePanelBanner').value = 'https://example.com/banner.png';
   doc.querySelector('#youtubePanelForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
   await settle();
   const sent = requests.find(entry => entry.url === '/api/ai/bots/bot-1/commands' && entry.options.method === 'POST');
   assert.ok(sent);
   const body = JSON.parse(sent.options.body);
-  assert.equal(body.responseKind, 'card');
-  assert.match(body.links[0].url, /watch\.html\?v=dQw4w9WgXcQ/);
-  assert.match(body.imageUrl, /dQw4w9WgXcQ/);
+  assert.equal(body.responseKind, 'youtube_panel');
+  assert.equal(body.panelConfig.title, 'قاعة الأفلام');
+  assert.equal(body.panelConfig.bannerUrl, 'https://example.com/banner.png');
+  assert.equal(body.links, undefined);
   dom.window.close();
 });
 test('AI bot card guides connection and sends the token only in the protected connect request', async () => {
