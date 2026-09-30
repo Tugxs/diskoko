@@ -176,6 +176,20 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 .bot-design-card{display:flex;flex-direction:column;gap:16px;min-height:250px;background:linear-gradient(150deg,rgba(139,112,239,.16),transparent 60%),var(--panel);border:1px solid rgba(170,143,255,.23)}
 .bot-design-card:hover{border-color:rgba(170,143,255,.7);transform:translateY(-3px)}
 .bot-design-art{display:grid;place-items:center;width:54px;height:54px;border-radius:17px;background:linear-gradient(145deg,#6746c9,#33235c);color:white;font-size:30px;box-shadow:0 12px 25px rgba(72,42,151,.3)}
+.movie-club-modal #dialogContent{width:min(820px,calc(100vw - 24px));max-width:820px}
+.movie-club-designer{display:grid;gap:20px;max-height:min(74vh,900px);overflow:auto;padding:2px}
+.movie-club-designer .notice{margin:0}
+.movie-club-labels,.movie-club-link-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.movie-club-labels label:last-child{grid-column:1/-1}
+.movie-club-preview{--movie-accent:#8659e6;overflow:hidden;border:1px solid var(--movie-accent);border-radius:18px;background:#141525;color:#f8f6ff;box-shadow:0 16px 32px rgba(0,0,0,.22)}
+.movie-club-preview-art{height:150px;background:linear-gradient(110deg,#282044,#0b1020);background-size:cover;background-position:center}
+.movie-club-preview-content{padding:18px}
+.movie-club-preview-content b{font-size:1.2rem}.movie-club-preview-content p{white-space:pre-line;line-height:1.6;color:#d4cfe5}
+.movie-club-preview-content small{color:#b8aacb}
+#movieClubPreviewButtons{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+#movieClubPreviewButtons span{border-radius:8px;background:var(--movie-accent);color:white;padding:8px 12px;font-size:.9rem}
+.movie-club-items{display:grid;gap:8px}.movie-club-items .row{border:1px solid var(--line);border-radius:12px;padding:10px}
+@media(max-width:640px){.movie-club-labels,.movie-club-link-row{grid-template-columns:1fr}.movie-club-labels label:last-child{grid-column:auto}.movie-club-preview-art{height:110px}}
 .music-panel-preview{--music-accent:#8659e6;overflow:hidden;border:1px solid var(--music-accent);border-radius:18px;background:#151624;box-shadow:0 15px 35px rgba(0,0,0,.2);color:#f5f3ff}
 .music-panel-preview-banner{height:126px;background:linear-gradient(120deg,var(--music-accent),#21163d);background-size:cover;background-position:center;display:grid;place-items:center;text-align:center;padding:12px;font-size:12px;color:#f5f3ff}
 .music-panel-preview-body{display:flex;align-items:center;gap:15px;padding:0 20px;margin-top:-26px}

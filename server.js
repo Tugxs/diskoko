@@ -25,6 +25,7 @@ import { createDiscordRequestGate, discordRetryAfterMs } from "./lib/discord-rat
 import { validateDiscordWrite } from './lib/discord-preflight.js';
 import { enqueueDiscordJob, migrateDiscordJobQueue, startDiscordJobListener } from './lib/discord-job-queue.js';
 import { botTokenForPublication, connectedBot, connectedBotMetadata, migrateAiBotConnections, mountAiBotConnections, restoreAiBots } from "./lib/ai-bot-connections.js";
+import { mountMovieClubs, migrateMovieClubs } from "./lib/movie-club.js";
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -932,6 +933,7 @@ app.post("/api/projects/:id/bind-guild", requireUser, requireWriteAccess, async 
   } catch (e) { next(e); }
 });
 mountAiBotConnections(app, { pool, requireUser, requireWriteAccess, authorizedGuild, requirePlanCapacity, audit });
+mountMovieClubs(app, { pool, requireUser, requireWriteAccess, authorizedGuild, connectedBot, requirePlanCapacity, audit });
 app.post(/^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create-scheduled-event|control-channel)$/, requireUser, async (req, res, next) => { try {
   const item = (await pool.query('SELECT guild_id FROM ai_requests WHERE id=$1 AND user_id=$2', [req.path.split('/')[4], req.user.id])).rows[0];
   if (item) {
@@ -1084,7 +1086,7 @@ app.get("/dashboard", (_req, res) => res.sendFile(path.join(__dirname, "account.
 app.get("/studio", (_req, res) => res.sendFile(path.join(__dirname, "studio.html")));
 app.use((error, req, res, _next) => { console.error(`[${req.requestId}]`, error); const { status, body } = publicError(error, req.requestId); res.status(status).json(body); });
 
-migrate().then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).then(() => migrateInteractiveSystems(pool)).then(() => migrateAiBotConnections(pool)).then(() => migrateDiscordJobQueue(pool)).then(() => migrateReadyTemplates(pool)).then(() => migrateStandaloneModules(pool)).then(() => {
+migrate().then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).then(() => migrateInteractiveSystems(pool)).then(() => migrateAiBotConnections(pool)).then(() => migrateMovieClubs(pool)).then(() => migrateDiscordJobQueue(pool)).then(() => migrateReadyTemplates(pool)).then(() => migrateStandaloneModules(pool)).then(() => {
   if (process.env.DISCORD_REST_MODE === 'worker') void startDiscordJobListener(pool).catch(error => console.error('Discord queue listener failed', error.message));
   app.listen(PORT, "0.0.0.0", () => console.log(`diskoko running on ${PORT}`));
   if (process.env.BOT_GATEWAY_MODE === 'external') {
