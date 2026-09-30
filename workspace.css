@@ -188,3 +188,12 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 @keyframes bot-workshop-pulse{50%{transform:scale(1.1);filter:brightness(1.2)}}
 @media(max-width:700px){.bot-workshop-status{padding:20px;grid-template-columns:1fr}.bot-workshop-status>.bot-workshop-orbit{display:none}.bot-workshop-steps{grid-template-columns:1fr}.bot-workshop-gallery,.bot-design-gallery{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.bot-workshop-orbit span{animation:none}.bot-workshop-gallery .bot-preset{transition:none}.bot-workshop-gallery .bot-preset:hover{transform:none}}
+
+.bot-workshop-assignments{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:14px 0;color:var(--muted);font-size:12px}
+.bot-workshop-assignments b{width:100%;color:var(--text);font-size:13px}
+.bot-workshop-assignments span{border-radius:999px;background:rgba(146,122,216,.12);border:1px solid var(--line);padding:5px 8px}
+.bot-workshop-assignments small{width:100%;overflow-wrap:anywhere}
+.bot-workshop-starters{margin:20px 0 26px;border:1px solid var(--line);border-radius:16px;background:var(--panel);padding:17px}
+.bot-workshop-starters>summary{cursor:pointer;font-weight:750}
+.bot-workshop-starters>summary small{display:block;color:var(--muted);font-size:12px;font-weight:400;margin-top:6px}
+.bot-workshop-starters>.server-grid{margin-top:16px}
