@@ -242,3 +242,18 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 .music-panel-preview.compact{grid-template-columns:minmax(95px,26%) 1fr}
 .music-panel-preview.compact .music-card-art{height:170px}
 @media(max-width:600px){.music-panel-preview{gap:12px;padding:18px 12px 58px}.music-panel-preview .music-card-art{height:155px;font-size:45px}.music-panel-preview .music-card-copy{padding-inline-end:0}.music-panel-preview .music-card-copy strong{font-size:15px}.music-panel-preview .music-card-controls{font-size:14px}.music-panel-preview .music-card-brand{top:8px;right:8px}.music-panel-preview .music-card-brand span{width:28px;height:28px;font-size:11px}.music-panel-preview .music-card-brand small{font-size:7px}}
+
+/* Music command card controls follow Discord's available button palettes. */
+.music-panel-preview{background:radial-gradient(circle at 85% 12%,color-mix(in srgb,var(--music-accent) 24%,transparent),transparent 45%),linear-gradient(135deg,#0d0c18,#1d122c 65%,#100b20)}
+.music-panel-preview .music-card-backdrop{position:absolute;inset:0;border-radius:22px;background-size:cover;background-position:center;opacity:.16;pointer-events:none}
+.music-panel-preview .music-card-art,.music-panel-preview .music-card-copy,.music-panel-preview .music-card-brand,.music-panel-preview .music-card-buttons{position:relative;z-index:1}
+.music-panel-preview .music-card-brand{position:absolute;top:31px;right:47px}
+.music-panel-preview .music-card-brand small{color:var(--music-accent);text-shadow:0 0 10px var(--music-accent),0 0 20px var(--music-accent);font-weight:700}
+.music-panel-preview .music-card-copy{padding-inline-end:70px}
+.music-panel-preview .music-card-buttons{position:absolute;bottom:12px;left:20px;right:20px;display:flex;gap:7px;direction:ltr}
+.music-panel-preview .music-card-buttons span{display:grid;place-items:center;min-width:38px;height:34px;padding:0 7px;border-radius:8px;background:#35363c;color:#f2f3f5;font-size:16px}
+.music-panel-preview[data-controls="1"] .music-card-buttons span:not(:last-child){background:#5865f2}
+.music-panel-preview[data-controls="3"] .music-card-buttons span:not(:last-child){background:#248046}
+.music-panel-preview .music-card-buttons span:last-child{background:#da373c}
+.music-panel-preview .music-card-times{position:relative;z-index:2}
+@media(max-width:600px){.music-panel-preview .music-card-brand{top:15px;right:24px}.music-panel-preview .music-card-copy{padding-inline-end:40px}.music-panel-preview .music-card-buttons span{min-width:29px;height:30px;font-size:12px}}
