@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleMusicInteraction, musicPanelMessage, normalizeMusicPanel, validateMusicSource } from '../lib/music-panel.js';
+import { handleMusicInteraction, musicPanelMessage, musicRoomPicker, musicSourceTitle, normalizeMusicPanel, validateMusicSource } from '../lib/music-panel.js';
 
 test('music panel validates identity and exposes controls only while playing', () => {
   const config = normalizeMusicPanel({ title: 'استديو', color: '#AA33CC', defaultVolume: 40 });
@@ -18,9 +18,11 @@ test('audio source accepts approved direct hosts and rejects YouTube and private
   assert.equal(validateMusicSource('https://youtube.com/watch?v=dQw4w9WgXcQ'), null);
   assert.equal(validateMusicSource('https://localhost/audio.mp3'), null);
   assert.equal(validateMusicSource('http://cdn.discordapp.com/file.mp3'), null);
+  assert.equal(musicSourceTitle('https://cdn.discordapp.com/attachments/123/My_Song-2026.mp3?x=1'), 'My Song 2026');
 });
 
 test('room choice opens a channel picker before asking for the audio URL', async () => {
+  assert.equal(musicRoomPicker('موسيقى').components[0].components[0].custom_id, 'diskoko:music:room:موسيقى');
   const pool = { query: async () => ({ rows: [{ panel_config: {} }] }) };
   let reply;
   const interaction = { customId: 'diskoko:music:choose:موسيقى', guildId: 'guild', reply: async value => { reply = value; } };
@@ -36,6 +38,7 @@ test('room selection requests the audio link only when the member can use that r
   const interaction = { customId: 'diskoko:music:room:موسيقى', guildId: 'guild', values: [roomId], member: { voice: { channelId: roomId } }, showModal: async value => { modal = value; } };
   assert.equal(await handleMusicInteraction(interaction, pool, 'bot', {}), true);
   assert.equal(modal.custom_id, `diskoko:music:add:موسيقى:${roomId}`);
+  assert.equal(modal.components.length, 1);
   assert.equal(modal.components[0].components[0].custom_id, 'audio_url');
 });
 
