@@ -2,18 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { handleMusicInteraction, musicPanelMessage, musicRoomPicker, musicSourceTitle, normalizeMusicPanel, resolveMusicTrack, validateMusicSource } from '../lib/music-panel.js';
 import { youtubeVideoId } from '../lib/youtube-panel.js';
+import { describeYoutubeFailure } from '../lib/youtube-audio.js';
 
 test('music panel validates identity and exposes controls only while playing', () => {
-  const config = normalizeMusicPanel({ title: 'استديو', color: '#AA33CC', defaultVolume: 40 });
+  const config = normalizeMusicPanel({ title: 'استديو', color: '#AA33CC', defaultVolume: 40, bannerUrl: 'https://example.com/banner.png', logoUrl: 'https://example.com/logo.png' });
   assert.equal(config.defaultVolume, 40);
   const idle = musicPanelMessage(config, 'موسيقى');
   assert.equal(idle.embeds[0].title, 'استديو');
-  assert.equal(idle.components[0].components.length, 1);
+  assert.equal(idle.components[0].components[0].type, 8);
+  assert.equal(idle.embeds[0].image.url, 'https://example.com/banner.png');
+  assert.equal(idle.embeds[0].thumbnail.url, 'https://example.com/logo.png');
   const playing = musicPanelMessage(config, 'موسيقى', { channelId: '123', queue: [{ title: 'مقطع' }], paused: false });
   assert.equal(playing.components.length, 2);
   assert.match(playing.embeds[0].description, /<#123>/);
   const youtube = musicPanelMessage(config, 'موسيقى', { channelId: '123', queue: [{ kind: 'youtube', id: 'jNQXAC9IVRw', title: 'Me at the zoo' }], paused: false });
-  assert.match(youtube.embeds[0].image.url, /jNQXAC9IVRw/);
+  assert.equal(youtube.embeds[0].image.url, 'https://example.com/banner.png');
+  const automaticArtwork = musicPanelMessage({}, 'موسيقى', { channelId: '123', queue: [{ kind: 'youtube', id: 'jNQXAC9IVRw', title: 'Me at the zoo' }], paused: false });
+  assert.match(automaticArtwork.embeds[0].image.url, /jNQXAC9IVRw/);
 });
 
 test('audio source validates links and derives direct-file titles', async () => {
@@ -23,6 +28,8 @@ test('audio source validates links and derives direct-file titles', async () => 
   assert.equal(validateMusicSource('http://cdn.discordapp.com/file.mp3'), null);
   assert.equal(musicSourceTitle('https://cdn.discordapp.com/attachments/123/My_Song-2026.mp3?x=1'), 'My Song 2026');
   assert.equal(youtubeVideoId('https://www.youtube.com/watch?v=jNQXAC9IVRw'), 'jNQXAC9IVRw');
+  assert.equal(youtubeVideoId('https://youtu.be/0DLyn9D8LOk?si=MoUhqGSmqs0xc95T'), '0DLyn9D8LOk');
+  assert.match(describeYoutubeFailure('ERROR: This video is unavailable'), /الرقم 0 والحرف O/);
   assert.deepEqual(await resolveMusicTrack('https://cdn.discordapp.com/attachments/123/file.mp3'), { kind: 'direct', url: 'https://cdn.discordapp.com/attachments/123/file.mp3', title: 'file' });
 });
 
