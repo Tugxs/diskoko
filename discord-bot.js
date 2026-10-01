@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { handleMusicCommand, handleMusicInteraction, musicSlashOptions } from './lib/music-panel.js';
 import { handleYoutubePanelInteraction, youtubePanelMessage } from './lib/youtube-panel.js';
 import { handleMovieClubCommand, handleMovieClubInteraction } from './lib/movie-club.js';
+import { communityPanelMessage, handleCommunityPanelInteraction } from './lib/community-panel.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { ActivityType, Client, Events, GatewayIntentBits, Partials, PermissionFlagsBits, REST, Routes, SlashCommandBuilder } from "discord.js";
 import { BOT_COMMANDS, DEFAULT_BOT_COMMAND_KEYS, validBotCommandKeys } from './lib/bot-catalog.js';
@@ -139,7 +140,7 @@ async function recordCommand(guildId, commandKey, success) {
 
 async function registerGuildCommands(rest, applicationId, guildId, token) {
   try {
-    const panelCommands = databasePool ? (await databasePool.query("SELECT name,description,response_kind FROM customer_bot_commands WHERE guild_id=$1 AND bot_user_id=$2 AND response_kind IN ('music_panel','youtube_panel','movie_club')", [guildId, applicationId])).rows : [];
+    const panelCommands = databasePool ? (await databasePool.query("SELECT name,description,response_kind FROM customer_bot_commands WHERE guild_id=$1 AND bot_user_id=$2 AND response_kind IN ('music_panel','youtube_panel','movie_club','community_panel')", [guildId, applicationId])).rows : [];
     await rest.put(Routes.applicationGuildCommands(applicationId, guildId), { body: [...COMMAND_JSON, ...panelCommands.filter(command => command.name !== 'diskoko').map(command => ({ name: command.name, description: command.description, type: 1, ...(command.response_kind === 'music_panel' ? { options: musicSlashOptions } : {}) }))] });
     return true;
   } catch (error) {
@@ -306,7 +307,7 @@ export async function startDiscordBot({ pool } = {}) {
       return;
     }
     if ((interaction.isButton() || interaction.isModalSubmit() || interaction.isChannelSelectMenu() || interaction.isStringSelectMenu()) && interaction.customId.startsWith('diskoko:')) {
-      try { if (!await handleMusicInteraction(interaction, databasePool, client.user.id, client) && !await handleYoutubePanelInteraction(interaction, databasePool, client.user.id) && !await handleMovieClubInteraction(interaction, databasePool, client.user.id) && !await handleReadyModuleInteraction(interaction, databasePool)) await handleInteractiveButton(interaction, databasePool); }
+      try { if (!await handleMusicInteraction(interaction, databasePool, client.user.id, client) && !await handleYoutubePanelInteraction(interaction, databasePool, client.user.id) && !await handleMovieClubInteraction(interaction, databasePool, client.user.id) && !await handleCommunityPanelInteraction(interaction, databasePool, client.user.id) && !await handleReadyModuleInteraction(interaction, databasePool)) await handleInteractiveButton(interaction, databasePool); }
       catch (error) { console.error('Interactive button failed:', error); if (interaction.deferred || interaction.replied) await interaction.editReply('تعذر إكمال العملية الآن. حاول مرة أخرى.').catch(() => {}); else await interaction.reply({ content: 'تعذر إكمال العملية الآن.', ephemeral: true }).catch(() => {}); }
       return;
     }
@@ -317,6 +318,7 @@ export async function startDiscordBot({ pool } = {}) {
         if (!command) return;
         if (command.response_kind === 'music_panel') await handleMusicCommand(interaction, client, client.user.id, interaction.commandName, command.panel_config);
         else if (command.response_kind === 'youtube_panel') await interaction.reply(youtubePanelMessage(command.panel_config, interaction.commandName));
+        else if (command.response_kind === 'community_panel') { await interaction.deferReply(); await interaction.editReply(await communityPanelMessage(command.panel_config, interaction.commandName, interaction.guildId)); }
         else await handleMovieClubCommand(interaction, databasePool, client.user.id);
       } catch (error) {
         console.error('Diskoko public panel command failed', { guildId: interaction.guildId, command: interaction.commandName, error: error.message });
