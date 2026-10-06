@@ -147,7 +147,7 @@ function channelOrder(item, channels = state.data?.channels || []) {
 }
 function draftBar() {
   const node = $('#draftBar'); node.hidden = !state.draft.length || !state.data || state.loading;
-  node.innerHTML = `<div><b>عدد التغييرات المتوقع: ${fmt(state.draft.reduce((total, op) => total + draftChangeUnits(op), 0))}</b><small>${fmt(state.draft.length)} عناصر · تُحسب الإعدادات التي تغيّرت فقط عند التنفيذ · ${esc(state.data?.guild.name)}</small></div><div class="actions"><button class="btn secondary" id="discardDraft">تجاهل التغييرات</button><button class="btn primary" id="reviewDraft">مراجعة التغييرات ←</button></div>`;
+  node.innerHTML = `<div><b>عدد التغييرات المتوقع: ${fmt(state.draft.reduce((total, op) => total + draftChangeUnits(op), 0))}</b><small>${fmt(state.draft.length)} عناصر · تُحسب الإعدادات التي تغيّرت فقط عند التنفيذ · ${esc(state.data?.guild.name)}</small></div><div class="actions"><button class="btn secondary" id="discardDraft">تجاهل التغييرات</button><button class="btn primary" id="reviewDraft">مراجعة وتطبيق التغييرات ←</button></div>`;
   $('#reviewDraft').onclick = () => reviewLocal();
   $('#discardDraft').onclick = () => confirmDialog('تجاهل التغييرات؟', 'ستُزال قائمة التغييرات من هذا الجهاز. لن يتغير سيرفرك في Discord.', 'تجاهل التغييرات', () => { state.draft = []; saveDraft(); closeDialog(); render(); });
 }
@@ -185,6 +185,8 @@ async function loadGuild() {
   if (epoch === state.epoch) { state.loading = false; render(); }
 }
 function render() {
+  const executionError = $('#executionError');
+  if (executionError && executionError.dataset.guild !== state.guild) executionError.remove();
   shell(); draftBar(); const area = $('#workspace');
   if (state.loading) { area.innerHTML = '<div class="loading" role="status">نحمّل بيانات سيرفرك…</div>'; return; }
   if (state.error) { area.innerHTML = head('تعذر فتح مساحة العمل', 'لم نغيّر حالة الربط أو بيانات سيرفرك.') + `<div class="panel">${empty('نحتاج خطوة للمتابعة', esc(state.error.message), `<div class="actions"><button class="btn primary" id="retry">إعادة المحاولة</button><a class="btn secondary" href="/account.html#servers">اختيار سيرفر آخر</a>${state.error.status === 401 ? `<a class="btn secondary" href="/auth/discord?returnTo=${encodeURIComponent(location.pathname + location.search + location.hash)}">إعادة ربط الحساب</a>` : ''}</div>`)}</div>`; $('#retry').onclick = run(() => state.account ? loadGuild() : start()); return; }
@@ -692,12 +694,106 @@ function draftWarnings(operations) {
   }
   return warnings;
 }
+function draftExecutionBlocked() {
+  const signature = JSON.stringify(state.draft);
+  const inPage = state.blockedDraftGuild === state.guild && state.blockedDraft === signature;
+  try { return localStorage.getItem(draftKey() + ':blocked') === signature || inPage; } catch { return inPage; }
+}
+function blockDraftExecution(operations) {
+  state.blockedDraftGuild = state.guild;
+  state.blockedDraft = JSON.stringify(operations);
+  try { localStorage.setItem(draftKey() + ':blocked', state.blockedDraft); } catch { /* keep the in-page lock */ }
+}
+async function verifyExecutionFix(guildId) {
+  if (state.guild !== guildId || state.applyingDraft) return;
+  await loadGuild();
+  if (state.guild !== guildId || !state.data?.connection.readable) return;
+  state.blockedDraft = '';
+  try { localStorage.removeItem(draftKey() + ':blocked'); } catch { /* no persistent storage */ }
+  $('#executionError')?.remove();
+  toast('تم تحديث حالة السيرفر. راجع تعديلاتك؛ سيُفحص الرصيد والصلاحيات وترتيب الرتب مجددًا قبل التنفيذ.');
+}
+function showExecutionError(error, guildId, planId = '') {
+  if (state.guild !== guildId) return;
+  $('#executionError')?.remove();
+  const notice = document.createElement('div');
+  notice.id = 'executionError';
+  notice.className = 'dialog-error';
+  notice.setAttribute('role', 'alert');
+  notice.dataset.guild = guildId;
+  const solution = error.status === 402 ? 'خفّض عدد التعديلات أو راجع رصيد باقتك، ثم أعد المراجعة.'
+    : error.status === 401 ? 'أعد تسجيل الدخول، ثم راجع حالة التنفيذ قبل المحاولة.'
+    : error.status === 403 ? 'تحقق من صلاحيات حسابك والبوت، ومن وضع رتبة البوت فوق الرتبة المستهدفة.'
+    : planId ? 'راجع حالة التنفيذ وما اكتمل في السجل قبل إنشاء تعديل جديد؛ لا تكرر الطلب إذا كان ما زال يعمل.'
+    : 'تعديلاتك محفوظة على هذا الجهاز. راجع الإعدادات والاتصال ثم أعد المراجعة.';
+  notice.innerHTML = '<b>تعذر إكمال التغييرات</b><p>' + esc(readableChangeError(error.message)) + '</p><p>' + esc(solution) + '</p>' + (planId ? '<button class="btn secondary" id="inspectExecution">عرض حالة التنفيذ</button>' : '<button class="btn secondary" id="verifyExecution">تحقق بعد إصلاح المشكلة</button>');
+  $('#workspace').before(notice);
+  $('#verifyExecution')?.addEventListener('click', run(() => verifyExecutionFix(guildId)));
+  $('#inspectExecution')?.addEventListener('click', run(() => showPlan(planId)));
+  notice.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+}
 function reviewLocal() {
+  if (!state.draft.length || !state.data || state.applyingDraft) return;
+  const guildId = state.guild;
   const units = state.draft.reduce((total, op) => total + draftChangeUnits(op), 0);
   const warnings = draftWarnings(state.draft);
-  modal('مراجعة مسودتك', `<p class="form-note">السيرفر المستهدف: <b>${esc(state.data.guild.name)}</b>. عدد التغييرات المتوقع: ${fmt(units)} في ${fmt(state.draft.length)} عناصر. كل إعداد مختلف يُحسب مرة؛ حفظ الخطة لا يطبق شيئًا في Discord.</p>${!units ? '<p class="form-note">لم يتغير أي إعداد. أزل العناصر غير المعدلة أو غيّر أحد خياراتها.</p>' : ''}${warnings.length ? `<div class="notice warn"><div><b>نقاط تحتاج انتباهك قبل التنفيذ</b>${warnings.map(message => `<p>${esc(message)}</p>`).join('')}</div></div>` : ''}${operationTable(state.draft, true)}`, `<button class="btn primary" id="savePlan" ${units ? '' : 'disabled'}>حفظ خطة التغييرات</button>`);
+  const blocked = draftExecutionBlocked();
+  if (blocked) warnings.unshift('توقف التنفيذ بعد خطأ سابق. أصلح السبب ثم اضغط «تحقق بعد إصلاح المشكلة» في التنبيه أعلى الصفحة، أو عدّل التغييرات.');
+  const summary = '<div class="notice info"><div><b>السيرفر المستهدف: ' + esc(state.data.guild.name) + '</b><p>الاستهلاك المتوقع: ' + fmt(units) + ' تغييرات في ' + fmt(state.draft.length) + ' عناصر. لا يُستهلك رصيد عند المراجعة أو التأجيل؛ يُحسب فقط ما يُنفذ فعلًا، ولا تُحسب الإعدادات غير المتغيرة.</p></div></div>';
+  const attention = warnings.length ? '<div class="notice warn"><div><b>نقاط تحتاج انتباهك قبل التنفيذ</b>' + warnings.map(message => '<p>' + esc(message) + '</p>').join('') + '</div></div>' : '';
+  modal('مراجعة التغييرات وتطبيقها', summary + (!units ? '<p class="form-note">لم يتغير أي إعداد. أزل العناصر غير المعدلة أو غيّر أحد خياراتها.</p>' : '') + attention + operationTable(state.draft, true) + '<p class="form-note">بالضغط على «نعم، أكد التنفيذ» توافق على تطبيق التغييرات المعروضة على هذا السيرفر.</p>', '<button class="btn secondary" id="laterPlan">لاحقًا</button><button class="btn secondary" id="cancelDraft">إلغاء التغييرات</button><button class="btn primary" id="applyPlan" ' + (units && state.data.connection.readable && !blocked ? '' : 'disabled') + '>نعم، أكد التنفيذ</button>');
   document.querySelectorAll('[data-remove]').forEach(button => { button.onclick = () => { state.draft.splice(Number(button.dataset.remove), 1); saveDraft(); if (state.draft.length) reviewLocal(); else closeDialog(); }; });
-  $('#savePlan').onclick = async event => { event.currentTarget.disabled = true; try { const created = await api('/api/change-sets', { method: 'POST', body: JSON.stringify({ guildId: state.guild, operations: state.draft }) }); state.draft = []; saveDraft(); closeDialog(); await loadGuild(); await showPlan(created.changeSet.id); } catch (error) { modalError(error); $('#savePlan').disabled = false; } };
+  if (blocked) {
+    const verify = document.createElement('button');
+    verify.className = 'btn secondary'; verify.id = 'verifyReview'; verify.textContent = 'تحقق بعد إصلاح المشكلة';
+    $('#dialogContent .dialog-foot').prepend(verify);
+    verify.onclick = run(async () => { closeDialog(); await verifyExecutionFix(guildId); });
+  }
+  $('#laterPlan').onclick = closeDialog;
+  $('#cancelDraft').onclick = () => { state.draft = []; saveDraft(); closeDialog(); };
+  $('#applyPlan').onclick = async () => {
+    if (state.applyingDraft || state.guild !== guildId || draftExecutionBlocked()) return;
+    state.applyingDraft = true;
+    const operations = JSON.parse(JSON.stringify(state.draft));
+    let planId = '';
+    let applied = false;
+    $('#executionError')?.remove();
+    $('#applyPlan').disabled = true;
+    $('#applyPlan').textContent = 'جارٍ التطبيق…';
+    $('#closeDialog').disabled = true;
+    $('#laterPlan').disabled = true;
+    $('#cancelDraft').disabled = true;
+    document.querySelectorAll('[data-remove]').forEach(button => { button.disabled = true; });
+    try {
+      const execute = async () => {
+        const created = await api('/api/change-sets', { method: 'POST', body: JSON.stringify({ guildId, operations }) });
+        planId = created.changeSet.id;
+        if (state.guild !== guildId) throw Error('تغيّر السيرفر المختار. الخطة محفوظة في سجل السيرفر الأصلي ولم نطبقها.');
+        state.draft = [];
+        saveDraft();
+        await api('/api/change-sets/' + encodeURIComponent(planId) + '/apply', { method: 'POST', body: JSON.stringify({ confirmed: true, guildId }) });
+        applied = true;
+      };
+      if (navigator.locks?.request) {
+        await navigator.locks.request('diskoko:changes:' + state.account.user.id + ':' + guildId, { ifAvailable: true }, async lock => {
+          if (!lock) throw Error('هناك تنفيذ من نافذة أخرى لهذا السيرفر. انتظر نتيجته وراجع السجل قبل المحاولة.');
+          await execute();
+        });
+      } else await execute();
+    } catch (error) {
+      if (state.guild === guildId) blockDraftExecution(operations);
+      closeDialog();
+      if (planId && state.guild === guildId) await loadGuild();
+      showExecutionError(error, guildId, planId);
+    } finally {
+      state.applyingDraft = false;
+      closeDialog();
+    }
+    if (applied && state.guild === guildId) {
+      await loadGuild();
+      toast('اكتملت التغييرات على سيرفرك. الاستهلاك الفعلي والتفاصيل في سجل التغييرات.');
+    }
+  };
 }
 async function showPlan(id, returnToWorkspace = false) {
   const expectedGuild = state.guild;
