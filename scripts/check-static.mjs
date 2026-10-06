@@ -9,6 +9,7 @@ const errors = [];
 for (const file of files) {
   const document = new JSDOM(fs.readFileSync(path.join(root, file), 'utf8')).window.document;
   if (document.querySelector('.legal-mark') && document.querySelector('.legal-mark img')?.getAttribute('src') !== '/assets/diskoko-logo.png') errors.push(`${file}: official logo missing`);
+  if (document.querySelector('script:not([src])')) errors.push(`${file}: inline script blocked by Content-Security-Policy; move it to a same-origin .js file`);
   for (const element of document.querySelectorAll('[href], [src]')) {
     const attribute = element.hasAttribute('href') ? 'href' : 'src';
     const value = element.getAttribute(attribute)?.trim();

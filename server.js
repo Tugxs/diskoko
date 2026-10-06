@@ -21,6 +21,7 @@ import { isPublicStaticPath } from "./lib/public-files.js";
 import { BILLING_PLANS, BILLING_STATUSES, canonicalPlan, entitlementsFor, publicPlanCatalog, subscriptionAccess, usageAlert, upgradeQuote } from "./lib/billing.js";
 import { customerRoleConfig } from './lib/customer-roles.js';
 import { publicError } from "./lib/http-error.js";
+import { createNotFoundReporter } from "./lib/http-not-found.js";
 import { createDiscordRequestGate, discordRetryAfterMs } from "./lib/discord-rate-limit.js";
 import { validateDiscordWrite } from './lib/discord-preflight.js';
 import { enqueueDiscordJob, migrateDiscordJobQueue, startDiscordJobListener } from './lib/discord-job-queue.js';
@@ -299,6 +300,7 @@ app.use((req, res, next) => {
   });
   requestContext.run({ requestId: req.requestId }, next);
 });
+app.use(createNotFoundReporter({ allowedOrigins }));
 const standardJson = express.json({ limit: "512kb", verify: (req, _res, buffer) => { if (req.path === "/api/webhooks/billing") req.rawBody = Buffer.from(buffer); } });
 const interactiveMediaJson = express.json({ limit: "29mb" });
 app.use((req, res, next) => req.method === 'POST' && (/^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create-scheduled-event)$/.test(req.path) || req.path === '/api/ai/requests' || req.path === '/api/change-sets' || /^\/api\/workspace\/\d{17,20}\/(?:ready-templates|standalone-modules)\/review$/.test(req.path)) ? interactiveMediaJson(req, res, next) : standardJson(req, res, next));
@@ -1075,6 +1077,7 @@ for (const [oldPath, destination] of Object.entries({
   '/partners.html': '/contact.html',
   '/sales.html': '/contact.html',
 })) app.get(oldPath, (_req, res) => res.redirect(301, destination));
+app.get("/admin-login.html", (_req, res) => res.redirect(301, "/admin-login"));
 app.get("/admin-login", async (req, res, next) => { try { const user = await currentUser(req); if (user && isAdmin(user)) return res.redirect("/admin"); res.sendFile(path.join(__dirname, "admin-login.html")); } catch (error) { next(error); } });
 app.get("/admin", async (req, res, next) => { try { const user = await currentUser(req); if (!user) return res.redirect("/admin-login"); if (!isAdmin(user)) return res.redirect("/account.html"); res.sendFile(path.join(__dirname, "admin-console.html")); } catch (error) { next(error); } });
 app.get('/admin-console.20260921.js', requireAdmin, (_req, res) => res.sendFile(path.join(__dirname, 'admin-console.20260921.js')));
