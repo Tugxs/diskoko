@@ -99,6 +99,9 @@ test('bulk editor stages a separate reviewed change for each selected channel', 
   doc.querySelector('#batchSlow').value = '15';
   doc.querySelector('#batchForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
   assert.match(doc.querySelector('#draftBar').textContent, /تغييرات/);
+  assert.equal(doc.querySelector('#dialog').open, true);
+  assert.ok(doc.querySelector('#applyPlan'));
+  assert.equal(doc.querySelector('#draftBar').hidden, true);
   dom.window.close();
 });
 test('dragging a channel inside its category stages an order change for review', async () => {
@@ -110,6 +113,8 @@ test('dragging a channel inside its category stages an order change for review',
   source.ondragstart({ dataTransfer: transfer });
   target.ondrop({ dataTransfer: transfer, preventDefault() {} });
   assert.match(doc.querySelector('#draftBar').textContent, /عدد التغييرات المتوقع/);
+  assert.ok(doc.querySelector('#applyPlan'));
+  assert.equal(doc.querySelector('#draftBar').hidden, true);
   dom.window.close();
 });
 test('access preview explains current channel access and updates by selected role', async () => {
@@ -333,7 +338,7 @@ test('upstream failure renders retry, never empty guild list', async () => {
 test('adding a resource stages a guild-specific draft without calling mutation API', async () => {
   const { dom, doc, requests } = await page('builder'); doc.querySelector('#newResource').click();
   doc.querySelector('#resourceName').value = 'ترحيب'; doc.querySelector('#resourceForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
-  assert.equal(doc.querySelector('#draftBar').hidden, false); assert.match(dom.window.localStorage.getItem(`diskoko:review:1:${guild.id}`), /ترحيب/);
+  assert.equal(doc.querySelector('#draftBar').hidden, true); assert.match(dom.window.localStorage.getItem(`diskoko:review:1:${guild.id}`), /ترحيب/);
   assert.equal(requests.filter(req => req.options.method && req.options.method !== 'GET').length, 0); dom.window.close();
 });
 test('bot workshop separates connected bots from all supported panel types', async () => {
@@ -898,6 +903,9 @@ function stageChannelReview(dom, doc) {
   doc.querySelector('#newResource').click();
   doc.querySelector('#resourceName').value = 'قناة جديدة';
   doc.querySelector('#resourceForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  assert.equal(doc.querySelector('#dialog').open, true);
+  assert.equal(doc.querySelector('#dialogTitle').textContent, 'مراجعة التغييرات وتطبيقها');
+  assert.equal(doc.querySelector('#draftBar').hidden, true);
   doc.querySelector('#reviewDraft').click();
 }
 test('one review confirms, saves and applies once without a second modal or repeated click', async () => {
@@ -931,12 +939,38 @@ test('later preserves the draft and cancel removes it without Discord execution'
   const { dom, doc, requests } = await page('builder');
   stageChannelReview(dom, doc);
   doc.querySelector('#laterPlan').click();
-  assert.equal(doc.querySelector('#draftBar').hidden, false);
-  doc.querySelector('#reviewDraft').click();
+  assert.equal(doc.querySelector('#draftBar').hidden, true);
+  assert.equal(doc.querySelector('#resumeBuilderDraft').hidden, false);
+  doc.querySelector('#resumeBuilderDraft').click();
   doc.querySelector('#cancelDraft').click();
   assert.equal(doc.querySelector('#draftBar').hidden, true);
   assert.equal(requests.some(req => req.url.includes('/change-sets')), false);
   dom.window.close();
+});
+
+test('saving a role or category opens confirmation directly and postponement survives reload', async () => {
+  for (const kind of ['role', 'category']) {
+    const { dom, doc, requests } = await page('builder');
+    if (kind === 'role') doc.querySelector('[data-tab="roles"]').click();
+    doc.querySelector(kind === 'role' ? '#newResource' : '#newCategory').click();
+    doc.querySelector('#resourceName').value = kind === 'role' ? 'عضو جديد' : 'مجموعة جديدة';
+    doc.querySelector('#resourceForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+    assert.ok(doc.querySelector('#applyPlan'));
+    assert.equal(doc.querySelector('#dialog').open, true);
+    assert.equal(doc.querySelector('#draftBar').hidden, true);
+    assert.equal(requests.some(req => req.url.includes('/change-sets')), false);
+    doc.querySelector('#laterPlan').click();
+    const draft = dom.window.localStorage.getItem(`diskoko:review:1:${guild.id}`);
+    assert.ok(draft);
+    dom.window.close();
+    const restored = await page('builder', fixtureResponse, 'studio.html', 'workspace.js', window => window.localStorage.setItem(`diskoko:review:1:${guild.id}`, draft));
+    assert.equal(restored.doc.querySelector('#draftBar').hidden, true);
+    assert.equal(restored.doc.querySelector('#resumeBuilderDraft').hidden, false);
+    restored.doc.querySelector('#resumeBuilderDraft').click();
+    assert.ok(restored.doc.querySelector('#applyPlan'));
+    assert.equal(restored.requests.some(req => req.url.includes('/change-sets')), false);
+    restored.dom.window.close();
+  }
 });
 test('preflight failure preserves edits, shows a top error and blocks the same draft until verification', async () => {
   const response = url => url === '/api/change-sets' ? { error: 'يحتاج البوت صلاحية إدارة القنوات.' } : fixtureResponse(url);
@@ -947,7 +981,7 @@ test('preflight failure preserves edits, shows a top error and blocks the same d
   assert.equal(doc.querySelector('#executionError').getAttribute('role'), 'alert');
   assert.match(doc.querySelector('#executionError').textContent, /صلاحية إدارة القنوات/);
   assert.equal(doc.querySelector('#executionError').nextElementSibling.id, 'workspace');
-  assert.equal(doc.querySelector('#draftBar').hidden, false);
+  assert.equal(doc.querySelector('#draftBar').hidden, true);
   doc.querySelector('#reviewDraft').click();
   assert.equal(doc.querySelector('#applyPlan').disabled, true);
   doc.querySelector('#applyPlan').click();
