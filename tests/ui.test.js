@@ -893,3 +893,98 @@ test('admin audit view shows the actor, action and request ID', async () => {
   dom.window.close();
 });
 
+
+function stageChannelReview(dom, doc) {
+  doc.querySelector('#newResource').click();
+  doc.querySelector('#resourceName').value = 'قناة جديدة';
+  doc.querySelector('#resourceForm').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }));
+  doc.querySelector('#reviewDraft').click();
+}
+test('one review confirms, saves and applies once without a second modal or repeated click', async () => {
+  const response = url => url === '/api/change-sets' ? { changeSet: { id: 'fast-plan' } }
+    : url === '/api/change-sets/fast-plan/apply' ? { ok: true } : fixtureResponse(url);
+  const { dom, doc, requests } = await page('builder', response);
+  stageChannelReview(dom, doc);
+  assert.equal(doc.querySelector('#savePlan'), null);
+  assert.equal(doc.querySelector('#confirmApply'), null);
+  assert.match(doc.querySelector('#dialogContent').textContent, /الاستهلاك المتوقع/);
+  assert.match(doc.querySelector('#dialogContent').textContent, /لا يُستهلك رصيد عند المراجعة أو التأجيل/);
+  assert.equal(requests.some(req => req.url === '/api/change-sets'), false);
+  const apply = doc.querySelector('#applyPlan');
+  apply.click(); apply.click();
+  assert.equal(apply.disabled, true);
+  assert.equal(doc.querySelector('#closeDialog').disabled, true);
+  await settle(); await settle();
+  const create = requests.filter(req => req.url === '/api/change-sets');
+  const execution = requests.filter(req => req.url.endsWith('/fast-plan/apply'));
+  assert.equal(create.length, 1); assert.equal(execution.length, 1);
+  assert.equal(JSON.parse(create[0].options.body).guildId, guild.id);
+  assert.deepEqual(JSON.parse(execution[0].options.body), { confirmed: true, guildId: guild.id });
+  const createAt = requests.indexOf(create[0]), applyAt = requests.indexOf(execution[0]);
+  assert.equal(requests.slice(createAt + 1, applyAt).some(req => req.url.startsWith('/api/workspace/')), false);
+  assert.equal(doc.querySelector('#dialog').open, false);
+  assert.equal(doc.querySelector('#draftBar').hidden, true);
+  assert.match(doc.querySelector('#toast').textContent, /اكتملت/);
+  dom.window.close();
+});
+test('later preserves the draft and cancel removes it without Discord execution', async () => {
+  const { dom, doc, requests } = await page('builder');
+  stageChannelReview(dom, doc);
+  doc.querySelector('#laterPlan').click();
+  assert.equal(doc.querySelector('#draftBar').hidden, false);
+  doc.querySelector('#reviewDraft').click();
+  doc.querySelector('#cancelDraft').click();
+  assert.equal(doc.querySelector('#draftBar').hidden, true);
+  assert.equal(requests.some(req => req.url.includes('/change-sets')), false);
+  dom.window.close();
+});
+test('preflight failure preserves edits, shows a top error and blocks the same draft until verification', async () => {
+  const response = url => url === '/api/change-sets' ? { error: 'يحتاج البوت صلاحية إدارة القنوات.' } : fixtureResponse(url);
+  const { dom, doc, requests } = await page('builder', response);
+  stageChannelReview(dom, doc);
+  doc.querySelector('#applyPlan').click();
+  await settle(); await settle();
+  assert.equal(doc.querySelector('#executionError').getAttribute('role'), 'alert');
+  assert.match(doc.querySelector('#executionError').textContent, /صلاحية إدارة القنوات/);
+  assert.equal(doc.querySelector('#executionError').nextElementSibling.id, 'workspace');
+  assert.equal(doc.querySelector('#draftBar').hidden, false);
+  doc.querySelector('#reviewDraft').click();
+  assert.equal(doc.querySelector('#applyPlan').disabled, true);
+  doc.querySelector('#applyPlan').click();
+  assert.equal(requests.filter(req => req.url === '/api/change-sets').length, 1);
+  assert.equal(requests.some(req => req.url.endsWith('/apply')), false);
+  doc.querySelector('#verifyReview').click();
+  await settle(); await settle();
+  doc.querySelector('#reviewDraft').click();
+  assert.equal(doc.querySelector('#applyPlan').disabled, false);
+  assert.equal(requests.filter(req => req.url === '/api/change-sets').length, 1);
+  dom.window.close();
+});
+test('an apply failure keeps the saved plan in history without recreating or resending it', async () => {
+  const response = url => url === '/api/change-sets' ? { changeSet: { id: 'failed-plan' } }
+    : url === '/api/change-sets/failed-plan/apply' ? { error: 'Discord 403: Missing Permissions' } : fixtureResponse(url);
+  const { dom, doc, requests } = await page('builder', response);
+  stageChannelReview(dom, doc);
+  doc.querySelector('#applyPlan').click();
+  await settle(); await settle();
+  assert.equal(doc.querySelector('#draftBar').hidden, true);
+  assert.match(doc.querySelector('#executionError').textContent, /صلاحيات البوت/);
+  assert.match(doc.querySelector('#executionError').textContent, /راجع حالة التنفيذ/);
+  assert.ok(doc.querySelector('#inspectExecution'));
+  assert.equal(requests.filter(req => req.url === '/api/change-sets').length, 1);
+  assert.equal(requests.filter(req => req.url.endsWith('/failed-plan/apply')).length, 1);
+  dom.window.close();
+});
+test('a concurrent browser-tab lock stops the request before creating a plan', async () => {
+  const { dom, doc, requests } = await page('builder', fixtureResponse, 'studio.html', 'workspace.js', window => {
+    Object.defineProperty(window.navigator, 'locks', { value: { request: async (_key, options, callback) => {
+      assert.equal(options.ifAvailable, true); return callback(null);
+    } } });
+  });
+  stageChannelReview(dom, doc);
+  doc.querySelector('#applyPlan').click();
+  await settle(); await settle();
+  assert.equal(requests.some(req => req.url === '/api/change-sets'), false);
+  assert.match(doc.querySelector('#executionError').textContent, /نافذة أخرى/);
+  dom.window.close();
+});
