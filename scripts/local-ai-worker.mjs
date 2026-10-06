@@ -2,6 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { alignAiProposalWithIntent, unsupportedAutomationRequest, planningRequest } from '../lib/ai-intent.js';
 import { normalizeAiProposal } from '../lib/local-ai.js';
 import { selectAiKnowledge } from './ai-knowledge.mjs';
+import { imageReferenceInstructions, missingReferenceVision } from '../lib/ai-welcome-design.js';
 
 const site = (process.env.DISKOKO_URL || 'https://diskoko.com').replace(/\/$/, '');
 const inference = (process.env.LOCAL_AI_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
@@ -44,7 +45,7 @@ async function generate(messages, maxTokens = 700, temperature = 0.35) {
 
 async function describeImage(image, prompt) {
   if (!visionModel || !image?.base64 || !['image/png', 'image/jpeg', 'image/webp'].includes(image.mime)) return '';
-  const instruction = `صف العناصر والنصوص الظاهرة في الصورة بدقة بالعربية لمساعدة مدير سيرفر Discord. ركز على واجهة التذكرة والأزرار والصلاحيات إن ظهرت. لا تفترض شيئًا غير ظاهر. طلب المستخدم: ${prompt}`;
+  const instruction = `${imageReferenceInstructions}\nطلب المستخدم: ${prompt}`;
   const body = visionProvider === 'ollama'
     ? await request(`${visionInference}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: visionModel, stream: false, messages: [{ role: 'user', content: instruction, images: [image.base64] }], options: { num_predict: 450, temperature: 0.1 } }) })
     : await request(`${visionInference}/v1/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: visionModel, stream: false, max_tokens: 450, messages: [{ role: 'user', content: [{ type: 'text', text: instruction }, { type: 'image_url', image_url: { url: `data:${image.mime};base64,${image.base64}` } }] }] }) });
@@ -52,11 +53,13 @@ async function describeImage(image, prompt) {
 }
 
 async function respond(job) {
+  if (missingReferenceVision(job)) return { answer: 'لم أتمكن من قراءة تصميم الصورة المرجعية لأن نموذج الرؤية غير متصل أو تعذر تشغيله. لن أنشر لقطة الشاشة أو أدّعي أنني طابقتها. راجع الإدارة لتفعيل تحليل الصور، أو صف ترتيب البطاقة والصورة والألوان نصيًا لأجهز مسودة قابلة للتعديل.', proposal: null };
   const guild = job.guild_context || {};
   const context = Array.isArray(job.context) ? job.context.filter(item => ['user', 'assistant'].includes(item?.role) && typeof item.content === 'string').slice(-12) : [];
   const guildSummary = `اسم السيرفر: ${guild.name || 'غير متاح'}. القنوات الحالية: ${(guild.channels || []).map(item => `${item.name} (${item.id})`).join('، ') || 'غير متاحة'}. الرتب الحالية: ${(guild.roles || []).map(item => `${item.name} (${item.id})`).join('، ') || 'غير متاحة'}.`;
   const system = [
     'أنت AI ديسكوكو، مساعد عربي لإدارة مجتمعات Discord.',
+    'طلبات تصميم بطاقة ترحيب من صورة مرجعية تنتج مسودة ترحيب قابلة للتعديل، وليست أكوادًا تُنفذ من المستخدم. يمكن تعديل النص ولون البطاقة وصورة العضو وموضعها وروابط القنوات. لا تنشر الصورة المرجعية نفسها، ولا تستنسخ أسماء أو معرفات المثال. لا تعد بخصائص غير مدعومة؛ اذكر الحد واطلب مراجعة الإدارة لتطويره.',
     'تحدث بالعربية السعودية الطبيعية وبأسلوب متعاون ومباشر. افهم سياق الرسائل السابقة في المحادثة وأجب عن السؤال الحالي تحديدًا.',
     'ابدأ بالجواب المفيد مباشرة. عند الحاجة قدّم خطوات قصيرة ومرتبة، ولا تكرر المقدمة أو تعيد شرح ما يعرفه المستخدم.',
     'إذا اختار المستخدم مهمة من مكتبة الاقتراحات، قدّم الناتج المطلوب كاملًا وقابلًا للنسخ: نص إعلان، سياسة، خطة، أسئلة، أو جدول بحسب الطلب. لا تكتفِ بوصف ما يمكن فعله، ولا تقل إنك نشرت أو فعّلت شيئًا دون تنفيذ مؤكد. إذا طلب شيئًا خارج الأدوات المتاحة مثل لعبة تفاعلية أو بوت مستقل، قل بوضوح إنك لا تستطيع تشغيله الآن، ثم اعرض تصميمه أو خطوات بنائه إن أراد.',
@@ -122,6 +125,7 @@ async function propose(job, context, guild, answer) {
     'للاستطلاع التفاعلي استخدم interactive: {"kind":"poll","question":"السؤال","channel":"قناة النشر","options":["الخيار الأول","الخيار الثاني"]}. الخيارات من 2 إلى 9، ويمكن للعميل إضافة صور لكل خيار في بطاقة المراجعة.',
     'إذا طلب إعلان فعالية قابلًا للتسجيل، استخدم interactive: {"kind":"event","title":"اسم الفعالية","description":"موعدها وتفاصيلها","channel":"القناة"}. بطاقة المراجعة تتيح زر تسجيل اختياريًا باسم يختاره العميل وعدّاد المشاركين.',
     'إذا طلب ترحيبًا تلقائيًا بكل عضو جديد، استخدم interactive: {"kind":"welcome","title":"عنوان الترحيب","description":"مرحبًا {member}، ...","channel":"قناة الترحيب"}. بطاقة المراجعة تفعّل النظام وتعرض صورة العضو تلقائيًا. لا تحوّل الترحيب التلقائي إلى message عادية.',
+    'طلب تصميم أو تجهيز بطاقة ترحيب من صورة يكفي لإعداد المسودة: اجعل executeNow=true وinteractive.kind=welcome، حتى لو لم تُحدد القناة؛ يختارها العميل في المراجعة. أضف referenceOnly=true إن كانت الصورة مرجعًا، وcolor بصيغة #RRGGBB وavatarPosition من right,left,top,center وbannerPosition من above,below. الصورة المربعة يمين النص تقابل right. لا تخترع أسماء قنوات أو معرفات من لقطة الشاشة، ولا تنسخ نصوصها إلا إذا طلب العميل. استخدم {name} و{member} مكان عضو المثال. موضع center يحتاج تصميمًا مركبًا يرفعه العميل؛ وضح ذلك ولا تدّعِ أن Discord يوسّط thumbnail. لا تنشئ HTML أو JavaScript للتنفيذ.',
     'الألعاب التفاعلية وإنشاء بوت Discord مستقل باسم العميل ليست مدعومة بعد. إذا كان الطلب إنشاء لعبة أو بوت مستقل، أرجع executeNow=false ولا تحوله إلى رسالة أو رتبة أو قالب يبدو كأنه نفذ الطلب. يمكنك شرح تصميم الفكرة فقط في الرد.',
     'إذا لا يوجد تغيير واضح أو التفاصيل الأساسية ناقصة، أرجع {"executeNow":false,"operations":[],"message":null,"interactive":null}. لا تنشئ قناة موجودة. لا تنفذ شيئًا بنفسك.',
     `قنوات السيرفر الموجودة: ${(guild.channels || []).map(item => `${item.name} [${item.id}] type=${item.type}`).join(', ')}. رتب السيرفر الموجودة: ${(guild.roles || []).filter(item => !item.managed).map(item => `${item.name} [${item.id}]`).join(', ')}.`,
