@@ -146,7 +146,8 @@ function channelOrder(item, channels = state.data?.channels || []) {
   return siblings.sort((a, b) => Number(a.position || 0) - Number(b.position || 0)).findIndex(channel => channel.id === item.id) + 1;
 }
 function draftBar() {
-  const node = $('#draftBar'); node.hidden = !state.draft.length || !state.data || state.loading;
+  const node = $('#draftBar'); node.hidden = screen() === 'builder' || !state.draft.length || !state.data || state.loading;
+  const resume = $('#resumeBuilderDraft'); if (resume) resume.hidden = !state.draft.length;
   node.innerHTML = `<div><b>عدد التغييرات المتوقع: ${fmt(state.draft.reduce((total, op) => total + draftChangeUnits(op), 0))}</b><small>${fmt(state.draft.length)} عناصر · تُحسب الإعدادات التي تغيّرت فقط عند التنفيذ · ${esc(state.data?.guild.name)}</small></div><div class="actions"><button class="btn secondary" id="discardDraft">تجاهل التغييرات</button><button class="btn primary" id="reviewDraft">مراجعة وتطبيق التغييرات ←</button></div>`;
   $('#reviewDraft').onclick = () => reviewLocal();
   $('#discardDraft').onclick = () => confirmDialog('تجاهل التغييرات؟', 'ستُزال قائمة التغييرات من هذا الجهاز. لن يتغير سيرفرك في Discord.', 'تجاهل التغييرات', () => { state.draft = []; saveDraft(); closeDialog(); render(); });
@@ -280,6 +281,8 @@ function builder() {
   const selected = new Set();
   const batchButton = document.createElement('button'); batchButton.type = 'button'; batchButton.className = 'btn secondary'; batchButton.id = 'batchEdit'; batchButton.disabled = true; batchButton.textContent = 'تعديل جماعي';
   $('#builderContent .actions').prepend(batchButton);
+  const resume = document.createElement('button'); resume.type = 'button'; resume.className = 'btn secondary'; resume.id = 'resumeBuilderDraft'; resume.hidden = !state.draft.length; resume.textContent = 'التعديلات المؤجلة'; resume.onclick = () => reviewLocal();
+  $('#builderContent .actions').append(resume);
   function rows(term = '') {
     let html = '';
     if (roles) html = [...d.roles].sort((a, b) => b.position - a.position).filter(role => role.name.toLowerCase().includes(term)).map(role => `<div class="row"><span class="role-dot" style="--role-color:#${Number(role.color || 0xa8b0c8).toString(16).padStart(6, '0')}"></span><div class="row-main"><b>${esc(role.name)}</b><small>${role.managed ? 'يديرها تطبيق' : role.id === state.guild ? 'الرتبة العامة' : 'رتبة مخصصة'}</small></div>${role.managed || role.id === state.guild ? badge('رتبة نظام') : `<button class="btn small secondary" data-edit="${esc(role.id)}" data-kind="role">تعديل</button>`}</div>`).join('');
@@ -314,7 +317,7 @@ function builder() {
         let op = state.draft.find(item => item.resource_id === sourceId);
         if (!op) { op = { resource_type: roles ? 'role' : 'channel', action: 'update', resource_id: sourceId, name: source.name }; state.draft.push(op); }
         op.position = position; if (!roles) { op.position_changed = true; op.position_before_display = channelOrder(source, d.channels); }
-        saveDraft(); toast(`أُضيف ترتيب «${source.name}» إلى المراجعة. لن يتغير Discord قبل التأكيد.`);
+        saveDraft(); reviewLocal();
       };
     });
     document.querySelectorAll('[data-edit]').forEach(button => { button.onclick = () => editResource(button.dataset.kind, button.dataset.edit); });
@@ -329,7 +332,7 @@ function builder() {
     const controls = roles
       ? '<label class="check-row"><input id="batchHoistSet" type="checkbox">تغيير إظهار الأعضاء منفصلين</label><label><select id="batchHoist"><option value="true">إظهار</option><option value="false">إخفاء</option></select></label><label class="check-row"><input id="batchMentionSet" type="checkbox">تغيير السماح بالإشارة</label><label><select id="batchMention"><option value="true">سماح</option><option value="false">منع</option></select></label>'
       : '<label class="check-row"><input id="batchSlowSet" type="checkbox">تغيير بطء المحادثة للقنوات النصية والمنتديات</label><label>المدة بالثواني<input id="batchSlow" type="number" min="0" max="21600" value="0"></label><label class="check-row"><input id="batchNsfwSet" type="checkbox">تغيير تصنيف البالغين</label><label><select id="batchNsfw"><option value="false">إيقاف</option><option value="true">تفعيل</option></select></label>';
-    modal('تعديل جماعي', `<form id="batchForm" class="form-grid"><p class="form-note">اختر الإعدادات التي تريد تغييرها فقط في ${fmt(resources.length)} عناصر. ستظهر كل قناة أو رتبة على حدة في المراجعة قبل التنفيذ.</p>${controls}</form>`, '<button class="btn secondary" id="cancelBatch">إلغاء</button><button class="btn primary" type="submit" form="batchForm">إضافة للمراجعة</button>');
+    modal('تعديل جماعي', `<form id="batchForm" class="form-grid"><p class="form-note">اختر الإعدادات التي تريد تغييرها فقط في ${fmt(resources.length)} عناصر. ستظهر كل قناة أو رتبة على حدة في المراجعة قبل التنفيذ.</p>${controls}</form>`, '<button class="btn secondary" id="cancelBatch">إلغاء</button><button class="btn primary" type="submit" form="batchForm">متابعة للتنفيذ</button>');
     $('#cancelBatch').onclick = closeDialog;
     $('#batchForm').onsubmit = event => {
       event.preventDefault();
@@ -342,7 +345,7 @@ function builder() {
         else { if ($('#batchSlowSet').checked && [0,15].includes(item.type)) op.rate_limit_per_user = Number($('#batchSlow').value); if ($('#batchNsfwSet').checked && [0,2,15].includes(item.type)) op.nsfw = $('#batchNsfw').value === 'true'; }
         if (!existing && draftChangeUnits(op)) state.draft.push(op);
       }
-      saveDraft(); closeDialog(); toast('أُضيفت التغييرات الجماعية إلى المراجعة.');
+      saveDraft(); closeDialog(); reviewLocal();
     };
   };
 }
@@ -449,7 +452,7 @@ function advancedEditResource(kind, id, typeOverride, nameDraft) {
   const displayedOrder = role ? null : channelOrder(original, state.data.channels);
   const currentOrder = existing && Object.hasOwn(existing, 'position') ? Number(existing.position) + 1 : displayedOrder;
   const sections = role ? `<details open><summary>شكل الرتبة وترتيبها</summary><div class="form-grid"><label>اللون<input id="resourceColor" type="color" value="#${Number(item.color || 0x99aab5).toString(16).padStart(6,'0')}"></label><label>الترتيب<input id="resourcePosition" type="number" min="1" max="500" value="${Number(item.position || 1)}"></label><label class="check-row"><input id="resourceHoist" type="checkbox" ${item.hoist ? 'checked' : ''}>إظهار أعضاء هذه الرتبة منفصلين في قائمة الأعضاء</label><label class="check-row"><input id="resourceMentionable" type="checkbox" ${item.mentionable ? 'checked' : ''}>السماح بالإشارة إلى هذه الرتبة</label></div></details><details><summary>صلاحيات الرتبة</summary><p class="form-note">الإعدادات غير المعروضة تبقى كما هي. Administrator يمنح جميع الصلاحيات؛ امنحه فقط لرتبة تثق بها.</p>${rolePermissionGroups.map(([title, flags]) => `<fieldset class="permission-group"><legend>${title}</legend>${flags.map(([key,text,bit]) => `<label class="check-row"><input type="checkbox" data-role-permission="${key}" value="${bit}" ${(roleFlags & BigInt(bit)) !== 0n ? 'checked' : ''}>${text}</label>`).join('')}</fieldset>`).join('')}</details>` : `<details open><summary>تفاصيل ${label}</summary><div class="form-grid">${kind === 'channel' && !id ? '<label>نوع القناة<select id="resourceType"><option value="0">نصية</option><option value="2">صوتية</option><option value="15">منتدى</option></select></label>' : ''}${kind === 'channel' ? `<label>التصنيف<select id="resourceParent"><option value="">دون تصنيف</option>${state.data.channels.filter(c => c.type === 4).map(c => `<option value="${esc(c.id)}" ${item.parent_id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>` : ''}<label>الترتيب<input id="resourcePosition" type="number" min="1" max="501" value="${currentOrder}"></label>${kind === 'channel' && type !== 2 ? `<label>وصف القناة<textarea id="resourceTopic" maxlength="${type === 15 ? 4096 : 1024}" rows="3">${esc(item.topic || '')}</textarea></label><label>بطء المحادثة بالثواني<input id="resourceSlowmode" type="number" min="0" max="21600" value="${Number(item.rate_limit_per_user || 0)}"></label><label class="check-row"><input id="resourceNsfw" type="checkbox" ${item.nsfw ? 'checked' : ''}>قناة للبالغين فقط (NSFW)</label>` : ''}${kind === 'channel' && type === 2 ? `<label>حد الأعضاء (0 = بلا حد)<input id="resourceUserLimit" type="number" min="0" max="99" value="${Number(item.user_limit || 0)}"></label><label>جودة الفيديو<select id="resourceVideoQuality"><option value="1" ${item.video_quality_mode !== 2 ? 'selected' : ''}>تلقائية</option><option value="2" ${item.video_quality_mode === 2 ? 'selected' : ''}>720p</option></select></label>` : ''}</div></details>${kind === 'channel' ? channelTypeSettings(item,type) : ''}<details><summary>من يرى ${label} وماذا يستطيع أن يفعل؟</summary><p class="form-note">اختر رتبة ثم حدّد السماح أو المنع أو وراثة إعدادات السيرفر. لن تتغير صلاحيات الرتب الأخرى.</p><label>الرتبة أو العضو<select id="permissionTarget">${state.data.roles.filter(r => !r.managed || r.id === state.guild).map(r => `<option value="${esc(r.id)}">${r.id === state.guild ? '@everyone — جميع الأعضاء' : esc(r.name)}</option>`).join('')}${memberTargetOptions}</select></label><label>إضافة عضو بالاسم<input id="memberSearch" type="search" autocomplete="off" placeholder="اكتب اسم العضو للبحث"></label><div id="memberSearchResults" role="status"></div><div class="permission-matrix">${channelPermissionChoices.map(([key,text]) => `<label>${text}<select data-channel-permission="${key}"><option value="inherit">بدون استثناء هنا</option><option value="allow">سماح</option><option value="deny">منع</option></select><small data-permission-result="${key}"></small></label>`).join('')}</div></details>`;
-  modal(`${id ? 'تعديل' : 'إضافة'} ${label}`, `<form id="resourceForm" class="resource-editor"><label>اسم ${label}<input id="resourceName" required maxlength="100" value="${esc(item.name || '')}" placeholder="اكتب اسمًا واضحًا"></label>${sections}<p class="form-note">ستُحفظ التغييرات في مسودتك أولًا. راجعها وأكّد التنفيذ قبل إرسال أي شيء إلى Discord.</p></form>`, '<button class="btn secondary" id="cancelEdit">إلغاء</button><button class="btn primary" type="submit" form="resourceForm">إضافة للمراجعة</button>');
+  modal(`${id ? 'تعديل' : 'إضافة'} ${label}`, `<form id="resourceForm" class="resource-editor"><label>اسم ${label}<input id="resourceName" required maxlength="100" value="${esc(item.name || '')}" placeholder="اكتب اسمًا واضحًا"></label>${sections}<p class="form-note">ستظهر مراجعة التغييرات مباشرة بعد المتابعة. أكّد التنفيذ لإرسالها إلى Discord.</p></form>`, '<button class="btn secondary" id="cancelEdit">إلغاء</button><button class="btn primary" type="submit" form="resourceForm">متابعة للتنفيذ</button>');
   $('#cancelEdit').onclick = closeDialog;
   if (role) {
     const permissionSection = document.querySelector('[data-role-permission]')?.closest('details');
@@ -602,7 +605,7 @@ function advancedEditResource(kind, id, typeOverride, nameDraft) {
       }
     }
     if (existing) state.draft[state.draft.indexOf(existing)] = op; else state.draft.push(op);
-    saveDraft(); closeDialog(); toast('أُضيف التعديل إلى مسودتك.');
+    saveDraft(); closeDialog(); reviewLocal();
   };
 }
 function editResource(kind, id) {
@@ -611,7 +614,7 @@ function editResource(kind, id) {
   const existing = state.draft.find(item => item.resource_id === id && id);
   const item = { ...original, ...existing };
   const label = { role: 'الرتبة', channel: 'القناة', category: 'التصنيف' }[kind];
-  modal(`${id ? 'تعديل' : 'إضافة'} ${label}`, `<form id="resourceForm" class="form-grid"><label>الاسم<input id="resourceName" required maxlength="100" value="${esc(item.name || '')}" placeholder="اكتب اسمًا واضحًا"></label>${kind === 'channel' ? `${!id ? '<label>نوع القناة<select id="resourceType"><option value="0">قناة نصية</option><option value="2">قناة صوتية</option><option value="15">منتدى</option></select></label>' : ''}<label>التصنيف<select id="resourceParent"><option value="">دون تصنيف</option>${state.data.channels.filter(channel => channel.type === 4).map(channel => `<option value="${esc(channel.id)}" ${item.parent_id === channel.id ? 'selected' : ''}>${esc(channel.name)}</option>`).join('')}</select></label><label>الترتيب<input id="resourcePosition" type="number" min="0" max="500" value="${Number(item.position || 0)}"></label>${(item.type ?? 0) !== 2 ? `<label>وصف القناة<textarea id="resourceTopic" maxlength="${type === 15 ? 4096 : 1024}" rows="3" placeholder="اشرح هدف القناة للأعضاء">${esc(item.topic || '')}</textarea></label>` : ''}` : ''}${kind === 'role' ? `<label>ترتيب الرتبة<input id="resourcePosition" type="number" min="1" max="500" value="${Number(item.position || 1)}"></label><label>لون الرتبة<input id="resourceColor" type="color" value="#${Number(item.color || 0x99aab5).toString(16).padStart(6, '0')}"></label>` : ''}<p class="form-note">سيُضاف هذا التعديل إلى قائمة المراجعة. لن يتغير شيء في Discord حتى تراجع وتؤكد التطبيق.</p></form>`, '<button class="btn secondary" id="cancelEdit">إلغاء</button><button class="btn primary" type="submit" form="resourceForm">إضافة للمراجعة</button>');
+  modal(`${id ? 'تعديل' : 'إضافة'} ${label}`, `<form id="resourceForm" class="form-grid"><label>الاسم<input id="resourceName" required maxlength="100" value="${esc(item.name || '')}" placeholder="اكتب اسمًا واضحًا"></label>${kind === 'channel' ? `${!id ? '<label>نوع القناة<select id="resourceType"><option value="0">قناة نصية</option><option value="2">قناة صوتية</option><option value="15">منتدى</option></select></label>' : ''}<label>التصنيف<select id="resourceParent"><option value="">دون تصنيف</option>${state.data.channels.filter(channel => channel.type === 4).map(channel => `<option value="${esc(channel.id)}" ${item.parent_id === channel.id ? 'selected' : ''}>${esc(channel.name)}</option>`).join('')}</select></label><label>الترتيب<input id="resourcePosition" type="number" min="0" max="500" value="${Number(item.position || 0)}"></label>${(item.type ?? 0) !== 2 ? `<label>وصف القناة<textarea id="resourceTopic" maxlength="${type === 15 ? 4096 : 1024}" rows="3" placeholder="اشرح هدف القناة للأعضاء">${esc(item.topic || '')}</textarea></label>` : ''}` : ''}${kind === 'role' ? `<label>ترتيب الرتبة<input id="resourcePosition" type="number" min="1" max="500" value="${Number(item.position || 1)}"></label><label>لون الرتبة<input id="resourceColor" type="color" value="#${Number(item.color || 0x99aab5).toString(16).padStart(6, '0')}"></label>` : ''}<p class="form-note">سيُضاف هذا التعديل إلى قائمة المراجعة. لن يتغير شيء في Discord حتى تراجع وتؤكد التطبيق.</p></form>`, '<button class="btn secondary" id="cancelEdit">إلغاء</button><button class="btn primary" type="submit" form="resourceForm">متابعة للتنفيذ</button>');
   $('#cancelEdit').onclick = closeDialog;
   $('#resourceForm').onsubmit = event => {
     event.preventDefault(); const name = $('#resourceName').value.trim(); if (!name) return;
@@ -619,7 +622,7 @@ function editResource(kind, id) {
     if (kind === 'channel') { op.parent_id = $('#resourceParent').value || null; if (!id) op.type = Number($('#resourceType').value); if ($('#resourceTopic')) op.topic = $('#resourceTopic').value.trim() || null; }
     if (kind === 'role') op.color = parseInt($('#resourceColor').value.slice(1), 16);
     if (existing) state.draft[state.draft.indexOf(existing)] = op; else state.draft.push(op);
-    saveDraft(); closeDialog(); toast('أُضيف التعديل إلى مسودتك.');
+    saveDraft(); closeDialog(); reviewLocal();
   };
 }
 async function renderTemplates() {
