@@ -336,12 +336,14 @@ test('adding a resource stages a guild-specific draft without calling mutation A
   assert.equal(doc.querySelector('#draftBar').hidden, false); assert.match(dom.window.localStorage.getItem(`diskoko:review:1:${guild.id}`), /ترحيب/);
   assert.equal(requests.filter(req => req.options.method && req.options.method !== 'GET').length, 0); dom.window.close();
 });
-test('bot workshop separates connected bots from the three panel types', async () => {
+test('bot workshop separates connected bots from all supported panel types', async () => {
   const { dom, doc } = await page('bots');
   assert.ok(doc.querySelector('#botWorkshopConnect'));
   assert.equal(doc.querySelectorAll('[data-create-bot]').length, 0);
   assert.equal(doc.querySelectorAll('[data-bot-feature]').length, 0);
-  assert.equal(doc.querySelectorAll('.bot-design-card').length, 3);
+  assert.equal(doc.querySelectorAll('.bot-design-card').length, 5);
+  assert.match(doc.body.textContent, /نادي الأفلام/);
+  assert.match(doc.body.textContent, /واجهة المجتمع/);
   assert.match(doc.body.textContent, /اللوحات التفاعلية/);
   assert.match(doc.body.textContent, /لوحة الألعاب/);
   assert.equal(doc.querySelector('#createYoutubePanel').disabled, true);

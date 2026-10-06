@@ -5,20 +5,23 @@ import { youtubeVideoId } from '../lib/youtube-panel.js';
 import { describeYoutubeFailure } from '../lib/youtube-audio.js';
 
 test('music panel validates identity and exposes controls only while playing', () => {
-  const config = normalizeMusicPanel({ title: 'استديو', color: '#AA33CC', defaultVolume: 40, bannerUrl: 'https://example.com/banner.png', logoUrl: 'https://example.com/logo.png' });
+  const config = normalizeMusicPanel({ title: 'استديو', color: '#AA33CC', defaultVolume: 40, bannerUrl: 'https://cdn.discordapp.com/attachments/123/banner.png', logoUrl: 'https://cdn.discordapp.com/attachments/123/logo.png' });
   assert.equal(config.defaultVolume, 40);
   const idle = musicPanelMessage(config, 'موسيقى');
   assert.equal(idle.embeds[0].title, 'استديو');
-  assert.equal(idle.components[0].components[0].type, 2);
+  assert.deepEqual(idle.components, []);
+  assert.throws(() => normalizeMusicPanel({ bannerUrl: 'https://example.com/banner.png' }), /مرفقات Discord/);
   assert.match(idle.embeds[0].description, /رابط/);
-  assert.equal(idle.embeds[0].image.url, 'https://example.com/banner.png');
-  assert.equal(idle.embeds[0].thumbnail.url, 'https://example.com/logo.png');
+  assert.equal(idle.embeds[0].image.url, 'https://cdn.discordapp.com/attachments/123/banner.png');
+  assert.equal(idle.embeds[0].thumbnail.url, 'https://cdn.discordapp.com/attachments/123/logo.png');
   const playing = musicPanelMessage(config, 'موسيقى', { channelId: '123', queue: [{ title: 'مقطع' }], paused: false, volume: 0.4 });
   assert.equal(playing.components.length, 2);
-  assert.deepEqual(playing.components[1].components.map(button => button.label), ['🔉 −10', '40%', '🔊 +10']);
+  assert.deepEqual(playing.components[0].components.map(button => button.emoji.name), ['🔁', '🔉', '⏸️', '🔊', '⏭️']);
+  assert.match(playing.components[1].components[0].custom_id, /:stop:/);
+  assert.equal(playing.components[1].components[0].style, 4);
   assert.match(playing.embeds[0].description, /<#123>/);
   const youtube = musicPanelMessage(config, 'موسيقى', { channelId: '123', queue: [{ kind: 'youtube', id: 'jNQXAC9IVRw', title: 'Me at the zoo' }], paused: false, volume: 0.8 });
-  assert.equal(youtube.embeds[0].image.url, 'https://example.com/banner.png');
+  assert.equal(youtube.embeds[0].image.url, 'https://cdn.discordapp.com/attachments/123/banner.png');
   const automaticArtwork = musicPanelMessage({}, 'موسيقى', { channelId: '123', queue: [{ kind: 'youtube', id: 'jNQXAC9IVRw', title: 'Me at the zoo' }], paused: false, volume: 0.8 });
   assert.match(automaticArtwork.embeds[0].image.url, /jNQXAC9IVRw/);
 });
@@ -35,17 +38,21 @@ test('audio source validates links and derives direct-file titles', async () => 
   assert.deepEqual(await resolveMusicTrack('https://cdn.discordapp.com/attachments/123/file.mp3'), { kind: 'direct', url: 'https://cdn.discordapp.com/attachments/123/file.mp3', title: 'file' });
 });
 
-test('music command accepts link and voice room together; panel button explains the shortcut', async () => {
+test('music slash fields are required and a legacy add button keeps its combined form', async () => {
   assert.deepEqual(musicSlashOptions.map(option => option.name), ['رابط', 'روم']);
   let panel;
   await handleMusicCommand({ options: { getString: () => null }, reply: async value => { panel = value; } }, {}, 'bot', 'موسيقى', {});
-  assert.match(panel.embeds[0].description, /رابط/);
+  assert.match(panel.content, /الرابط والروم/);
+  assert.equal(panel.ephemeral, true);
+  assert.equal(panel.embeds, undefined);
+  assert.ok(musicSlashOptions.every(option => option.required));
+  assert.deepEqual(musicSlashOptions[1].channel_types, [2]);
   const pool = { query: async () => ({ rows: [{ panel_config: {} }] }) };
-  let reply;
-  const interaction = { customId: 'diskoko:music:choose:موسيقى', guildId: 'guild', reply: async value => { reply = value; } };
+  let modal;
+  const interaction = { customId: 'diskoko:music:choose:موسيقى', guildId: 'guild', showModal: async value => { modal = value; } };
   assert.equal(await handleMusicInteraction(interaction, pool, 'bot', {}), true);
-  assert.match(reply.content, /رابط/);
-  assert.equal(reply.ephemeral, true);
+  assert.deepEqual(modal.components.map(item => item.component.custom_id), ['audio_url', 'voice_room']);
+  assert.deepEqual(modal.components[1].component.channel_types, [2]);
 });
 
 test('old room selector points members to the slash fields without opening a modal', async () => {
