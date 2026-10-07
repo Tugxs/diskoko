@@ -78,3 +78,12 @@ test('explicit heading and body placement prevents overlapping the final image',
   const [heading,image,body]=result.designScene.layers;
   assert.equal(heading.y,5);assert.equal(body.x,5);assert.equal(body.width,35);assert.equal(body.text,'Original body');assert.ok(body.x+body.width<image.x);
 });
+
+test('initial background boxes stay behind text and defaults follow card content language',()=>{
+  const source={kind:'tickets',title:'Help',description:'Contact us',designScene:{layers:[{type:'text',text:'Wrong heading',bold:true},{type:'box',x:0,y:0,width:100,height:100}]}};
+  const result=applyReferencePreferences(source,{prompt:'Use title "Exact title"'});
+  assert.equal(result.designScene.layers[0].type,'box');assert.equal(result.designScene.layers[1].text,'Exact title');assert.equal(result.buttonLabel,'Open support ticket');
+  const saved=applyReferencePreferences({...source,buttonLabel:'My button'},{prompt:'Keep this draft',previous_proposal:{interactive:source}});
+  assert.equal(saved.designScene.layers[0].type,'text');assert.equal(saved.buttonLabel,'My button');
+  assert.equal(applyReferencePreferences(source,{prompt:'Use button label "Open test ticket"'}).buttonLabel,'Open test ticket');
+});

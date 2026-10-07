@@ -28,6 +28,8 @@ for(const [ar,en] of Object.entries({
   'المسار: حدد السؤال والخيارات والصور ← راجع المعاينة ← انشر ← يصوّت الأعضاء وتظهر النتائج':'Workflow: set question and choices → review → publish → members vote and view results',
 }))translations.set(ar,en);
 
+for(const [ar,en] of Object.entries({'راجعت الإعدادات وأوافق على النشر في Discord.':'I reviewed these settings and confirm publication in Discord.','نعم، أؤكد التنفيذ':'Yes, confirm execution','معاينة الصورة التي ستُرسل / Preview of the image to publish':'Preview of the image to publish','تنزيل التصميم / Download design':'Download design','حُفظ تصميم الصورة دون نشر / Image draft saved without publishing':'Image draft saved without publishing'}))translations.set(ar,en);
+
 export function initializeAiLanguage(root,dialog,userId,catalog=[]) {
   for(const item of catalog){if(item.titleEn)translations.set(item.title,item.titleEn);if(item.promptEn)translations.set(item.prompt,item.promptEn);}
   const key=`diskoko:ai-language:${userId}`;
@@ -48,7 +50,7 @@ export function initializeAiLanguage(root,dialog,userId,catalog=[]) {
         if(!parent || parent.closest('.ai-discord-preview,.ai-bubble,#aiConversations,input,textarea,[data-scene-preview]'))continue;
         if(parent.closest('#aiChatTitle') && !['New conversation','محادثة جديدة'].includes(node.nodeValue.trim()))continue;
         if(parent.closest('option') && /^\d{17,22}$/.test(parent.value || ''))continue;
-        if(!parent.closest('label,legend,button,summary,option,.panel-head,.ai-bot-connect,.form-note,.notice,.badge,.head,.ai-welcome,.ai-library-note,h1,h3'))continue;
+        if(!parent.closest('label,legend,button,summary,option,.panel-head,.ai-bot-connect,.form-note,.notice,.badge,.head,.ai-welcome,.ai-library-note,.ai-scene-review,h1,h2,h3'))continue;
         const old=originals.get(node);
         if(old && node.nodeValue===old.translated){if(language!=='en')node.nodeValue=old.source;continue;}
         if(language!=='en')continue;
