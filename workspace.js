@@ -34,7 +34,7 @@ function bindDesignScene(plan,prefix,confirmId,launchId,requestId) {
   field.querySelectorAll('[data-scene-add]').forEach(button=>button.onclick=()=>{if(scene.layers.length>=12)return;scene.layers.push(normalizeDesignScene({layers:[{type:button.dataset.sceneAdd,text:'Text / نص',x:10,y:10,width:30,height:50,fontSize:36,color:'#ffffff'}]}).layers[0]);reset();renderLayers();});
   field.querySelector('[data-scene-undo]').onclick=()=>{if(historyPosition>0){Object.assign(scene,JSON.parse(JSON.stringify(snapshots[--historyPosition])));field.querySelector('[data-scene-background]').value=scene.background;reset();renderLayers();void generate();}};
   field.querySelector('[data-scene-redo]').onclick=()=>{if(historyPosition<snapshots.length-1){Object.assign(scene,JSON.parse(JSON.stringify(snapshots[++historyPosition])));field.querySelector('[data-scene-background]').value=scene.background;reset();renderLayers();void generate();}};
-  field.querySelector('[data-scene-save]').onclick=async()=>{const status=field.querySelector('[data-scene-status]');try{if(!requestId)throw Error('Draft unavailable');const result=await api(`/api/ai/requests/${encodeURIComponent(requestId)}/save-design`,{method:'POST',body:JSON.stringify({revision:savedRevision,designScene:normalizeDesignScene(scene)})});savedRevision=result.revision;status.textContent='حُفظ تصميم الصورة دون نشر / Image draft saved without publishing';}catch(error){status.textContent=error.message;}};
+  field.querySelector('[data-scene-save]').onclick=async()=>{const status=field.querySelector('[data-scene-status]');try{if(!requestId)throw Error('Draft unavailable');const result=await api(`/api/ai/requests/${encodeURIComponent(requestId)}/save-design`,{method:'POST',body:JSON.stringify({revision:savedRevision,designScene:normalizeDesignScene(scene)})});savedRevision=result.revision;if(result.draftVersion){aiDraftVersions.set(requestId,result.draftVersion);aiReviewVersions.set(requestId,result.draftVersion);}status.textContent='حُفظ تصميم الصورة دون نشر / Image draft saved without publishing';}catch(error){status.textContent=error.message;}};
   input.addEventListener('change',reset);renderLayers();if(plan.designScene && !plan.sceneInitiallyDisabled)void generate();
 }
 function sceneEnabled(prefix) { const input=document.getElementById(prefix);return input && sceneReviewState.get(input)?.enabled(); }
@@ -176,8 +176,11 @@ const sections = [ ['overview', '⌂', 'نظرة عامة'], ['alerts', '⚠', '
 const aliases = { dashboard: 'overview', 'bot-settings': 'commands', 'custom-bot': 'bots', 'server-detail': 'builder', preview: 'builder', 'custom-template': 'builder', newserver: 'builder' };
 function screen() { const hash = location.hash.slice(1); return aliases[hash] || (sections.some(([key]) => key === hash) || hash === 'servers' ? hash : 'overview'); }
 let csrfPromise;
+const aiDraftVersions=new Map(),aiReviewVersions=new Map();
 async function api(url, options = {}) {
-  const method = options.method || 'GET'; const headers = { 'Content-Type': 'application/json' };
+  const method = options.method || 'GET';
+  if(method==='POST' && options.body){const payload=JSON.parse(options.body);const id=url.match(/^\/api\/ai\/requests\/([^/]+)\//)?.[1] || payload.sourceRequestId;if(id && aiReviewVersions.has(id))options={...options,body:JSON.stringify({...payload,draftVersion:aiReviewVersions.get(id)})};}
+  const headers = { 'Content-Type': 'application/json' };
   if (method !== 'GET') {
     csrfPromise ||= fetch('/api/csrf-token', { credentials: 'include', cache: 'no-store' }).then(async response => { if (!response.ok) throw Error('تعذر التحقق من الجلسة.'); return (await response.json()).token; }).catch(error => { csrfPromise = null; throw error; });
     headers['X-CSRF-Token'] = await csrfPromise;
@@ -2017,6 +2020,7 @@ async function assistant() {
   const aiLanguage=initializeAiLanguage($('#workspace'),$('#dialog'),state.account?.user.id || 'anonymous',aiPromptLibrary);
   state.aiLanguageController=aiLanguage;
   const list = $('#aiConversations'), thread = $('#aiMessages'), notice = $('#aiNotice'), input = $('#assistantPrompt');
+  thread.addEventListener('click',event=>{const button=event.target.closest('[data-ai-interactive],[data-ai-message],[data-ai-module]');if(!button)return;const id=button.dataset.aiInteractive || button.dataset.aiMessage || button.dataset.aiModule;if(aiDraftVersions.has(id))aiReviewVersions.set(id,aiDraftVersions.get(id));},true);
   let connectedAiBot = null;
   const renderAiBotConnection = () => {
     const target = $('#aiBotConnection'); if (!target || !active()) return;
@@ -2587,7 +2591,7 @@ async function assistant() {
     thread.scrollTop = thread.scrollHeight;
   };
   const refreshList = async () => { const data = await api(`/api/ai/conversations?guildId=${encodeURIComponent(guild)}`); if (!active()) return; conversations = data.conversations || []; if (selected && !conversations.some(item => item.id === selected)) { selected = ''; sessionStorage.removeItem(storageKey); } renderList(); };
-  const loadMessages = async () => { if (!selected) { messages = []; renderMessages(); return; } const current = selected; const data = await api(`/api/ai/conversations/${encodeURIComponent(current)}/messages`); if (!active() || current !== selected) return; messages = data.messages || []; renderMessages(); const pending = messages.find(item => ['pending', 'processing'].includes(item.status)); if (pending) poll(pending.id, current); };
+  const loadMessages = async () => { if (!selected) { messages = []; renderMessages(); return; } const current = selected; const data = await api(`/api/ai/conversations/${encodeURIComponent(current)}/messages`); if (!active() || current !== selected) return; messages = data.messages || [];for(const item of messages)if(item.proposal?.draftVersion)aiDraftVersions.set(item.id,item.proposal.draftVersion); renderMessages(); const pending = messages.find(item => ['pending', 'processing'].includes(item.status)); if (pending) poll(pending.id, current); };
   const poll = async (id, conversationId) => { for (let attempt = 0; attempt < 60 && active() && selected === conversationId; attempt++) { await new Promise(resolve => setTimeout(resolve, 3000)); if (!active() || selected !== conversationId) return; try { const { request } = await api(`/api/ai/requests/${id}`); if (['completed', 'failed'].includes(request.status)) { await loadMessages(); await refreshList(); return; } } catch (error) { notice.textContent = error.message; return; } } if (active()) notice.textContent = 'الرد ما زال قيد المعالجة. ستجده هنا عند العودة للمحادثة.'; };
   $('#aiNew').onclick = () => { selected = ''; sessionStorage.removeItem(storageKey); messages = []; notice.textContent = ''; renderList(); renderMessages(); input.focus(); };
   $('#assistantForm').onsubmit = run(async event => {

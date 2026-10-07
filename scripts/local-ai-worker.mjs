@@ -227,7 +227,7 @@ async function propose(job, context, guild, answer, repair=false) {
 console.log(`AI Diskoko worker started: ${model}`);
 if (process.env.AI_WORKER_TEST !== '1' && visionModel) {
   const capabilities = await request(`${site}/api/ai/worker/capabilities`, { headers: { Authorization: `Bearer ${token}` } });
-  if (capabilities.moduleDraftVersion !== 1 || capabilities.flexibleDesignVersion !== 1 || capabilities.referenceDesignVersion !== 1 || capabilities.referenceOnly !== true || capabilities.durablePublicationReview !== true) throw new Error('Deploy the compatible reference-design backend before enabling this worker.');
+  if (capabilities.draftContractVersion !== 1 || capabilities.moduleDraftVersion !== 1 || capabilities.flexibleDesignVersion !== 1 || capabilities.referenceDesignVersion !== 1 || capabilities.referenceOnly !== true || capabilities.durablePublicationReview !== true) throw new Error('Deploy the compatible reference-design backend before enabling this worker.');
 }
 while (!stopping && process.env.AI_WORKER_TEST !== '1') {
   try {
