@@ -2308,11 +2308,11 @@ async function assistant() {
         $('#aiSpecialPreviewCard').style.borderColor = $('#aiSpecialColor').value;
         if (plan.kind === 'rules') $('#aiSpecialPreviewOptions').style.setProperty('--rules-accent', $('#aiSpecialColor').value);
         const previewMemberText = value => value.replace(/\{(?:username|membername)\}/gi,'{name}').replace(/\{(?:servername|guildname)\}/gi,'{server}').replace(/\{membercount\}/gi,'{memberCount}').replaceAll('{member}', '@عضو جديد').replaceAll('{name}', 'عضو جديد').replaceAll('{server}', state.data?.guild?.name || 'السيرفر').replaceAll('{memberCount}', String(state.data?.guild?.memberCount ?? state.data?.guild?.member_count ?? 'عدد الأعضاء الحالي'));
-        $('#aiSpecialPreviewTitle').innerHTML = emojiPreviewText(previewMemberText($('#aiSpecialTitle').value || 'العنوان'));
+        $('#aiSpecialPreviewTitle').dir='auto'; $('#aiSpecialPreviewTitle').innerHTML = emojiPreviewText(previewMemberText(($('#aiSpecialTitle').value || 'العنوان').replaceAll('{member}','عضو جديد')));
         if (plan.kind === 'rules') { $('#aiRulesSingleWrap').hidden = $('#aiRulesStyle').value !== 'single'; $('#aiRulesEntriesWrap').hidden = $('#aiRulesStyle').value === 'single'; }
         const ruleStyle = plan.kind === 'rules' ? $('#aiRulesStyle').value : '';
         const text = plan.kind === 'poll' ? `${$('#aiSpecialDescription').value}\nاختر إجابة واحدة. يمكنك تغيير صوتك.` : plan.kind === 'rules' && ruleStyle === 'single' ? [$('#aiSpecialDescription').value, $('#aiRulesSingleText').value].filter(Boolean).join('\n\n') : plan.kind === 'rules' ? $('#aiSpecialDescription').value : $('#aiSpecialDescription').value.replaceAll('{member}', '@عضو جديد').replaceAll('{name}', 'عضو جديد');
-        $('#aiSpecialPreviewBody').innerHTML = discordMarkdownPreview(previewMemberText(text));
+        $('#aiSpecialPreviewBody').dir='auto'; $('#aiSpecialPreviewBody').innerHTML = discordMarkdownPreview(previewMemberText(text));
         const previewOptions = $('#aiSpecialPreviewOptions');
         let rulePageSize = 0, rulePageLength = ($('#aiSpecialTitle').value || '').length + ($('#aiSpecialDescription').value || '').length;
         previewOptions.innerHTML = plan.kind === 'poll' ? optionFiles.map((entry, index) => `<div class="ai-poll-preview-option">${entry.file ? `<img src="${fileUrl(entry.file)}" alt="صورة الخيار ${index + 1}">` : ''}<span>${index + 1}. ${emojiPreviewText(entry.text || 'الخيار')}</span></div>`).join('') : plan.kind === 'rules' && ruleStyle !== 'single' ? ruleEntries.filter(entry => entry.body.trim()).map(entry => {
@@ -2332,13 +2332,18 @@ async function assistant() {
           $('#aiWelcomeAvatarVertical').closest('label').querySelector('output').textContent = `${$('#aiWelcomeAvatarVertical').value}%`;
           $('#aiWelcomeAvatarRadius').closest('label').querySelector('output').textContent = $('#aiWelcomeAvatarRadius').value;
           const positions = $('#aiWelcomeAvatarPosition');
+          positions.querySelector('[value="right"]').textContent = composite ? 'يمين' : 'يمين — صورة جانبية';
+          positions.querySelector('[value="left"]').textContent = composite ? 'يسار' : 'يسار — أيقونة بجوار الاسم';
           positions.querySelector('[value="top"]').disabled = composite;
           positions.querySelector('[value="center"]').disabled = !composite;
           if (composite && positions.value === 'top') positions.value = 'center';
           if (!composite && positions.value === 'center') positions.value = 'right';
           const position = $('#aiWelcomeAvatarPosition').value;
           $('#aiSpecialPreviewCard').dataset.avatarPosition = position;
-          avatarPreview.textContent = ($('#aiSpecialTitle').value.match(/\{name\}/) ? 'ع' : '✦');
+          avatarPreview.textContent = 'ع';
+          let authorName=$('#aiWelcomePreviewAuthor');
+          if(!authorName){authorName=document.createElement('span');authorName.id='aiWelcomePreviewAuthor';authorName.className='ai-welcome-preview-author-name';avatarPreview.after(authorName);}
+          authorName.textContent='عضو جديد';authorName.hidden=composite || position!=='left';
         }
         $('#aiSpecialPreviewButton').innerHTML = emojiPreviewText(plan.kind === 'poll' ? '📊 تصويت' : plan.kind === 'event' ? $('#aiEventSignup').checked ? `${($('#aiPanelButtonLabel') || $('#aiEventButton')).value || 'سجّل مشاركتك'} · المسجلون ٠` : 'دون زر تسجيل' : 'يُرسل تلقائيًا عند الانضمام');
         $('#aiSpecialPreviewButton').hidden = plan.kind === 'rules' || plan.kind === 'event' && !$('#aiEventSignup').checked;
