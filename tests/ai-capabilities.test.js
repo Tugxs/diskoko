@@ -72,3 +72,9 @@ test('preserving text is not a request to replace it during a font edit',()=>{
   const result=mergePanelEdits(previous,{...previous,description:'Invented replacement',designEdits:[{op:'set',layer:0,field:'fontSize',value:64}]},'Only change the heading font size to 64. Keep all other elements and text exactly as they are.');
   assert.equal(result.description,'Original copy');assert.equal(result.designScene.layers[0].fontSize,64);
 });
+
+test('explicit heading and body placement prevents overlapping the final image',()=>{
+  const result=applyReferencePreferences({kind:'tickets',description:'Original body',designScene:{layers:[{type:'text',text:'Heading',bold:true,x:0,y:20,width:100,height:40},{type:'image',x:0,y:20,width:100,height:100},{type:'text',text:'Original body',x:0,y:0,width:100,height:100}]}},{prompt:'A heading at the top, a circular image on the right and body text on the left.'});
+  const [heading,image,body]=result.designScene.layers;
+  assert.equal(heading.y,5);assert.equal(body.x,5);assert.equal(body.width,35);assert.equal(body.text,'Original body');assert.ok(body.x+body.width<image.x);
+});
