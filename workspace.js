@@ -2332,6 +2332,8 @@ async function assistant() {
           $('#aiWelcomeAvatarVertical').closest('label').querySelector('output').textContent = `${$('#aiWelcomeAvatarVertical').value}%`;
           $('#aiWelcomeAvatarRadius').closest('label').querySelector('output').textContent = $('#aiWelcomeAvatarRadius').value;
           const positions = $('#aiWelcomeAvatarPosition');
+          positions.querySelector('[value="right"]').textContent = composite ? 'يمين' : 'يمين — صورة جانبية';
+          positions.querySelector('[value="left"]').textContent = composite ? 'يسار' : 'يسار — أيقونة بجوار الاسم';
           positions.querySelector('[value="top"]').disabled = composite;
           positions.querySelector('[value="center"]').disabled = !composite;
           if (composite && positions.value === 'top') positions.value = 'center';
