@@ -936,18 +936,21 @@ app.post("/api/projects/:id/bind-guild", requireUser, requireWriteAccess, async 
 });
 mountAiBotConnections(app, { pool, requireUser, requireWriteAccess, authorizedGuild, requirePlanCapacity, audit });
 mountMovieClubs(app, { pool, requireUser, requireWriteAccess, authorizedGuild, connectedBot, requirePlanCapacity, audit });
-app.post(/^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create-scheduled-event|control-channel)$/, requireUser, async (req, res, next) => { try {
-  const item = (await pool.query('SELECT guild_id FROM ai_requests WHERE id=$1 AND user_id=$2', [req.path.split('/')[4], req.user.id])).rows[0];
+const selectAiRequestBot = async (req, res, next) => { try {
+  const item = (await pool.query('SELECT guild_id,design_bot_id FROM ai_requests WHERE id=$1 AND user_id=$2', [req.path.split('/')[4], req.user.id])).rows[0];
   if (item) {
     const bot = await botTokenForPublication(pool, item.guild_id);
+    if (item.design_bot_id && item.design_bot_id !== (bot?.id || 'public')) return res.status(409).json({ error: 'تغيّر بوت التنفيذ بعد تجهيز المسودة. اختر البوت المطلوب وجهّز مراجعة جديدة قبل النشر.' });
     if (bot) { const context = requestContext.getStore(); context.aiBotToken = bot.token; context.aiBotId = bot.id; context.aiBotMemberJoins = bot.memberJoins; req.publishingBotId = bot.id; }
   }
   next();
-} catch (error) { next(error); } });
+} catch (error) { next(error); } };
+app.post(/^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create-scheduled-event|control-channel)$/, requireUser, selectAiRequestBot);
+app.get(/^\/api\/ai\/requests\/[^/]+\/published-preview$/, requireUser, selectAiRequestBot);
 mountWorkspace(app, { pool, requireUser, requireWriteAccess, authorizedGuild, discordBotFetch, audit, requirePlanCapacity, entitlementsFor, templates: TEMPLATES, makeTemplatePlan, botStatus: executionBotStatus });
 mountReadyTemplates(app, { pool, requireUser, requireWriteAccess, authorizedGuild, discordBotFetch, audit, requirePlanCapacity, botStatus: getDiscordBotStatus });
 mountStandaloneModules(app, { pool, requireUser, requireWriteAccess, authorizedGuild, discordBotFetch, audit, requirePlanCapacity, botStatus: getDiscordBotStatus });
-mountLocalAi(app, { pool, requireUser, requireWriteAccess, authorizedGuild, canonicalPlan, discordBotFetch, requirePlanCapacity });
+mountLocalAi(app, { pool, requireUser, requireWriteAccess, authorizedGuild, canonicalPlan, discordBotFetch, requirePlanCapacity, designBotForGuild: async guildId => { const bot = await connectedBotMetadata(pool, guildId); return bot?.selected ? bot.id : 'public'; } });
 mountInteractiveSystems(app, { pool, requireUser, requireWriteAccess, authorizedGuild, discordBotFetch, requirePlanCapacity, getDiscordBotStatus: executionBotStatus });
 mountChannelControl(app, { pool, requireUser, requireWriteAccess, authorizedGuild, discordBotFetch, requirePlanCapacity });
 mountNativeEvents(app, { pool, requireUser, requireWriteAccess, authorizedGuild, discordBotFetch, requirePlanCapacity });
@@ -1117,4 +1120,3 @@ migrate().then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).th
     return discordBotFetch(pathname, { ...options, headers: { ...options.headers, Authorization: `Bot ${bot.token}` } });
   } });
 }).catch((error) => { console.error("Database migration failed", error); process.exit(1); });
-

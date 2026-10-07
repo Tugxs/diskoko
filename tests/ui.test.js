@@ -1022,3 +1022,21 @@ test('a concurrent browser-tab lock stops the request before creating a plan', a
   assert.match(doc.querySelector('#executionError').textContent, /نافذة أخرى/);
   dom.window.close();
 });
+
+test('welcome reference opens editable style without previewing or publishing the screenshot', async () => {
+  const cid = '11111111-1111-4111-8111-111111111111';
+  const response = url => url === '/api/ai/status' ? { available: true, planEnabled: true }
+    : url.startsWith('/api/ai/conversations?') ? { conversations: [{ id: cid, title: 'مرجع ترحيب' }] }
+    : url === '/api/ai/conversations/' + cid + '/messages' ? { messages: [{ id: '22222222-2222-4222-8222-222222222222', prompt: 'صمم مثل الصورة', answer: 'راجع التصميم', status: 'completed', has_attachment: true, proposal: { interactive: { kind: 'welcome', title: 'HELLO {name}', description: 'هلا {member}', referenceOnly: true, color: '#383940', avatarPosition: 'center', bannerPosition: 'above' } } }] }
+    : fixtureResponse(url);
+  const { dom, doc, requests } = await page('assistant', response);
+  doc.querySelector('.ai-conversation').click(); await settle();
+  doc.querySelector('[data-ai-interactive]').click();
+  assert.equal(doc.querySelector('#aiSpecialColor').value, '#383940');
+  assert.equal(doc.querySelector('#aiWelcomeAvatarPosition').value, 'center');
+  assert.equal(doc.querySelector('#aiWelcomeComposite').checked, true);
+  assert.match(doc.querySelector('#dialogContent').textContent, /مرجع للتصميم فقط ولن تُنشر/);
+  assert.equal(doc.querySelector('#aiSpecialPreviewImage img'), null);
+  assert.equal(requests.some(req => req.options.method === 'POST'), false);
+  dom.window.close();
+});

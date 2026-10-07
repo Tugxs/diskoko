@@ -1,0 +1,16 @@
+import fs from 'node:fs/promises';
+process.env.AI_WORKER_TEST='1';
+process.env.LOCAL_AI_PROVIDER='llama';
+process.env.LOCAL_AI_URL='http://127.0.0.1:11434';
+process.env.AI_PLANNING_MODEL ||= 'Qwen3VL-4B-Instruct-Q4_K_M.gguf';
+process.env.AI_PLANNING_URL ||= 'http://127.0.0.1:11436';
+process.env.AI_PLANNING_PROVIDER='llama';
+const { respond }=await import('./local-ai-worker.mjs');
+const imageResults=JSON.parse(await fs.readFile('outputs/vision-validation/results.json','utf8'));
+const prompt='أريد لوحة دعم بهذا الشكل، الصورة في الوسط فوق التفاصيل والأزرار أسفلها. اكتب عنوانًا ووصفًا عربيًا مناسبًا. لا تنسخ أسماء المثال. القناة support.';
+const first=await respond({prompt,has_attachment:true,image_analysis:imageResults[0].analysis,guild_context:{name:'Design pilot',channels:[{id:'123456789012345678',name:'support',type:0}],roles:[]}});
+if(first.proposal?.interactive?.kind!=='tickets') throw Error('Support design lost its ticket function: '+JSON.stringify(first));
+const follow=await respond({prompt:'غيّر لون البطاقة إلى #229944 وسمّ زر التذكرة «احتاج مساعدة». احتفظ ببقية التفاصيل.',has_attachment:true,image_analysis:imageResults[0].analysis,previous_proposal:first.proposal,context:[{role:'user',content:prompt},{role:'assistant',content:first.answer}],guild_context:{name:'Design pilot',channels:[{id:'123456789012345678',name:'support',type:0}],roles:[]}});
+if(follow.proposal?.interactive?.kind!=='tickets' || follow.proposal.interactive.color!=='#229944' || !follow.proposal.interactive.buttonLabel?.includes('مساعدة')) throw Error('Follow-up was not preserved: '+JSON.stringify(follow));
+await fs.writeFile('outputs/vision-validation/conversation.json',JSON.stringify({first,follow},null,2));
+console.log(JSON.stringify({first:first.proposal,follow:follow.proposal},null,2));

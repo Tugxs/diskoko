@@ -14,7 +14,8 @@ for (const file of files) {
     const relative = url.replace(/^\//, '');
     const asset = path.resolve(root, relative);
     if (!asset.startsWith(root + path.sep) || !fs.existsSync(asset)) { missing.push(`${file}: ${url}`); return match; }
-    const hash = crypto.createHash('sha256').update(fs.readFileSync(asset)).digest('hex').slice(0, 10);
+    // Text assets must keep the same version across Windows and Linux checkouts.
+    const hash = crypto.createHash('sha256').update(fs.readFileSync(asset, 'utf8').replace(/\r\n/g, '\n')).digest('hex').slice(0, 10);
     return `${attribute}=${quote}${url}?v=${hash}${quote}`;
   });
   if (updated !== source) {
