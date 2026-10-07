@@ -544,6 +544,18 @@ test('completed AI module reply opens its specific editor only after the request
   assert.equal(doc.querySelector('#moduleSubjectLabel').value, 'عنوان مهمة الفريق');
   dom.window.close();
 });
+test('only the newest unpublished conversation draft offers publication controls',async()=>{
+  const conversation='11111111-1111-4111-8111-111111111111';
+  const messages=['old','latest'].map(id=>({id,prompt:'Build a poll',answer:'Review',status:'completed',proposal:{interactive:{kind:'poll',question:id,channel:'',options:['A','B']}}}));
+  const response=url=>url==='/api/ai/status'?{available:true,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:conversation,title:'Poll',updated_at:'2026-10-07T00:00:00Z'}]}:url===`/api/ai/conversations/${conversation}/messages`?{messages}:fixtureResponse(url);
+  const {dom,doc}=await page('assistant',response);
+  doc.querySelector('.ai-conversation').click();await settle();
+  assert.equal(doc.querySelector('[data-ai-interactive="old"]'),null);
+  assert.ok(doc.querySelector('[data-ai-interactive="latest"]'));
+  assert.match(doc.querySelector('#aiMessages').textContent,/نسخة سابقة/);
+  dom.window.close();
+});
+
 test('incomplete giveaway opens blank operational fields without publishing', async () => {
   const id='22222222-2222-4222-8222-222222222222', conversation='11111111-1111-4111-8111-111111111111';
   const response=url=>url==='/api/ai/status'?{available:true,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:conversation,title:'Giveaway',updated_at:'2026-10-07T00:00:00Z'}]}:url===`/api/ai/conversations/${conversation}/messages`?{messages:[{id,prompt:'Build a giveaway',answer:'Review the draft',status:'completed',proposal:{interactive:{kind:'giveaway',prize:'',channel:'',durationMinutes:null,winnerCount:null}}}]}:fixtureResponse(url);
