@@ -81,7 +81,7 @@ export async function respond(job) {
   const context = Array.isArray(job.context) ? job.context.filter(item => ['user', 'assistant'].includes(item?.role) && typeof item.content === 'string').slice(-12) : [];
   if (job.has_attachment || job.previous_proposal?.interactive || job.previous_proposal?.message || editablePanelRequest(job.prompt)) {
     const candidate = normalizeAiProposal(await propose(job, context, guild, ''));
-    if (candidate) return { answer: localizedAiMessage('draft',language), proposal: candidate };
+    if (candidate) return { answer: candidate.interactive?.kind === 'module' ? (language === 'en' ? 'Your custom functional draft is ready. Edit its content, select the existing channel and required roles, then preview and confirm publication. Nothing has been published.' : 'جهزت مسودة مخصصة بوظيفة تفاعلية فعلية. عدّل المحتوى واختر القناة والرتب المطلوبة، ثم راجع المعاينة وأكد النشر. لم يُنشر شيء بعد.') : localizedAiMessage('draft',language), proposal: candidate };
   }
   const guildSummary = `اسم السيرفر: ${guild.name || 'غير متاح'}. القنوات الحالية: ${(guild.channels || []).map(item => `${item.name} (${item.id})`).join('، ') || 'غير متاحة'}. الرتب الحالية: ${(guild.roles || []).map(item => `${item.name} (${item.id})`).join('، ') || 'غير متاحة'}.`;
   const system = [
@@ -169,6 +169,7 @@ async function propose(job, context, guild, answer) {
       'You prepare safe editable Discord drafts. You NEVER publish. Return one JSON object only: {"executeNow":true,"operations":[],"message":null,"interactive":{...}}.',
       'executeNow means prepare a REVIEW ONLY, not execute. When the user says they want a panel design (including أريد لوحة) or asks to edit an existing draft, use executeNow=true. For a question, advice only or an unsupported function use executeNow=false with null drafts.',
       'Preserve the requested FUNCTION: support/tickets -> tickets; automatic joining welcome -> welcome; voting -> poll; signup announcement -> event; rules -> rules; giveaway -> giveaway. Never substitute a regular message for an interactive function.',
+      'Existing functional module schema: interactive:{kind:"module",moduleKind:"interests"|"suggestions"|"reports"|"events"|"applications"|"faq"|"submissions"|"orders"|"learning"|"tasks",title,description,buttonLabel,color,buttonStyle,channel}. Compose a bespoke title, description and button from the request, never library instructions. Giving an EXISTING ordinary role on button click is moduleKind:interests (toggle add/remove). Do not substitute applications or room creation. User selects existing channel and role in review; missing selections do NOT prevent a draft. applications means staff-reviewed application, not direct role granting. faq also needs answer; forms may customize subjectLabel and detailsLabel. These modules do not create new roles/channels, play music, process payment or execute code. Native button styles 1/2/3/4 only. Do not promise unsupported multiple role buttons or layout controls. Preserve previous moduleKind and unchanged text for follow-up edits.',
       'Allowed interactive schemas: tickets {kind,channel,title,description}; welcome {kind,channel,title,description,avatarPosition,bannerPosition,color,composite,avatarShape,avatarVertical,avatarRadius}; poll {kind,channel,question,options}; event {kind,channel,title,description,signupEnabled}; rules {kind,channel,title,description,singleText,style:"single"}; giveaway {kind,channel,prize,durationMinutes,winnerCount,title,description}. For an ordinary announcement use message {channel,content}.',
       'Write content in the language explicitly requested by the customer; otherwise preserve the previous draft language, or use the language of the customer for a new draft. Never translate quoted text unless asked. Use the user\'s names only. Missing channel may be an empty string: the user chooses it in review. Tickets may use channel:"الدعم". Never invent response times, service guarantees, rewards, a prize, duration or poll choices. Missing essential functional details require asking the user.',
       'Welcome variables supported in title/description: {name} for the real joining member, {member} for their mention, {server} for the real guild name, {memberCount} for the real guild count. Use only these variables. Never invent channel references or access promises in descriptions; channel names must exist in the supplied guild context or be explicitly requested by the user.',
@@ -200,7 +201,8 @@ async function propose(job, context, guild, answer) {
     if (job.has_attachment && parsed.interactive) parsed.interactive.referenceOnly = true;
     if (job.has_attachment && parsed.message) parsed.message.referenceOnly = true;
     const aligned = alignAiProposalWithIntent(parsed, [...context, { role: 'user', content: job.prompt }]);
-    if (aligned.interactive) aligned.interactive = applyReferencePreferences(mergePanelEdits(job.previous_proposal?.interactive, aligned.interactive, job.prompt),job);
+    if (aligned.interactive) aligned.interactive = aligned.interactive.kind === 'module' ? mergePanelEdits(job.previous_proposal?.interactive, aligned.interactive, job.prompt) : applyReferencePreferences(mergePanelEdits(job.previous_proposal?.interactive, aligned.interactive, job.prompt),job);
+    if (aligned.interactive?.kind === 'module') aligned.interactive.channel = '';
     const meaningfulRequest = [job.prompt, ...context.filter(item => item.role === 'user').reverse().map(item => item.content)].find(value => String(value || '').trim().length > 12 && !/^(?:نعم|ايه|أيوه|يلا|نفذ|انشر|تمام|موافق)[\s.!؟]*$/i.test(String(value).trim())) || job.prompt;
     return { operations: Array.isArray(aligned.operations) ? aligned.operations : [], message: aligned.message || null, interactive: aligned.interactive || null, review_request: meaningfulRequest };
   } catch (error) { console.error('AI proposal unavailable:', error.message); return null; }
@@ -209,7 +211,7 @@ async function propose(job, context, guild, answer) {
 console.log(`AI Diskoko worker started: ${model}`);
 if (process.env.AI_WORKER_TEST !== '1' && visionModel) {
   const capabilities = await request(`${site}/api/ai/worker/capabilities`, { headers: { Authorization: `Bearer ${token}` } });
-  if (capabilities.flexibleDesignVersion !== 1 || capabilities.referenceDesignVersion !== 1 || capabilities.referenceOnly !== true || capabilities.durablePublicationReview !== true) throw new Error('Deploy the compatible reference-design backend before enabling this worker.');
+  if (capabilities.moduleDraftVersion !== 1 || capabilities.flexibleDesignVersion !== 1 || capabilities.referenceDesignVersion !== 1 || capabilities.referenceOnly !== true || capabilities.durablePublicationReview !== true) throw new Error('Deploy the compatible reference-design backend before enabling this worker.');
 }
 while (!stopping && process.env.AI_WORKER_TEST !== '1') {
   try {

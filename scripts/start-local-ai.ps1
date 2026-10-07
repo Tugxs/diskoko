@@ -23,7 +23,7 @@ $env:DISKOKO_URL = $SiteUrl
 
 if ($DesignPilot) {
   $capabilities = Invoke-RestMethod -Uri ($SiteUrl.TrimEnd('/') + '/api/ai/worker/capabilities') -Headers @{ Authorization = ('Bearer ' + $env:AI_WORKER_TOKEN) } -TimeoutSec 15
-  if ($capabilities.flexibleDesignVersion -ne 1 -or $capabilities.referenceDesignVersion -ne 1 -or -not $capabilities.referenceOnly -or -not $capabilities.durablePublicationReview) { throw 'Deploy the compatible reference-design backend before switching the worker.' }
+  if ($capabilities.moduleDraftVersion -ne 1 -or $capabilities.flexibleDesignVersion -ne 1 -or $capabilities.referenceDesignVersion -ne 1 -or -not $capabilities.referenceOnly -or -not $capabilities.durablePublicationReview) { throw 'Deploy the compatible reference-design backend before switching the worker.' }
   $visionModel = Join-Path $RuntimeDirectory 'Qwen3VL-4B-Instruct-Q4_K_M.gguf'
   $visionProjector = Join-Path $RuntimeDirectory 'mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf'
   foreach ($visionFile in @($visionModel, $visionProjector)) { if (-not (Test-Path -LiteralPath $visionFile)) { throw "Missing vision file: $visionFile" } }

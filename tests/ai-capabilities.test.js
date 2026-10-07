@@ -39,7 +39,7 @@ test('knowledge follows the existing library without promoting editors into exec
     assert.equal(item.confirmationRequired, true);
     assert.equal(item.scope, 'user/guild/bot');
   }
-  assert.match(capabilityKnowledge(), /not a callable conversation executor/);
+  assert.match(capabilityKnowledge(), /starter messages, never fixed designs/);
 });
 
 test('Arabic and English square requests survive normalization and preserve function',()=>{

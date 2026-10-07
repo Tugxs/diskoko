@@ -45,3 +45,10 @@ test('standalone feature rejects private staff tasks in a public channel before 
   assert.match(error?.message || '', /قناة خاصة/);
   assert.equal(inserts.length, before);
 });
+test('a generated module review rejects a request belonging to another tenant before saving', async () => {
+  const before=inserts.length;
+  let error;
+  await routes.get('/api/workspace/:guildId/standalone-modules/review')(request({kind:'faq',title:'FAQ',description:'Ask',buttonLabel:'Answer',answer:'Hello',channelId,executor:'diskoko',sourceRequestId:'22222222-2222-4222-8222-222222222222'}),response(),e=>{error=e;});
+  assert.match(error?.message || '',/المسودة لا تخص/);
+  assert.equal(inserts.length,before);
+});
