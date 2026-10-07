@@ -2307,7 +2307,7 @@ async function assistant() {
         document.querySelectorAll('[data-preview-channel]').forEach(entry => entry.classList.toggle('active', entry.dataset.previewChannel === $('#aiSpecialChannel').value));
         $('#aiSpecialPreviewCard').style.borderColor = $('#aiSpecialColor').value;
         if (plan.kind === 'rules') $('#aiSpecialPreviewOptions').style.setProperty('--rules-accent', $('#aiSpecialColor').value);
-        const previewMemberText = value => value.replaceAll('{member}', '@عضو جديد').replaceAll('{name}', 'عضو جديد').replaceAll('{server}', state.data?.guild?.name || 'السيرفر').replaceAll('{memberCount}', String(state.data?.guild?.memberCount ?? state.data?.guild?.member_count ?? 'عدد الأعضاء الحالي'));
+        const previewMemberText = value => value.replace(/\{(?:username|membername)\}/gi,'{name}').replace(/\{(?:servername|guildname)\}/gi,'{server}').replace(/\{membercount\}/gi,'{memberCount}').replaceAll('{member}', '@عضو جديد').replaceAll('{name}', 'عضو جديد').replaceAll('{server}', state.data?.guild?.name || 'السيرفر').replaceAll('{memberCount}', String(state.data?.guild?.memberCount ?? state.data?.guild?.member_count ?? 'عدد الأعضاء الحالي'));
         $('#aiSpecialPreviewTitle').innerHTML = emojiPreviewText(previewMemberText($('#aiSpecialTitle').value || 'العنوان'));
         if (plan.kind === 'rules') { $('#aiRulesSingleWrap').hidden = $('#aiRulesStyle').value !== 'single'; $('#aiRulesEntriesWrap').hidden = $('#aiRulesStyle').value === 'single'; }
         const ruleStyle = plan.kind === 'rules' ? $('#aiRulesStyle').value : '';

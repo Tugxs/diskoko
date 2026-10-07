@@ -2,9 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { panelDesign, validatePanelDesign, applyPanelDesign, missingReferenceVision, mergePanelEdits, applyReferencePreferences } from '../lib/ai-welcome-design.js';
 import { normalizeAiProposal } from '../lib/local-ai.js';
-import { mountInteractiveSystems } from '../lib/interactive-systems.js';
+import { mountInteractiveSystems, sendWelcomeCard } from '../lib/interactive-systems.js';
 import { publicationOptions, editPublicationOptions } from '../lib/discord-publication.js';
 import { alignAiProposalWithIntent, unsupportedAutomationRequest } from '../lib/ai-intent.js';
+
+test('model welcome aliases normalize and render actual member, guild and count',async()=>{
+  const plan=normalizeAiProposal({interactive:{kind:'welcome',title:'Hello {username}',description:'{servername} / {membercount}'}}).interactive;
+  assert.equal(plan.title,'Hello {name}');assert.equal(plan.description,'{server} / {memberCount}');
+  let sent;const member={id:'user',displayName:'Real member',user:{bot:false},guild:{id:'guild',name:'Real guild',memberCount:18,channels:{fetch:async()=>({isTextBased:()=>true,send:async payload=>{sent=payload;}})}},displayAvatarURL:()=> 'https://cdn.discordapp.com/avatars/user/avatar.png'};
+  await sendWelcomeCard(member,{query:async()=>({rows:[{channel_id:'channel',title:'Hello {username}',description:'{servername} / {membercount}',color:123}]})});
+  assert.equal(sent.embeds[0].title,'Hello Real member');assert.equal(sent.embeds[0].description,'Real guild / 18');
+});
 
 test('customer image placement overrides model guesses and visual accent is not a background',()=>{
   const draft=applyReferencePreferences({kind:'welcome',avatarPosition:'left',color:'#222222'},{prompt:'الصورة يمين النص',image_analysis:'{"accentColor":"#6666ff"}'});
