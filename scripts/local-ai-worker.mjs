@@ -5,6 +5,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { alignAiProposalWithIntent, unsupportedAutomationRequest, planningRequest, editablePanelRequest } from '../lib/ai-intent.js';
 import { normalizeAiProposal } from '../lib/local-ai.js';
 import { selectAiKnowledge } from './ai-knowledge.mjs';
+import { existingEditorHelp } from './ai-expert-knowledge.mjs';
 import { imageReferenceInstructions, missingReferenceVision, mergePanelEdits, applyReferencePreferences } from '../lib/ai-welcome-design.js';
 
 const site = (process.env.DISKOKO_URL || 'https://diskoko.com').replace(/\/$/, '');
@@ -77,6 +78,8 @@ export async function describeImage(image, prompt) {
 export async function respond(job) {
   const language=responseLanguage(job.prompt,job.context || [],job.language);
   if (missingReferenceVision(job)) return { answer: localizedAiMessage('vision',language), proposal: null };
+  const editorHelp=!job.has_attachment && existingEditorHelp(job.prompt,language);
+  if(editorHelp)return {answer:editorHelp,proposal:null};
   const guild = job.guild_context || {};
   const context = Array.isArray(job.context) ? job.context.filter(item => ['user', 'assistant'].includes(item?.role) && typeof item.content === 'string').slice(-12) : [];
   if (job.has_attachment || job.previous_proposal?.interactive || job.previous_proposal?.message || editablePanelRequest(job.prompt)) {

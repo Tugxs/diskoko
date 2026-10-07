@@ -268,3 +268,8 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 .ai-discord-embed[data-avatar-position="right"] .ai-welcome-preview-avatar{width:76px;height:76px;border:0;border-radius:5px;float:right;margin:0 0 8px 12px}
 .ai-discord-embed[data-avatar-position="left"] .ai-welcome-preview-avatar{width:24px;height:24px;border:0;font-size:12px;float:none;display:inline-grid;margin:0 7px 8px 0;vertical-align:middle}
 .ai-welcome-preview-author-name{font-size:11px;vertical-align:middle}
+.ai-module-section { min-width: 0; display: grid; gap: 14px; padding: 18px; border: 1px solid var(--border, #35394e); border-radius: 14px; grid-column: 1 / -1; }
+.ai-module-section legend { padding-inline: 8px; font-weight: 700; }
+.ai-module-section label { min-width: 0; }
+.ready-preview-card { direction: ltr; }
+.ready-preview-card > b { display: block; unicode-bidi: plaintext; text-align: start; }

@@ -9,6 +9,8 @@ function bindDesignScene(plan,prefix,confirmId,launchId,requestId) {
   const field=document.createElement('fieldset');field.className='ai-scene-review';
   field.innerHTML=`<legend>التصميم المرن / Flexible design</legend><label class="check-row"><input data-scene-enabled type="checkbox" ${plan.designScene?'checked':''}>صمّم صورة قابلة للتعديل / Compose an editable image</label><div data-scene-controls ${plan.designScene?'':'hidden'}><p data-scene-status role="status"></p><img data-scene-preview hidden style="width:100%;height:auto" alt="معاينة التصميم الفعلي / Actual design preview"><details><summary>تعديل عناصر التصميم / Edit design elements</summary><label>الخلفية / Background<input data-scene-background type="color" value="${scene.background}"></label><label class="check-row"><input data-scene-gradient type="checkbox" ${scene.gradient?'checked':''}>تدرج الخلفية / Gradient</label><div class="form-grid two"><label>لون التدرج / Gradient color<input data-scene-gradient-color type="color" value="${scene.gradient?.color || '#334466'}"></label><label>اتجاه التدرج / Gradient direction<select data-scene-gradient-direction>${['horizontal','vertical','diagonal'].map(value=>`<option ${scene.gradient?.direction===value?'selected':''}>${value}</option>`).join('')}</select></label></div><div data-scene-layers></div></details><div class="button-row"><button type="button" class="btn small secondary" data-scene-add="text">+ نص / Text</button><button type="button" class="btn small secondary" data-scene-add="image">+ صورة / Image</button><button type="button" class="btn small secondary" data-scene-add="box">+ شكل / Shape</button><button type="button" class="btn small secondary" data-scene-undo>تراجع / Undo</button><button type="button" class="btn small secondary" data-scene-redo>إعادة / Redo</button><button type="button" class="btn small secondary" data-scene-save>حفظ تصميم الصورة / Save image draft</button><button type="button" class="btn small primary" data-scene-render>تحديث المعاينة / Update preview</button></div><p class="form-note">الأزرار الفعلية خارج هذه الصورة. الصورة المرفوعة هنا نهائية وليست لقطة المرجع. / Functional buttons remain outside the image. Upload your final image here, not the reference screenshot.</p><a data-scene-download hidden download="diskoko-design.png">تنزيل التصميم / Download design</a></div>`;
   input.closest('label').before(field);
+  if(plan.sceneInitiallyDisabled){field.querySelector('[data-scene-enabled]').checked=false;field.querySelector('[data-scene-controls]').hidden=true;}
+  if(plan.publishedDesign)field.querySelector('[data-scene-save]').hidden=true;
   const state={field,scene,enabled:()=>field.querySelector('[data-scene-enabled]').checked};sceneReviewState.set(input,state);
   let revision=0,savedRevision=Number(plan.designRevision || 0);
   const snapshots=[...(plan.sceneVersions || []).slice(-5).map(normalizeDesignScene).filter(Boolean),JSON.parse(JSON.stringify(scene))];let historyPosition=snapshots.length-1;
@@ -33,7 +35,7 @@ function bindDesignScene(plan,prefix,confirmId,launchId,requestId) {
   field.querySelector('[data-scene-undo]').onclick=()=>{if(historyPosition>0){Object.assign(scene,JSON.parse(JSON.stringify(snapshots[--historyPosition])));field.querySelector('[data-scene-background]').value=scene.background;reset();renderLayers();void generate();}};
   field.querySelector('[data-scene-redo]').onclick=()=>{if(historyPosition<snapshots.length-1){Object.assign(scene,JSON.parse(JSON.stringify(snapshots[++historyPosition])));field.querySelector('[data-scene-background]').value=scene.background;reset();renderLayers();void generate();}};
   field.querySelector('[data-scene-save]').onclick=async()=>{const status=field.querySelector('[data-scene-status]');try{if(!requestId)throw Error('Draft unavailable');const result=await api(`/api/ai/requests/${encodeURIComponent(requestId)}/save-design`,{method:'POST',body:JSON.stringify({revision:savedRevision,designScene:normalizeDesignScene(scene)})});savedRevision=result.revision;status.textContent='حُفظ تصميم الصورة دون نشر / Image draft saved without publishing';}catch(error){status.textContent=error.message;}};
-  input.addEventListener('change',reset);renderLayers();if(plan.designScene)void generate();
+  input.addEventListener('change',reset);renderLayers();if(plan.designScene && !plan.sceneInitiallyDisabled)void generate();
 }
 function sceneEnabled(prefix) { const input=document.getElementById(prefix);return input && sceneReviewState.get(input)?.enabled(); }
 
@@ -2050,7 +2052,7 @@ async function assistant() {
   let libraryCategory = 'الكل', selectedTemplate = null;
   const showStandaloneModule = async item => {
     let saved=null;
-    if(item.editInstallId){try{saved=await api(`/api/workspace/${encodeURIComponent(guild)}/standalone-modules/${encodeURIComponent(item.editInstallId)}`);item={...item,draft:{...saved.config,kind:'module',moduleKind:saved.config.kind,designScene:undefined}};}catch(error){toast(error.message);return;}}
+    if(item.editInstallId){try{saved=await api(`/api/workspace/${encodeURIComponent(guild)}/standalone-modules/${encodeURIComponent(item.editInstallId)}`);item={...item,draft:{...saved.config,kind:'module',moduleKind:saved.config.kind,sceneInitiallyDisabled:true,publishedDesign:true}};}catch(error){toast(error.message);return;}}
     const kind = item.moduleKind, meta = READY_MODULE_TYPES[kind];
     const draft = item.draft || null;
     if (!meta) return;
@@ -2066,6 +2068,14 @@ async function assistant() {
     $('#moduleBanner').onchange = event => { const file = event.target.files[0]; $('#moduleBannerPreview').textContent = file ? `${file.name} · ${Math.ceil(file.size / 1024)} كيلوبايت` : ''; };
     $('#dialogContent').querySelectorAll('input:not([type]),textarea').forEach(control=>control.dir='auto');
     if (draft) bindDesignScene(draft,'moduleBanner','moduleConfirmation','modulePublish',item.requestId);
+    const english=aiLanguage.language()==='en';
+    const groups=[
+      [english?'1. Content':'١. محتوى اللوحة',['moduleTitle','moduleDescription','moduleButton']],
+      [english?'2. Member action and destination':'٢. وظيفة اللوحة ومكانها',['moduleChannel','moduleRole','moduleReviewChannel','moduleStaffRole','moduleSubjectLabel','moduleDetailsLabel','moduleAnswer','moduleStartsAt','moduleCapacity']],
+      [english?'3. Appearance':'٣. شكل اللوحة',['moduleColor','moduleButtonStyle']],
+    ];
+    for(const [title,ids] of groups){const labels=ids.map(id=>$('#'+id)?.closest('label')).filter(Boolean);if(!labels.length)continue;const section=document.createElement('fieldset');section.className='ai-module-section';const legend=document.createElement('legend');legend.textContent=title;section.append(legend);labels[0].before(section);for(const label of labels)section.append(label);}
+    const intro=$('#dialogContent').querySelector('.form-note');intro.textContent=english?'Customize the content and real member action, then inspect the Discord preview. Review does not publish; confirmation is the final step.':'عدّل المحتوى والوظيفة التي سيستخدمها العضو، ثم راجع المعاينة. فتح المراجعة لا ينشر؛ التنفيذ بعد التأكيد النهائي.';
     if (draft) {
       for (const [id,key] of [['moduleTitle','title'],['moduleDescription','description'],['moduleButton','buttonLabel'],['moduleColor','color'],['moduleButtonStyle','buttonStyle'],['moduleAnswer','answer'],['moduleSubjectLabel','subjectLabel'],['moduleDetailsLabel','detailsLabel'],['moduleCapacity','capacity']]) if ($('#'+id) && draft[key] !== undefined) $('#'+id).value = draft[key];
       const channel = channels.find(channel => channel.name === draft.channel);

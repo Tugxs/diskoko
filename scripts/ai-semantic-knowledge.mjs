@@ -3,10 +3,12 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { aiCapabilities } from '../lib/ai-capabilities.js';
 import { designIdeas } from './ai-design-library.mjs';
+import { expertKnowledge, expertSources } from './ai-expert-knowledge.mjs';
 
 export const knowledgeCorpus = [
   ...aiCapabilities.map((item,index)=>({id:`capability-${index}`,text:`${item.title}: ${item.description}`,availability:item.availability,route:item.id})),
   ...designIdeas.map(item=>({id:item.id,text:`${item.titleAr} / ${item.titleEn}; ${item.category}`,availability:item.availability,route:item.route})),
+  ...expertKnowledge.map(item=>({id:item.id,text:`${item.title}: ${item.text}`,availability:item.availability,route:item.route,source:expertSources[item.source].url})),
 ];
 export const corpusHash=crypto.createHash('sha256').update(JSON.stringify(knowledgeCorpus)).digest('hex');
 export const defaultIndexPath=fileURLToPath(new URL('../outputs/ai-expansion/knowledge-index.json',import.meta.url));
