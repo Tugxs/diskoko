@@ -20,7 +20,7 @@ function bindDesignScene(plan,prefix,confirmId,launchId,requestId) {
   };
   const generate=async()=>{
     reset(); const current=revision,status=field.querySelector('[data-scene-status]');status.textContent='جارٍ تجهيز التصميم / Rendering…';
-    try {const image=await renderDesignScene(scene,input.files[0]);if(current!==revision || !field.isConnected)return;const preview=field.querySelector('[data-scene-preview]');preview.src=`data:${image.mime};base64,${image.base64}`;preview.hidden=false;const download=field.querySelector('[data-scene-download]');download.href=preview.src;download.hidden=false;status.textContent='معاينة الصورة التي ستُرسل / Preview of the image to publish';}
+    try {const image=await renderDesignScene(scene,input.files[0]);if(current!==revision || !field.isConnected)return;const preview=field.querySelector('[data-scene-preview]');preview.src=`data:${image.mime};base64,${image.base64}`;preview.hidden=false;const download=field.querySelector('[data-scene-download]');download.href=preview.src;download.download=`diskoko-design.${({'image/png':'png','image/webp':'webp','image/jpeg':'jpg'})[image.mime]}`;download.hidden=false;status.textContent='معاينة الصورة التي ستُرسل / Preview of the image to publish';}
     catch(error){if(current===revision){field.querySelector('[data-scene-preview]').hidden=true;status.textContent=error.message;}}
   };
   field.querySelector('[data-scene-render]').onclick=generate;

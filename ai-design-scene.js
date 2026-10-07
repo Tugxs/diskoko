@@ -26,6 +26,16 @@ export function applyDesignEdits(source, edits) {
   return normalizeDesignScene(scene);
 }
 
+export function encodeDesignImage(canvas) {
+  for (const [mime,quality] of [['image/png',undefined],['image/webp',0.92],['image/jpeg',0.92],['image/webp',0.8],['image/jpeg',0.8],['image/jpeg',0.6],['image/jpeg',0.4]]) {
+    const data=canvas.toDataURL(mime,quality);
+    if(!data.startsWith(`data:${mime};base64,`))continue;
+    const base64=data.split(',')[1];
+    if(base64.length<=460000)return{mime,base64};
+  }
+  throw Error('Design too large; simplify it / التصميم كبير، قلّل التفاصيل');
+}
+
 export async function renderDesignScene(source, file) {
   const ranges={x:[0,100],y:[0,100],width:[1,100],height:[1,100],fontSize:[14,96],opacity:[0,1],strokeWidth:[0,20]};
   for(const layer of source?.layers || [])for(const [key,[min,max]] of Object.entries(ranges))if(layer[key]!==undefined && (!Number.isFinite(Number(layer[key])) || Number(layer[key])<min || Number(layer[key])>max))throw Error(`${key}: ${min}–${max}`);
@@ -70,8 +80,6 @@ export async function renderDesignScene(source, file) {
       }
       ctx.restore();
     }
-    const base64=canvas.toDataURL('image/png').split(',')[1];
-    if (base64.length>460000) throw Error('Design too large; simplify it / التصميم كبير، قلّل التفاصيل');
-    return {mime:'image/png',base64};
+    return encodeDesignImage(canvas);
   } finally {bitmap?.close();}
 }
