@@ -15,8 +15,9 @@ test('model welcome aliases normalize and render actual member, guild and count'
   const plan=normalizeAiProposal({interactive:{kind:'welcome',title:'Hello {username}',description:'{servername} / {membercount}'}}).interactive;
   assert.equal(plan.title,'Hello {name}');assert.equal(plan.description,'{server} / {memberCount}');
   let sent;const member={id:'user',displayName:'Real member',user:{bot:false},guild:{id:'guild',name:'Real guild',memberCount:18,channels:{fetch:async()=>({isTextBased:()=>true,send:async payload=>{sent=payload;}})}},displayAvatarURL:()=> 'https://cdn.discordapp.com/avatars/user/avatar.png'};
-  await sendWelcomeCard(member,{query:async()=>({rows:[{channel_id:'channel',title:'Hello {username}',description:'{servername} / {membercount}',color:123}]})});
+  await sendWelcomeCard(member,{query:async()=>({rows:[{channel_id:'channel',title:'Hello {member}',description:'{servername} / {membercount}',color:123}]})});
   assert.equal(sent.embeds[0].title,'Hello Real member');assert.equal(sent.embeds[0].description,'Real guild / 18');
+  assert.equal(sent.embeds[0].footer,undefined);
 });
 
 test('customer image placement overrides model guesses and visual accent is not a background',()=>{
