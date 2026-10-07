@@ -559,6 +559,10 @@ test('custom module draft opens generated copy instead of fixed library content'
   assert.ok(doc.querySelector('[data-scene-enabled]'));
   assert.equal(doc.querySelectorAll('.ai-module-section').length,3);
   assert.match(doc.querySelector('#dialogContent').textContent,/المراجعة لا ينشر/);
+  doc.querySelector('#aiInterfaceLanguage').value='en';
+  doc.querySelector('#aiInterfaceLanguage').dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+  assert.match(doc.querySelector('#moduleDescription').closest('label').textContent,/Description shown to members/);
+  assert.equal(doc.querySelector('#moduleTitle').value,'رتبتك الجديدة');
   doc.querySelector('[data-scene-enabled]').checked=true;
   doc.querySelector('[data-scene-enabled]').dispatchEvent(new dom.window.Event('change',{bubbles:true}));
   assert.equal(doc.querySelector('#moduleReview').disabled,false);

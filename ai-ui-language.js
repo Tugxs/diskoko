@@ -30,6 +30,16 @@ for(const [ar,en] of Object.entries({
 
 for(const [ar,en] of Object.entries({'راجعت الإعدادات وأوافق على النشر في Discord.':'I reviewed these settings and confirm publication in Discord.','نعم، أؤكد التنفيذ':'Yes, confirm execution','معاينة الصورة التي ستُرسل / Preview of the image to publish':'Preview of the image to publish','تنزيل التصميم / Download design':'Download design','حُفظ تصميم الصورة دون نشر / Image draft saved without publishing':'Image draft saved without publishing'}))translations.set(ar,en);
 
+for(const [ar,en] of Object.entries({
+  'وصفها للأعضاء':'Description shown to members','نص الزر':'Button label','اختر قناة':'Choose a channel','اختر رتبة':'Choose a role',
+  'شكل الزر':'Button style','بنفسجي':'Primary','رمادي':'Secondary','أخضر':'Success','أحمر':'Danger',
+  'قناة مراجعة خاصة لا يراها الأعضاء':'Private staff review channel','رتبة الفريق':'Staff role','اسم خانة الموضوع':'Subject field label','اسم خانة التفاصيل':'Details field label',
+  'الإجابة التي تظهر للعضو':'Answer shown to the member','موعد إغلاق التسجيل (اختياري)':'Registration deadline (optional)','عدد الأماكن؛ صفر يعني مفتوح':'Capacity; zero means unlimited',
+  'يضيف العضو هذه الرتبة أو يزيلها بنفسه. يجب أن تكون رتبة البوت أعلى منها.':'Members can add or remove this role. The bot role must be above it.',
+  'صورة أو GIF للوحة (اختياري، حتى 8 ميجابايت)':'Final panel image or GIF (optional, up to 8 MiB)',
+  'ارفع الصورة النهائية':'Upload the final source image','مراجعة تركيب الميزة':'Review panel publication','لاحقًا':'Later','نعم، انشر الميزة':'Confirm publication',
+}))translations.set(ar,en);
+
 export function initializeAiLanguage(root,dialog,userId,catalog=[]) {
   for(const item of catalog){if(item.titleEn)translations.set(item.title,item.titleEn);if(item.promptEn)translations.set(item.prompt,item.promptEn);}
   const key=`diskoko:ai-language:${userId}`;
