@@ -557,6 +557,8 @@ test('custom module draft opens generated copy instead of fixed library content'
   assert.equal(doc.querySelector('#moduleChannel').value,'');
   assert.ok(doc.querySelector('#moduleRole'));
   assert.ok(doc.querySelector('[data-scene-enabled]'));
+  assert.equal(doc.querySelectorAll('.ai-module-section').length,3);
+  assert.match(doc.querySelector('#dialogContent').textContent,/المراجعة لا ينشر/);
   doc.querySelector('[data-scene-enabled]').checked=true;
   doc.querySelector('[data-scene-enabled]').dispatchEvent(new dom.window.Event('change',{bubbles:true}));
   assert.equal(doc.querySelector('#moduleReview').disabled,false);
@@ -573,6 +575,8 @@ test('published module settings load current owned copy and keep the existing ch
   assert.equal(doc.querySelector('#moduleButton').value,'Current button');
   assert.equal(doc.querySelector('#moduleChannel').value,channel.id);
   assert.equal(doc.querySelector('#moduleChannel').disabled,true);
+  assert.equal(doc.querySelector('[data-scene-enabled]').checked,false);
+  assert.equal(doc.querySelector('[data-scene-save]').hidden,true);
   dom.window.close();
 });
 test('AI chat exposes reviewed Discord actions, image attachment and voice transcription control', async () => {
