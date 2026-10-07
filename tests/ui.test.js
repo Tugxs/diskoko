@@ -510,9 +510,9 @@ test('an untouched library prompt with brackets can be submitted for an editable
   assert.ok(submitted);
   const body = JSON.parse(submitted.options.body);
   assert.match(body.prompt, /\[القناة\]/);
-  assert.equal(body.libraryTitle, 'جيف آواي سريع');
-  assert.equal(body.libraryCategory, 'الجيف آواي');
-  assert.equal(body.libraryMode, 'execute');
+  assert.equal(body.libraryTitle, undefined);
+  assert.equal(body.libraryCategory, undefined);
+  assert.equal(body.libraryMode, undefined);
   dom.window.close();
 });
 test('AI module cards open their own setup and the library can expand', async () => {
@@ -542,6 +542,20 @@ test('completed AI module reply opens its specific editor only after the request
   doc.querySelector('[data-ai-module]').click();
   assert.match(doc.querySelector('#dialogContent').textContent, /مهام فريق الإدارة/);
   assert.equal(doc.querySelector('#moduleSubjectLabel').value, 'عنوان مهمة الفريق');
+  dom.window.close();
+});
+test('custom module draft opens generated copy instead of fixed library content', async () => {
+  const id='22222222-2222-4222-8222-222222222222', conversation='11111111-1111-4111-8111-111111111111';
+  const response=url=>url==='/api/ai/status'?{available:true,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:conversation,title:'رتبتي',updated_at:'2026-10-07T00:00:00Z'}]}:url===`/api/ai/conversations/${conversation}/messages`?{messages:[{id,prompt:'أبغى زر رتبة',answer:'جهزت المسودة',status:'completed',proposal:{interactive:{kind:'module',moduleKind:'interests',title:'رتبتك الجديدة',description:'اضغط لتختار رتبتك',buttonLabel:'خذ الرتبة',color:'#00aa55',buttonStyle:3}}}]}:fixtureResponse(url);
+  const {dom,doc}=await page('assistant',response);
+  doc.querySelector('.ai-conversation').click(); await settle();
+  doc.querySelector('[data-ai-module]').click();
+  assert.equal(doc.querySelector('#moduleTitle').value,'رتبتك الجديدة');
+  assert.equal(doc.querySelector('#moduleDescription').value,'اضغط لتختار رتبتك');
+  assert.equal(doc.querySelector('#moduleButton').value,'خذ الرتبة');
+  assert.equal(doc.querySelector('#moduleButtonStyle').value,'3');
+  assert.equal(doc.querySelector('#moduleChannel').value,'');
+  assert.ok(doc.querySelector('#moduleRole'));
   dom.window.close();
 });
 test('AI chat exposes reviewed Discord actions, image attachment and voice transcription control', async () => {

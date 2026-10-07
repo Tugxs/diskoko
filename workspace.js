@@ -2050,6 +2050,7 @@ async function assistant() {
   let libraryCategory = 'الكل', selectedTemplate = null;
   const showStandaloneModule = item => {
     const kind = item.moduleKind, meta = READY_MODULE_TYPES[kind];
+    const draft = item.draft || null;
     if (!meta) return;
     const channels = (state.data?.channels || []).filter(channel => channel.type === 0);
     const roles = (state.data?.roles || []).filter(role => role.id !== guild && !role.managed);
@@ -2061,11 +2062,17 @@ async function assistant() {
     modal(`تركيب ${meta.label}`, `<p class="form-note">الميزة مستقلة عن القوالب الجاهزة. راجع اللوحة والقنوات والصلاحيات قبل النشر؛ يُحسب تغيير واحد عند نجاح التركيب فقط.</p><div class="form-grid"><label>عنوان اللوحة<input id="moduleTitle" maxlength="256" value="${esc(meta.icon + ' ' + (aiLanguage.language()==='en'?item.titleEn:meta.label))}"></label><label>وصفها للأعضاء<textarea id="moduleDescription" maxlength="2000" rows="3">${esc(aiLanguage.language()==='en'?item.promptEn:item.prompt)}</textarea></label><label>نص الزر<input id="moduleButton" maxlength="80" value="${esc(aiLanguage.language()==='en'?item.titleEn:meta.label)}"></label><label>قناة عرض اللوحة<select id="moduleChannel">${channelOptions}</select></label>${formFields}${extra}<label>لون اللوحة<input id="moduleColor" type="color" value="#8d72e8"></label><label>شكل الزر<select id="moduleButtonStyle"><option value="1">بنفسجي</option><option value="2">رمادي</option><option value="3">أخضر</option><option value="4">أحمر</option></select></label></div>${labels ? `<p class="form-note">${esc(labels[2])}</p>` : ''}<p class="form-note">بوت التنفيذ: ${connectedAiBot?.selected ? `بوتك الخاص (${esc(connectedAiBot.name)})` : 'بوت ديسكوكو'}؛ يمكنك تغييره من الخيار أعلى صفحة AI.</p>`, '<button id="moduleCancel" class="btn secondary" type="button">إلغاء</button><button id="moduleReview" class="btn primary" type="button">مراجعة قبل النشر</button>');
     $('#moduleColor').closest('label').insertAdjacentHTML('afterend', '<label>صورة أو GIF للوحة (اختياري، حتى 8 ميجابايت)<input id="moduleBanner" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label><div id="moduleBannerPreview" class="form-note" role="status"></div>');
     $('#moduleBanner').onchange = event => { const file = event.target.files[0]; $('#moduleBannerPreview').textContent = file ? `${file.name} · ${Math.ceil(file.size / 1024)} كيلوبايت` : ''; };
+    if (draft) {
+      for (const [id,key] of [['moduleTitle','title'],['moduleDescription','description'],['moduleButton','buttonLabel'],['moduleColor','color'],['moduleButtonStyle','buttonStyle'],['moduleAnswer','answer'],['moduleSubjectLabel','subjectLabel'],['moduleDetailsLabel','detailsLabel'],['moduleCapacity','capacity']]) if ($('#'+id) && draft[key] !== undefined) $('#'+id).value = draft[key];
+      const channel = channels.find(channel => channel.name === draft.channel);
+      if (channel) $('#moduleChannel').value = channel.id;
+    }
     $('#moduleCancel').onclick = closeDialog;
     $('#moduleReview').onclick = run(async () => {
       const button = $('#moduleReview'); button.disabled = true;
       try {
         const payload = { kind, title: $('#moduleTitle').value, description: $('#moduleDescription').value, buttonLabel: $('#moduleButton').value, channelId: $('#moduleChannel').value, color: $('#moduleColor').value, buttonStyle: Number($('#moduleButtonStyle').value), executor: connectedAiBot?.selected ? 'custom' : 'diskoko' };
+        if (item.requestId) payload.sourceRequestId = item.requestId;
         if (meta.form) Object.assign(payload, { reviewChannelId: $('#moduleReviewChannel').value, staffRoleId: $('#moduleStaffRole').value, subjectLabel: $('#moduleSubjectLabel').value, detailsLabel: $('#moduleDetailsLabel').value });
         if (kind === 'interests') payload.roleId = $('#moduleRole').value;
         if (kind === 'faq') payload.answer = $('#moduleAnswer').value;
@@ -2128,6 +2135,7 @@ async function assistant() {
     if (['publishing','review_required'].includes(item.publication_state)) return '<div class="notice warning">حالة النشر غير مؤكدة وتحتاج مراجعة الإدارة. أُوقفت إعادة التنفيذ لمنع نشر لوحة مكررة.</div>';
     const proposal = item.status === 'completed' ? item.proposal : null;
     if (!proposal) return '';
+    if (proposal.interactive?.kind === 'module') return `<div class="ai-action-card"><b>${esc(proposal.interactive.title)}</b><p>${esc(proposal.interactive.description)}</p><p>الزر: ${esc(proposal.interactive.buttonLabel)}</p><button class="btn primary small" type="button" data-ai-module="${esc(item.id)}">تعديل المسودة والمعاينة ومراجعة النشر</button><small>اختر القناة والرتبة في المراجعة. لم يُنشر شيء بعد.</small></div>`;
     const interactiveSummary = proposal.interactive?.kind === 'giveaway' ? `🎉 جيف آواي${proposal.interactive.prize ? `: ${esc(proposal.interactive.prize)}` : ' · أكمل الجائزة والمدة في بطاقة المراجعة'}${proposal.interactive.durationMinutes ? ` · ${esc(proposal.interactive.winnerCount)} فائز · ${esc(proposal.interactive.durationMinutes)} دقيقة` : ''}` : proposal.interactive?.kind === 'poll' ? `📊 استطلاع${proposal.interactive.question ? `: ${esc(proposal.interactive.question)}` : ' · أكمل السؤال والخيارات في بطاقة المراجعة'}` : proposal.interactive?.kind === 'scheduled_event' ? '🗓️ حدث Discord أصلي يظهر في Events' : proposal.interactive?.kind === 'event' ? '🎊 إعلان فعالية مع تسجيل اختياري' : proposal.interactive?.kind === 'welcome' ? '👋 ترحيب تلقائي لكل عضو جديد' : proposal.interactive?.kind === 'rules' ? '📜 بطاقة قوانين السيرفر · اختر طريقة العرض وراجعها' : proposal.interactive?.kind === 'channel_control' ? '⚙️ تحكم بالقناة · راجع الصلاحيات والتفاصيل' : `🎫 لوحة تذاكر${proposal.interactive?.title ? `: ${esc(proposal.interactive.title)}` : ' · أكمل العنوان والوصف في بطاقة المراجعة'}`;
     return `<div class="ai-action-card"><span class="ai-action-step">${proposal.draft ? 'أكمل التفاصيل قبل التنفيذ' : 'الخطوة الأخيرة قبل التنفيذ'}</span><b>راجع ما سيتغير في ${esc(state.data?.guild?.name || 'سيرفرك')}</b><p><strong>طلبك:</strong> ${esc(proposal.review_request || item.prompt)}</p>${proposal.message ? `<p><strong>رسالة Discord:</strong> ${esc(proposal.message.content || 'حدد القناة واكتب النص النهائي في بطاقة المراجعة.')}</p>${item.sent_message_id ? `<a class="btn small secondary" href="https://discord.com/channels/${encodeURIComponent(guild)}/${encodeURIComponent(item.sent_channel_id)}/${encodeURIComponent(item.sent_message_id)}" target="_blank" rel="noopener noreferrer">تم الإرسال · عرض في Discord</a>` : `<button class="btn primary small" type="button" data-ai-message="${esc(item.id)}">مراجعة الرسالة وتأكيد النشر</button>`}` : ''}${proposal.interactive ? `${(item.interactive_message_id || item.interactive_kind === 'welcome') && ['tickets','event','poll','rules','giveaway','welcome'].includes(proposal.interactive.kind) ? `<button class="btn small secondary" data-ai-interactive="${esc(item.id)}" data-ai-edit="true">تعديل إعدادات اللوحة</button>` : ''}<p><strong>${proposal.interactive.kind === 'rules' ? 'بطاقة النشر' : 'النظام التفاعلي'}:</strong> ${interactiveSummary}${item.has_attachment && !proposal.interactive.referenceOnly && proposal.interactive.kind !== 'poll' ? ' · 🖼️ مع بنر' : ''}</p>${item.interactive_kind === 'channel_control' ? '<span class="badge good">تم تعديل القناة</span>' : item.interactive_kind === 'welcome' ? '<span class="badge good">الترحيب التلقائي مفعّل</span>' : item.interactive_kind === 'scheduled_event' && item.interactive_message_id ? `<a class="btn small secondary" href="https://discord.com/events/${encodeURIComponent(guild)}/${encodeURIComponent(item.interactive_message_id)}" target="_blank" rel="noopener noreferrer">تم الإنشاء · عرض الحدث في Discord</a>` : item.interactive_message_id ? `<a class="btn small secondary" href="https://discord.com/channels/${encodeURIComponent(guild)}/${encodeURIComponent(item.interactive_channel_id)}/${encodeURIComponent(item.interactive_message_id)}" target="_blank" rel="noopener noreferrer">تم النشر · عرض في Discord</a>` : `<button class="btn primary small" type="button" data-ai-interactive="${esc(item.id)}">إكمال التفاصيل ومراجعة النشر</button>`}` : ''}<small>${item.sent_message_id || item.interactive_message_id || ['welcome', 'scheduled_event'].includes(item.interactive_kind) || item.change_set_status === 'succeeded' ? 'راجع العملية المنفذة في السجل.' : 'لم يُنفّذ شيء بعد. يمكنك مراجعة التفاصيل قبل التأكيد.'}</small></div>`;
   };
@@ -2149,7 +2157,9 @@ async function assistant() {
     thread.querySelectorAll('[data-ai-module]').forEach(button => button.onclick = () => {
       const message = messages.find(item => item.id === button.dataset.aiModule);
       const module = aiPromptLibrary.find(item => item.moduleKind && item.category === message?.library_category && item.title === message?.library_title);
-      if (module) showStandaloneModule(module);
+      const draft = message?.proposal?.interactive;
+      if (draft?.kind === 'module') showStandaloneModule({ moduleKind: draft.moduleKind, draft, requestId: message.id });
+      else if (module) showStandaloneModule(module);
     });
     thread.querySelectorAll('.ai-turn').forEach((turn, index) => {
       const item = messages[index];
@@ -2572,7 +2582,7 @@ async function assistant() {
     busy = true; $('#aiSend').disabled = true; notice.textContent = '';
     try {
       const image = attachedFile?.type === 'image/gif' ? await prepareAiMedia(attachedFile) : attachedFile?.type.startsWith('image/') ? await prepareAiImage(attachedFile) : undefined;
-      const result = await api('/api/ai/requests', { method: 'POST', body: JSON.stringify({ guildId: guild, conversationId: selected || undefined, prompt, image, language:aiLanguage.language(), libraryMode: selectedTemplate?.moduleKind ? 'module' : selectedTemplate ? 'execute' : undefined, libraryTitle: selectedTemplate?.title, libraryCategory: selectedTemplate?.category }) });
+      const result = await api('/api/ai/requests', { method: 'POST', body: JSON.stringify({ guildId: guild, conversationId: selected || undefined, prompt, image, language:aiLanguage.language() }) });
       if (!active()) return;
       selected = result.conversationId; sessionStorage.setItem(storageKey, selected); input.value = ''; selectedTemplate = null; $('#aiTemplateDraft').hidden = true; attachedFile = null; $('#aiFile').value = ''; showAttachment();
       messages.push({ id: result.id, prompt, status: 'pending', has_attachment: !!image }); renderMessages();
