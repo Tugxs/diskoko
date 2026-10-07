@@ -2,7 +2,7 @@ import { semanticCapabilityKnowledge } from './ai-semantic-knowledge.mjs';
 import { responseLanguage, localizedAiMessage } from '../lib/ai-language.js';
 import { capabilityKnowledge } from '../lib/ai-capabilities.js';
 import { setTimeout as delay } from 'node:timers/promises';
-import { alignAiProposalWithIntent, unsupportedAutomationRequest, planningRequest } from '../lib/ai-intent.js';
+import { alignAiProposalWithIntent, unsupportedAutomationRequest, planningRequest, editablePanelRequest } from '../lib/ai-intent.js';
 import { normalizeAiProposal } from '../lib/local-ai.js';
 import { selectAiKnowledge } from './ai-knowledge.mjs';
 import { imageReferenceInstructions, missingReferenceVision, mergePanelEdits, applyReferencePreferences } from '../lib/ai-welcome-design.js';
@@ -79,7 +79,7 @@ export async function respond(job) {
   if (missingReferenceVision(job)) return { answer: localizedAiMessage('vision',language), proposal: null };
   const guild = job.guild_context || {};
   const context = Array.isArray(job.context) ? job.context.filter(item => ['user', 'assistant'].includes(item?.role) && typeof item.content === 'string').slice(-12) : [];
-  if (job.has_attachment || job.previous_proposal?.interactive || job.previous_proposal?.message) {
+  if (job.has_attachment || job.previous_proposal?.interactive || job.previous_proposal?.message || editablePanelRequest(job.prompt)) {
     const candidate = normalizeAiProposal(await propose(job, context, guild, ''));
     if (candidate) return { answer: localizedAiMessage('draft',language), proposal: candidate };
   }
@@ -164,7 +164,7 @@ async function propose(job, context, guild, answer) {
     `قنوات السيرفر الموجودة: ${(guild.channels || []).map(item => `${item.name} [${item.id}] type=${item.type}`).join(', ')}. رتب السيرفر الموجودة: ${(guild.roles || []).filter(item => !item.managed).map(item => `${item.name} [${item.id}]`).join(', ')}.`,
     '/no_think',
   ].join('\n');
-  if (job.has_attachment || job.previous_proposal?.interactive || job.previous_proposal?.message) {
+  if (job.has_attachment || job.previous_proposal?.interactive || job.previous_proposal?.message || editablePanelRequest(job.prompt)) {
     instructions = [
       'You prepare safe editable Discord drafts. You NEVER publish. Return one JSON object only: {"executeNow":true,"operations":[],"message":null,"interactive":{...}}.',
       'executeNow means prepare a REVIEW ONLY, not execute. When the user says they want a panel design (including أريد لوحة) or asks to edit an existing draft, use executeNow=true. For a question, advice only or an unsupported function use executeNow=false with null drafts.',

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { alignAiProposalWithIntent, unsupportedAutomationRequest, workflowBlueprintRequest, ideaSelectionRequest } from '../lib/ai-intent.js';
+import { alignAiProposalWithIntent, unsupportedAutomationRequest, workflowBlueprintRequest, ideaSelectionRequest, editablePanelRequest } from '../lib/ai-intent.js';
 
 test('a member journey blueprint cannot turn into a single publishable message', () => {
   const request = 'صمم رحلة بسيطة للعضو الجديد من لحظة دخوله حتى أول مشاركة مفيدة';
@@ -51,4 +51,9 @@ test('giveaway confirmation does not invent categories or channels', () => {
   const result = alignAiProposalWithIntent(proposal, [{ role: 'user', content: 'جهز جيف آواي في العام لجائزة لمدة ساعة مع 3 فائزين' }, { role: 'user', content: 'اعرض التفاصيل' }]);
   assert.deepEqual(result.operations, []);
   assert.equal(result.interactive.kind, 'giveaway');
+});
+
+test('an initial panel design prepares review even when publication is deferred',()=>{
+  for(const request of ['Create a functional support ticket panel. Do not publish yet.','أبغى لوحة دعم، لا تنشرها الآن']) assert.equal(editablePanelRequest(request),true);
+  for(const request of ['How do I create a ticket panel?','اشرح لي لوحة الدعم','I like the title "create a support panel"']) assert.equal(editablePanelRequest(request),false);
 });
