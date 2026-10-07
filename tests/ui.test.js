@@ -1028,11 +1028,12 @@ test('a concurrent browser-tab lock stops the request before creating a plan', a
 
 test('AI interface switches to English without translating customer messages',async()=>{
   const cid='11111111-1111-4111-8111-111111111111';
-  const response=url=>url==='/api/ai/status'?{available:true,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:cid,title:'اختبار'}]}:url===`/api/ai/conversations/${cid}/messages`?{messages:[{id:'22222222-2222-4222-8222-222222222222',prompt:'إرسال',answer:'إلغاء',status:'completed'}]}:fixtureResponse(url);
+  const response=url=>url==='/api/ai/status'?{available:true,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:cid,title:'إرسال'}]}:url===`/api/ai/conversations/${cid}/messages`?{messages:[{id:'22222222-2222-4222-8222-222222222222',prompt:'إرسال',answer:'إلغاء',status:'completed'}]}:fixtureResponse(url);
   const {dom,doc}=await page('assistant',response);
   doc.querySelector('.ai-conversation').click();await settle();
   const language=doc.querySelector('#aiInterfaceLanguage');language.value='en';language.dispatchEvent(new dom.window.Event('change'));await settle();
   assert.equal(doc.querySelector('#aiSend').textContent,'Send');
+  assert.match(doc.querySelector('.ai-conversation').textContent,/\u0625\u0631\u0633\u0627\u0644/);
   assert.equal(doc.querySelector('#assistantPrompt').placeholder,'Describe what you need for your server…');
   assert.match(doc.querySelector('.ai-bubble.user').textContent,/إرسال/);
   assert.match(doc.querySelector('.ai-bubble.assistant').textContent,/إلغاء/);
