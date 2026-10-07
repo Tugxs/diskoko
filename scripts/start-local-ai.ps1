@@ -1,7 +1,8 @@
 param(
   [string]$RuntimeDirectory = 'D:\GPT 2\diskoko-ai',
   [string]$SiteUrl = 'https://diskoko.com',
-  [switch]$DesignPilot = $true
+  [switch]$DesignPilot = $true,
+  [switch]$QualityPlanning
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,7 +23,7 @@ $env:DISKOKO_URL = $SiteUrl
 
 if ($DesignPilot) {
   $capabilities = Invoke-RestMethod -Uri ($SiteUrl.TrimEnd('/') + '/api/ai/worker/capabilities') -Headers @{ Authorization = ('Bearer ' + $env:AI_WORKER_TOKEN) } -TimeoutSec 15
-  if ($capabilities.referenceDesignVersion -ne 1 -or -not $capabilities.referenceOnly -or -not $capabilities.durablePublicationReview) { throw 'Deploy the compatible reference-design backend before switching the worker.' }
+  if ($capabilities.flexibleDesignVersion -ne 1 -or $capabilities.referenceDesignVersion -ne 1 -or -not $capabilities.referenceOnly -or -not $capabilities.durablePublicationReview) { throw 'Deploy the compatible reference-design backend before switching the worker.' }
   $visionModel = Join-Path $RuntimeDirectory 'Qwen3VL-4B-Instruct-Q4_K_M.gguf'
   $visionProjector = Join-Path $RuntimeDirectory 'mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf'
   foreach ($visionFile in @($visionModel, $visionProjector)) { if (-not (Test-Path -LiteralPath $visionFile)) { throw "Missing vision file: $visionFile" } }
@@ -41,6 +42,14 @@ if ($DesignPilot) {
   $env:AI_PLANNING_MODEL = $env:AI_VISION_MODEL
   $env:AI_PLANNING_URL = $env:AI_VISION_URL
   $env:AI_PLANNING_PROVIDER = 'llama'
+  if ($QualityPlanning) {
+    $qualityModel = Join-Path $RuntimeDirectory 'Qwen3-14B-Q5_K_M.gguf'
+    if (-not (Test-Path -LiteralPath $qualityModel)) { throw 'Download and verify the optional planning model first.' }
+    $qualityProps = Invoke-RestMethod -Uri 'http://127.0.0.1:11438/props' -TimeoutSec 3
+    if (-not $qualityProps.model_alias.EndsWith('Qwen3-14B-Q5_K_M.gguf')) { throw 'Start the verified quality planning server on local port 11438 first.' }
+    $env:AI_PLANNING_MODEL = 'Qwen3-14B-Q5_K_M.gguf'
+    $env:AI_PLANNING_URL = 'http://127.0.0.1:11438'
+  }
 }
 
 if (-not (Test-NetConnection 127.0.0.1 -Port 11434 -InformationLevel Quiet)) {
@@ -55,6 +64,15 @@ for ($attempt = 0; $attempt -lt 90; $attempt++) {
   Start-Sleep -Seconds 2
 }
 if ($attempt -ge 90) { throw 'Local model did not become healthy within 3 minutes.' }
+
+$embeddingModel = Join-Path $RuntimeDirectory 'Qwen3-Embedding-0.6B-Q8_0.gguf'
+if ($DesignPilot -and (Test-Path -LiteralPath $embeddingModel)) {
+  try { $embeddingHealth = Invoke-RestMethod -Uri 'http://127.0.0.1:11437/health' -TimeoutSec 2 } catch { $embeddingHealth = $null }
+  if ($embeddingHealth.status -ne 'ok') {
+    Start-Process -FilePath $server -WorkingDirectory (Split-Path $server) -ArgumentList @('-m', "`"$embeddingModel`"", '--embedding', '--pooling', 'last', '--host', '127.0.0.1', '--port', '11437', '-c', '2048', '-ngl', '0', '-np', '1') -WindowStyle Hidden -RedirectStandardOutput (Join-Path $RuntimeDirectory 'embedding.out.log') -RedirectStandardError (Join-Path $RuntimeDirectory 'embedding.err.log')
+  }
+  $env:AI_EMBEDDING_URL = 'http://127.0.0.1:11437'
+}
 
 $pidFile = Join-Path $RuntimeDirectory 'worker.pid'
 $workerPid = if (Test-Path -LiteralPath $pidFile) { (Get-Content -LiteralPath $pidFile -Raw).Trim() } else { '' }

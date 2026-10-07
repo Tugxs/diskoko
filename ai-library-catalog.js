@@ -1,3 +1,4 @@
+import { englishAiLibrary } from './ai-library-english.js';
 // The only executable templates offered by Diskoko AI. Keep this list shared
 // between the browser and the API so a hidden draft cannot be revived by name.
 export const aiPromptLibrary = Object.freeze([
@@ -24,7 +25,7 @@ export const aiPromptLibrary = Object.freeze([
   { category: 'إدارة المجتمع', title: 'تحكم بالقناة', prompt: 'أريد التحكم في #[القناة]: من يستطيع الكتابة، اسم القناة ووصفها، بطء المحادثة والمحتوى الحساس. اعرض التغييرات للمراجعة قبل التنفيذ.', kind: 'channel_control' },
   { category: 'إدارة المجتمع', title: 'حدث Discord مجدول', prompt: 'أنشئ حدث Discord أصليًا لسيرفري بعنوان [اسم الحدث]، مع الموعد والمكان والوصف وصورة الغلاف. اعرض نموذج الحدث للمراجعة قبل إنشائه في Events.', kind: 'scheduled_event' },
   { category: 'إدارة المجتمع', title: 'استطلاع رأي', prompt: 'جهز استطلاعًا تفاعليًا في #[القناة] عن [السؤال] بخيارات [الخيار الأول] و[الخيار الثاني]. اعرض التفاصيل قبل النشر.', kind: 'poll' },
-]);
+].map(item => Object.freeze({...item,titleEn:englishAiLibrary[item.title]?.[0] || item.title,promptEn:englishAiLibrary[item.title]?.[1] || item.prompt})));
 
 export const readyAiTemplate = (category, title) => aiPromptLibrary.find(item => !item.moduleKind && item.category === category && item.title === title) || null;
 export const readyAiModule = (category, title) => aiPromptLibrary.find(item => item.moduleKind && item.category === category && item.title === title) || null;

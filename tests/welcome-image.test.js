@@ -26,6 +26,20 @@ test('welcome compositor rejects unsupported dimensions and corrupt PNG data', (
   assert.throws(() => decodeWelcomePng(broken), /تالفة/);
 });
 
+test('circle, square and rounded shapes retain different actual corner pixels', () => {
+  const background = solid(1200,480,[20,30,40]);
+  const avatar = solid(16,16,[220,40,50]);
+  const pixel = (shape,x,y) => {
+    const image=decodeWelcomePng(composeWelcomeImage(background,avatar,{position:'center',radius:100,shape}));
+    return [...image.pixels.subarray((y*1200+x)*4,(y*1200+x)*4+3)];
+  };
+  assert.deepEqual(pixel('square',699,339),[220,40,50]);
+  assert.deepEqual(pixel('circle',699,339),[20,30,40]);
+  assert.deepEqual(pixel('rounded',699,339),[190,159,255]);
+  assert.deepEqual(pixel('rounded',680,320),[220,40,50]);
+  assert.throws(()=>composeWelcomeImage(background,avatar,{shape:'script'}),/شكل/);
+});
+
 test('animated welcome keeps one centered avatar within every GIF frame', async () => {
   const sharp = (await import('sharp')).default;
   const background = await sharp([

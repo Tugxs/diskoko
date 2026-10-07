@@ -14,7 +14,10 @@ async function page(hash = 'overview', response = fixtureResponse, file = 'studi
   dom.window.HTMLDialogElement.prototype.close = function () { this.open = false; };
   setup(dom.window);
   const source = fs.readFileSync(new URL(`../${script}`, import.meta.url), 'utf8');
-  dom.window.eval(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)};\n${source.replace("import { aiPromptLibrary } from './ai-library-catalog.js';", '')}` : source); await settle();
+  const languageSource=fs.readFileSync(new URL('../ai-ui-language.js',import.meta.url),'utf8').replace(/^export /gm,'');
+  const sceneSource=fs.readFileSync(new URL('../ai-design-scene.js',import.meta.url),'utf8').replace(/^export /gm,'');
+  const workspaceSource=source.replace("import { initializeAiLanguage } from './ai-ui-language.js';",'').replace("import { aiPromptLibrary } from './ai-library-catalog.js';",'').replace("import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';",'');
+  dom.window.eval(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)};\n${sceneSource}\n${languageSource}\n${workspaceSource}` : source); await settle();
   return { dom, requests, doc: dom.window.document };
 }
 test('voice recognition resumes after a browser pause and stops only when the user asks', async () => {
@@ -1021,6 +1024,38 @@ test('a concurrent browser-tab lock stops the request before creating a plan', a
   assert.equal(requests.some(req => req.url === '/api/change-sets'), false);
   assert.match(doc.querySelector('#executionError').textContent, /نافذة أخرى/);
   dom.window.close();
+});
+
+test('AI interface switches to English without translating customer messages',async()=>{
+  const cid='11111111-1111-4111-8111-111111111111';
+  const response=url=>url==='/api/ai/status'?{available:true,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:cid,title:'اختبار'}]}:url===`/api/ai/conversations/${cid}/messages`?{messages:[{id:'22222222-2222-4222-8222-222222222222',prompt:'إرسال',answer:'إلغاء',status:'completed'}]}:fixtureResponse(url);
+  const {dom,doc}=await page('assistant',response);
+  doc.querySelector('.ai-conversation').click();await settle();
+  const language=doc.querySelector('#aiInterfaceLanguage');language.value='en';language.dispatchEvent(new dom.window.Event('change'));await settle();
+  assert.equal(doc.querySelector('#aiSend').textContent,'Send');
+  assert.equal(doc.querySelector('#assistantPrompt').placeholder,'Describe what you need for your server…');
+  assert.match(doc.querySelector('.ai-bubble.user').textContent,/إرسال/);
+  assert.match(doc.querySelector('.ai-bubble.assistant').textContent,/إلغاء/);
+  language.value='ar';language.dispatchEvent(new dom.window.Event('change'));await settle();
+  assert.equal(doc.querySelector('#aiSend').textContent,'إرسال');dom.window.close();
+});
+
+test('flexible scene edits reset confirmation, support undo and save without publishing',async()=>{
+  const cid='11111111-1111-4111-8111-111111111111',id='22222222-2222-4222-8222-222222222222';
+  const response=url=>url==='/api/ai/status'?{available:true,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:cid,title:'Design'}]}:url===`/api/ai/conversations/${cid}/messages`?{messages:[{id,prompt:'Design an event',answer:'Review',status:'completed',proposal:{interactive:{kind:'event',title:'Meetup',description:'Join us',channel:'general',designScene:{background:'#112233',layers:[{type:'text',text:'Keep this title',fontSize:36,x:10,y:10,width:80,height:60}]}}}}]}:url.endsWith('/save-design')?{ok:true,revision:1}:fixtureResponse(url);
+  const {dom,doc,requests}=await page('assistant',response,'studio.html','workspace.js',win=>{
+    win.HTMLCanvasElement.prototype.getContext=()=>({fillRect(){},save(){},restore(){},beginPath(){},rect(){},clip(){},fillText(){},measureText(text){return {width:text.length*15};}});
+    win.HTMLCanvasElement.prototype.toDataURL=()=> 'data:image/png;base64,AA==';
+  });
+  doc.querySelector('.ai-conversation').click();await settle();doc.querySelector('[data-ai-interactive]').click();await settle();
+  const confirm=doc.querySelector('#aiSpecialConfirmed');confirm.checked=true;confirm.dispatchEvent(new dom.window.Event('change'));
+  const size=doc.querySelector('[data-property="fontSize"]');size.value='64';size.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+  assert.equal(confirm.checked,false);assert.equal(doc.querySelector('#aiSpecialLaunch').disabled,true);
+  doc.querySelector('[data-scene-undo]').click();await settle();assert.equal(doc.querySelector('[data-property="fontSize"]').value,'36');
+  doc.querySelector('[data-scene-save]').click();await settle();
+  const saved=requests.find(item=>item.url.endsWith('/save-design'));assert.ok(saved);
+  assert.equal(JSON.parse(saved.options.body).designScene.layers[0].text,'Keep this title');
+  assert.equal(requests.some(item=>item.url.endsWith('/launch-interactive')),false);dom.window.close();
 });
 
 test('welcome reference opens editable style without previewing or publishing the screenshot', async () => {
