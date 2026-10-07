@@ -89,7 +89,7 @@ export async function respond(job) {
     try { planned=await propose(job, context, guild, ''); }
     catch { return {answer:language==='en'?'I could not generate a valid editable draft. Nothing was published. Retry the request.':'تعذر تجهيز مسودة قابلة للتعديل بصيغة صحيحة. لم يُنشر شيء. أعد المحاولة.',proposal:null}; }
     const candidate = normalizeAiProposal(planned);
-    if (candidate) return { answer: candidate.interactive?.kind === 'module' ? (language === 'en' ? 'Your custom functional draft is ready. Edit its content, select the existing channel and required roles, then preview and confirm publication. Nothing has been published.' : 'جهزت مسودة مخصصة بوظيفة تفاعلية فعلية. عدّل المحتوى واختر القناة والرتب المطلوبة، ثم راجع المعاينة وأكد النشر. لم يُنشر شيء بعد.') : localizedAiMessage('draft',language), proposal: candidate };
+    if (candidate) return { answer: candidate.interactive?.kind === 'module' ? (language === 'en' ? 'Your custom functional draft is ready. Edit its content, select the existing channel and required roles, then preview and confirm publication. Nothing has been published.' : 'جهزت مسودة مخصصة بوظيفة تفاعلية فعلية. عدّل المحتوى واختر القناة والرتب المطلوبة، ثم راجع المعاينة وأكد النشر. لم يُنشر شيء بعد.') : localizedAiMessage(job.has_attachment || job.image_analysis ? 'draft' : 'draft_plain',language), proposal: candidate };
   }
   const guildSummary = `اسم السيرفر: ${guild.name || 'غير متاح'}. القنوات الحالية: ${(guild.channels || []).map(item => `${item.name} (${item.id})`).join('، ') || 'غير متاحة'}. الرتب الحالية: ${(guild.roles || []).map(item => `${item.name} (${item.id})`).join('، ') || 'غير متاحة'}.`;
   const system = [
