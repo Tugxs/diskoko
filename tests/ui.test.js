@@ -562,6 +562,19 @@ test('custom module draft opens generated copy instead of fixed library content'
   assert.equal(doc.querySelector('#moduleReview').disabled,false);
   dom.window.close();
 });
+test('published module settings load current owned copy and keep the existing channel',async()=>{
+  const id='22222222-2222-4222-8222-222222222222',conversation='11111111-1111-4111-8111-111111111111',install='33333333-3333-4333-8333-333333333333';
+  const channel=workspace.channels.find(item=>item.type===0);
+  const response=url=>url==='/api/ai/status'?{available:true,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:conversation,title:'Published role',updated_at:'2026-10-07T00:00:00Z'}]}:url===`/api/ai/conversations/${conversation}/messages`?{messages:[{id,status:'completed',prompt:'Build a role panel',answer:'Ready',interactive_kind:'module',interactive_message_id:'message',interactive_channel_id:channel.id,module_install_id:install,proposal:{interactive:{kind:'module',moduleKind:'interests',title:'Old copy',description:'Old description',buttonLabel:'Old button'}}}]}:url===`/api/workspace/${guild.id}/standalone-modules/${install}`?{status:'succeeded',config:{kind:'interests',title:'Current copy',description:'Current description',buttonLabel:'Current button',color:'#112233',buttonStyle:3,channelId:channel.id}}:fixtureResponse(url);
+  const {dom,doc}=await page('assistant',response);
+  doc.querySelector('.ai-conversation').click();await settle();
+  doc.querySelector('[data-ai-module]').click();await settle();
+  assert.equal(doc.querySelector('#moduleTitle').value,'Current copy');
+  assert.equal(doc.querySelector('#moduleButton').value,'Current button');
+  assert.equal(doc.querySelector('#moduleChannel').value,channel.id);
+  assert.equal(doc.querySelector('#moduleChannel').disabled,true);
+  dom.window.close();
+});
 test('AI chat exposes reviewed Discord actions, image attachment and voice transcription control', async () => {
   const conversationId = '11111111-1111-4111-8111-111111111111';
   const response = url => {
