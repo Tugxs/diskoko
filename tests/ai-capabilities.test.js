@@ -12,6 +12,8 @@ test('conversation language differs from quoted content and failed vision is loc
   assert.equal(responseLanguage('أبغى عنوان "Welcome home"'),'ar');
   assert.equal(responseLanguage('Make the title "مرحبًا"'),'en');
   assert.equal(responseLanguage('جاوب بالإنجليزي'),'en');
+  assert.equal(responseLanguage('أبغى لوحة رتبة',[],'en'),'ar');
+  assert.equal(responseLanguage('Build a role panel',[],'ar'),'en');
   assert.match(localizedAiMessage('vision','en'),/could not read/);
   assert.match(localizedAiMessage('vision','ar'),/لم أتمكن/);
 });
