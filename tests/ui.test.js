@@ -556,6 +556,10 @@ test('custom module draft opens generated copy instead of fixed library content'
   assert.equal(doc.querySelector('#moduleButtonStyle').value,'3');
   assert.equal(doc.querySelector('#moduleChannel').value,'');
   assert.ok(doc.querySelector('#moduleRole'));
+  assert.ok(doc.querySelector('[data-scene-enabled]'));
+  doc.querySelector('[data-scene-enabled]').checked=true;
+  doc.querySelector('[data-scene-enabled]').dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+  assert.equal(doc.querySelector('#moduleReview').disabled,false);
   dom.window.close();
 });
 test('AI chat exposes reviewed Discord actions, image attachment and voice transcription control', async () => {
