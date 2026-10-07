@@ -15,5 +15,5 @@ test('role button requests produce eligible editable functional drafts in Arabic
 });
 test('unimplemented modules and incomplete copy cannot become executable drafts',()=>{
   assert.equal(normalizeAiProposal({interactive:{kind:'module',moduleKind:'music',title:'Music',description:'Play',buttonLabel:'Play'}}),null);
-  assert.equal(normalizeAiProposal({interactive:{kind:'module',moduleKind:'faq',title:'FAQ'}}),null);
+  assert.equal(normalizeAiProposal({interactive:{kind:'module',moduleKind:'faq',title:'FAQ'}}).interactive.moduleKind,'faq');
 });

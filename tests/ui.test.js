@@ -544,6 +544,17 @@ test('completed AI module reply opens its specific editor only after the request
   assert.equal(doc.querySelector('#moduleSubjectLabel').value, 'عنوان مهمة الفريق');
   dom.window.close();
 });
+test('incomplete giveaway opens blank operational fields without publishing', async () => {
+  const id='22222222-2222-4222-8222-222222222222', conversation='11111111-1111-4111-8111-111111111111';
+  const response=url=>url==='/api/ai/status'?{available:true,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:conversation,title:'Giveaway',updated_at:'2026-10-07T00:00:00Z'}]}:url===`/api/ai/conversations/${conversation}/messages`?{messages:[{id,prompt:'Build a giveaway',answer:'Review the draft',status:'completed',proposal:{interactive:{kind:'giveaway',prize:'',channel:'',durationMinutes:null,winnerCount:null}}}]}:fixtureResponse(url);
+  const {dom,doc,requests}=await page('assistant',response);
+  doc.querySelector('.ai-conversation').click(); await settle();
+  doc.querySelector('[data-ai-interactive]').click();
+  for(const field of ['aiPrize','aiDuration','aiWinners'])assert.equal(doc.querySelector('#'+field).value,'');
+  assert.equal(requests.some(request=>request.options.method==='POST'),false);
+  dom.window.close();
+});
+
 test('custom module draft opens generated copy instead of fixed library content', async () => {
   const id='22222222-2222-4222-8222-222222222222', conversation='11111111-1111-4111-8111-111111111111';
   const response=url=>url==='/api/ai/status'?{available:true,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:conversation,title:'رتبتي',updated_at:'2026-10-07T00:00:00Z'}]}:url===`/api/ai/conversations/${conversation}/messages`?{messages:[{id,prompt:'أبغى زر رتبة',answer:'جهزت المسودة',status:'completed',proposal:{interactive:{kind:'module',moduleKind:'interests',title:'رتبتك الجديدة',description:'اضغط لتختار رتبتك',buttonLabel:'خذ الرتبة',color:'#00aa55',buttonStyle:3}}}]}:fixtureResponse(url);

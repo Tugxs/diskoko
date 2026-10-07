@@ -35,7 +35,7 @@ test('interactive proposals accept bounded giveaways and ticket panels', () => {
 test('poll proposals require distinct bounded choices', () => {
   assert.deepEqual(normalizeAiProposal({ interactive: { kind: 'poll', question: 'متى نجتمع؟', channel: '#العام', options: ['الجمعة', 'السبت'] } }), { operations: [], message: null, interactive: { kind: 'poll', question: 'متى نجتمع؟', channel: 'العام', options: ['الجمعة', 'السبت'] } });
   assert.equal(normalizeAiProposal({ interactive: { kind: 'poll', question: 'متى نجتمع؟', channel: 'العام', options: ['الجمعة', 'الجمعة'] } }), null);
-  assert.equal(normalizeAiProposal({ interactive: { kind: 'poll', question: 'متى نجتمع؟', channel: 'العام', options: ['الجمعة'] } }), null);
+  assert.deepEqual(normalizeAiProposal({ interactive: { kind: 'poll', question: 'متى نجتمع؟', channel: 'العام', options: ['الجمعة'] } }).interactive.options, ['الجمعة']);
 });
 
 test('retired download cards cannot become executable AI proposals', () => {
