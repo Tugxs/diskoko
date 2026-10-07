@@ -6,6 +6,11 @@ import { mountInteractiveSystems, sendWelcomeCard } from '../lib/interactive-sys
 import { publicationOptions, editPublicationOptions } from '../lib/discord-publication.js';
 import { alignAiProposalWithIntent, unsupportedAutomationRequest } from '../lib/ai-intent.js';
 
+test('quoted customer title and replacement text override model additions literally',()=>{
+  const result=applyReferencePreferences({kind:'welcome',title:'Model title',description:'Model text with old paragraphs',avatarPosition:'right',color:'#666666'},{prompt:'عدّل العنوان إلى «مرحبًا {name} في {server}»، واجعل النص «أهلًا {member}، أنت العضو رقم {memberCount}». احتفظ باللون.',previous_proposal:{kind:'welcome'}});
+  assert.equal(result.title,'مرحبًا {name} في {server}');assert.equal(result.description,'أهلًا {member}، أنت العضو رقم {memberCount}');assert.equal(result.color,'#666666');
+});
+
 test('model welcome aliases normalize and render actual member, guild and count',async()=>{
   const plan=normalizeAiProposal({interactive:{kind:'welcome',title:'Hello {username}',description:'{servername} / {membercount}'}}).interactive;
   assert.equal(plan.title,'Hello {name}');assert.equal(plan.description,'{server} / {memberCount}');
