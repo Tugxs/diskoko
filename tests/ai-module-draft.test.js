@@ -9,7 +9,7 @@ test('role button requests produce eligible editable functional drafts in Arabic
   assert.equal(proposal.interactive.moduleKind,'interests');
   assert.equal(proposal.interactive.roleId,undefined);
   assert.equal(proposal.interactive.code,undefined);
-  assert.equal(proposal.interactive.designScene,undefined);
+  assert.equal(proposal.interactive.designScene.background,'#123456');
   assert.equal(proposal.interactive.links,undefined);
   assert.equal(presentAiRequest({prompt:'أبغى زر رتبة',proposal}).proposal.interactive.kind,'module');
 });

@@ -52,3 +52,10 @@ test('a generated module review rejects a request belonging to another tenant be
   assert.match(error?.message || '',/المسودة لا تخص/);
   assert.equal(inserts.length,before);
 });
+test('changing the executor bot after review stops publication before claiming the install',async()=>{
+  const handlers=new Map();let claimed=false;
+  mountStandaloneModules({post(path,...items){handlers.set(path,items.at(-1));}},{pool:{query:async sql=>{if(sql.startsWith('SELECT * FROM standalone_module_installs'))return{rows:[{id:'test',status:'draft',executor:'diskoko',config:{kind:'faq',title:'FAQ',description:'Ask',buttonLabel:'Answer',answer:'Hello',channelId,executorBotId:'different-bot'}}]};claimed=true;return{rows:[],rowCount:0};}},requireUser:()=>{},requireWriteAccess:()=>{},authorizedGuild:async()=>({id:guildId}),discordBotFetch:discord,requirePlanCapacity:async()=>({used:0,limit:100}),audit:async()=>{},botStatus:()=>({online:true})});
+  let error;
+  await handlers.get('/api/workspace/:guildId/standalone-modules/:id/apply')({...request({}),params:{guildId,id:'test'}},response(),e=>{error=e;});
+  assert.match(error?.message || '',/تغيّر بوت التنفيذ/);assert.equal(claimed,false);
+});
