@@ -36,3 +36,24 @@ if (stage) {
   stage.addEventListener('pointerleave', resetField);
   resetField();
 }
+
+// Shared brand background response; one scheduled paint per pointer frame.
+if (document.body.classList.contains('dk-dashboard-theme')) {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  let glowFrame;
+  const resetGlow = () => {
+    document.documentElement.style.removeProperty('--dk-pointer-x');
+    document.documentElement.style.removeProperty('--dk-pointer-y');
+  };
+  document.addEventListener('pointermove', event => {
+    if (reduced.matches || event.pointerType === 'touch') return;
+    cancelAnimationFrame(glowFrame);
+    glowFrame = requestAnimationFrame(() => {
+      document.documentElement.style.setProperty('--dk-pointer-x', (event.clientX / innerWidth * 100) + '%');
+      document.documentElement.style.setProperty('--dk-pointer-y', (event.clientY / innerHeight * 100) + '%');
+    });
+  }, {passive:true});
+  document.documentElement.addEventListener('pointerleave', resetGlow);
+  window.addEventListener('blur', resetGlow);
+  reduced.addEventListener('change', resetGlow);
+}

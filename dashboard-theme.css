@@ -74,3 +74,17 @@ body.dk-dashboard-theme::after {
  .dk-dashboard-theme .home-overlay::before { animation: none; }
  .dk-dashboard-theme .sidebar nav .nav-link { transition: none; transform: none; }
 }
+
+/* A visible violet light follows the pointer behind the page content. */
+body.dk-dashboard-theme::after,
+.dk-dashboard-theme .home-overlay::after {
+ content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+ opacity: .8;
+ background: radial-gradient(circle 330px at var(--dk-pointer-x,65%) var(--dk-pointer-y,35%),#b69aff66 0%,#7c5cff44 35%,transparent 75%);
+}
+@media (prefers-reduced-motion:reduce) {
+ body.dk-dashboard-theme::after,.dk-dashboard-theme .home-overlay::after { display:none; }
+}
+@media (forced-colors:active) {
+ .dk-dashboard-theme .home-overlay::after { display:none; }
+}
