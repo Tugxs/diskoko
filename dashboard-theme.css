@@ -1,10 +1,10 @@
-/* Shared Noir Mesh-inspired dashboard backdrop; no remote assets or render loop. */
+/* Shared animated Diskoko violet backdrop; no remote assets or render loop. */
 body.dk-dashboard-theme {
-  --bg: #090a0d;
-  --panel: #15161ddf;
-  --panel2: #202128df;
-  --line: #ffffff16;
-  background: #090a0d;
+  --bg: #100b20;
+  --panel: #201536df;
+  --panel2: #302048df;
+  --line: #a78bfa30;
+  background: #100b20;
   isolation: isolate;
 }
 body.dk-dashboard-theme::before,
@@ -17,11 +17,11 @@ body.dk-dashboard-theme::after {
 }
 body.dk-dashboard-theme::before {
   background:
-    radial-gradient(ellipse at 88% -8%,#dce0e385 0%,#90949d36 22%,transparent 46%),
-    radial-gradient(ellipse at 9% 25%,#8b8f9852 0%,#45475026 25%,transparent 48%),
-    radial-gradient(ellipse at 67% 85%,#5c606933 0%,transparent 43%),
-    radial-gradient(ellipse at 48% 30%,#050608 12%,transparent 53%),#090a0d;
-  animation: dk-mesh-drift 26s ease-in-out infinite alternate;
+    radial-gradient(ellipse at 88% -8%,#a78bfa75 0%,#7c5cff48 22%,transparent 46%),
+    radial-gradient(ellipse at 9% 25%,#7c5cff66 0%,#6043e738 25%,transparent 48%),
+    radial-gradient(ellipse at 67% 85%,#a78bfa40 0%,transparent 43%),
+    radial-gradient(ellipse at 48% 30%,#160c29 12%,transparent 53%),#100b20;
+  animation: dk-mesh-drift 14s ease-in-out infinite alternate;
 }
 body.dk-dashboard-theme::after {
   inset: 0;
@@ -30,23 +30,23 @@ body.dk-dashboard-theme::after {
 }
 .dk-dashboard-theme :is(.workspace-shell,.main-shell,.shell,.checkout-shell) { background: transparent; }
 .dk-dashboard-theme :is(.sidebar,.side) {
-  background: radial-gradient(ellipse at 100% 0%,#85899224,transparent 45%),linear-gradient(180deg,#181920d9,#0e0f15eb);
+  background: radial-gradient(ellipse at 100% 0%,#a78bfa38,transparent 45%),linear-gradient(180deg,#25163bd9,#140d25eb);
   border-color: #ffffff12;
 }
 .dk-dashboard-theme .sidebar nav .nav-link {
-  background: radial-gradient(ellipse at 100% 0%,#a4a7b51c,transparent 70%),linear-gradient(110deg,#131419dd,#22242cbb);
+  background: radial-gradient(ellipse at 100% 0%,#a78bfa30,transparent 70%),linear-gradient(110deg,#201334dd,#35214fbb);
   border-color: #ffffff12;
 }
 .dk-dashboard-theme .sidebar nav .nav-link:is(:hover,:focus-visible,.active) {
-  background: radial-gradient(ellipse at 100% 0%,#bcc0ca35,transparent 70%),linear-gradient(110deg,#20212b,#34353f);
-  border-color: #c6c2dc55;
+  background: radial-gradient(ellipse at 100% 0%,#b998ff55,transparent 70%),linear-gradient(110deg,#32204e,#4b2e70);
+  border-color: #b998ff88;
 }
 .dk-dashboard-theme .topbar {
-  background: #10111680;
+  background: #1b102eaa;
   border-color: #ffffff12;
 }
 .dk-dashboard-theme :is(.panel,.card,.checkout-card,.login-card,.ai-chat-main,.ai-chat-sidebar,.ai-library) {
-  background: linear-gradient(150deg,#22232bea,#14151df2);
+  background: linear-gradient(150deg,#302045ea,#1a112df2);
   border-color: #ffffff18;
 }
 .dk-dashboard-theme .workspace-footer { border-color: #ffffff10; }
@@ -59,4 +59,18 @@ body.dk-dashboard-theme::after {
 }
 @media (forced-colors:active) {
   body.dk-dashboard-theme::before,body.dk-dashboard-theme::after { display: none; }
+}
+
+.dk-dashboard-theme .app-shell { background: transparent; }
+.dk-dashboard-theme .home-overlay { background: #100b20; isolation: isolate; }
+.dk-dashboard-theme .home-overlay::before {
+ content: ''; position: fixed; inset: -8%; z-index: -1; pointer-events: none;
+ background: radial-gradient(ellipse at 80% 15%,#7c5cff70,transparent 48%),radial-gradient(ellipse at 15% 65%,#a78bfa55,transparent 48%),radial-gradient(ellipse at 65% 90%,#6043e755,transparent 45%),#100b20;
+ animation: dk-mesh-drift 14s ease-in-out infinite alternate;
+}
+.dk-dashboard-theme .sidebar nav .nav-link { transition: background .25s,border-color .25s,box-shadow .25s,transform .25s; }
+.dk-dashboard-theme .sidebar nav .nav-link:is(:hover,:focus-visible) { transform: translateX(-3px); box-shadow: 0 0 22px #7c5cff35; }
+@media (prefers-reduced-motion:reduce) {
+ .dk-dashboard-theme .home-overlay::before { animation: none; }
+ .dk-dashboard-theme .sidebar nav .nav-link { transition: none; transform: none; }
 }
