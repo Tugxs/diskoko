@@ -2078,9 +2078,17 @@ async function assistant() {
     $('#dialogContent').querySelectorAll('input:not([type]),textarea').forEach(control=>control.dir='auto');
     if (draft) bindDesignScene(draft,'moduleBanner','moduleConfirmation','modulePublish',item.requestId);
     const english=aiLanguage.language()==='en';
+    if(meta.form){
+      for(const [prefix,ar,en,limit] of [['subject','الموضوع','Subject',120],['details','التفاصيل','Details',1000]]){
+        const label=document.createElement('label');label.textContent=english?`${en} hint`:`إرشاد خانة ${ar}`;
+        const input=document.createElement('input');input.id=`module${prefix}Placeholder`;input.maxLength=100;input.value=draft?.[prefix+'Placeholder'] || '';label.append(input);$('#moduleDetailsLabel').closest('label').after(label);
+        const lengthLabel=document.createElement('label');lengthLabel.textContent=english?`${en} maximum length`:`الحد الأقصى لخانة ${ar}`;
+        const number=document.createElement('input');number.id=`module${prefix}MaxLength`;number.type='number';number.min=1;number.max=limit;number.value=draft?.[prefix+'MaxLength'] ?? limit;lengthLabel.append(number);label.after(lengthLabel);
+      }
+    }
     const groups=[
       [english?'1. Content':'١. محتوى اللوحة',['moduleTitle','moduleDescription','moduleButton']],
-      [english?'2. Member action and destination':'٢. وظيفة اللوحة ومكانها',['moduleChannel','moduleRole','moduleReviewChannel','moduleStaffRole','moduleSubjectLabel','moduleDetailsLabel','moduleAnswer','moduleStartsAt','moduleCapacity']],
+      [english?'2. Member action and destination':'٢. وظيفة اللوحة ومكانها',['moduleChannel','moduleRole','moduleReviewChannel','moduleStaffRole','moduleSubjectLabel','moduleDetailsLabel','modulesubjectPlaceholder','moduledetailsPlaceholder','modulesubjectMaxLength','moduledetailsMaxLength','moduleAnswer','moduleStartsAt','moduleCapacity']],
       [english?'3. Appearance':'٣. شكل اللوحة',['moduleColor','moduleButtonStyle']],
     ];
     for(const [title,ids] of groups){const labels=ids.map(id=>$('#'+id)?.closest('label')).filter(Boolean);if(!labels.length)continue;const section=document.createElement('fieldset');section.className='ai-module-section';const legend=document.createElement('legend');legend.textContent=title;section.append(legend);labels[0].before(section);for(const label of labels)section.append(label);}
@@ -2104,6 +2112,7 @@ async function assistant() {
         if (item.requestId) payload.sourceRequestId = item.requestId;
         if(item.editInstallId)payload.editInstallId=item.editInstallId;
         if (meta.form) Object.assign(payload, { reviewChannelId: $('#moduleReviewChannel').value, staffRoleId: $('#moduleStaffRole').value, subjectLabel: $('#moduleSubjectLabel').value, detailsLabel: $('#moduleDetailsLabel').value });
+        if(meta.form) for(const prefix of ['subject','details'])Object.assign(payload,{[prefix+'Placeholder']:$('#module'+prefix+'Placeholder').value,[prefix+'MaxLength']:Number($('#module'+prefix+'MaxLength').value)});
         if (kind === 'interests') payload.roleId = $('#moduleRole').value;
         if (kind === 'faq') payload.answer = $('#moduleAnswer').value;
         if (kind === 'events') Object.assign(payload, { startsAt: $('#moduleStartsAt').value ? new Date($('#moduleStartsAt').value).toISOString() : '', capacity: Number($('#moduleCapacity').value) });

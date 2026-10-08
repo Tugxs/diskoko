@@ -35,6 +35,15 @@ test('form feature opens the configured modal and staff task rejects ordinary me
   assert.match(task.state.replies[0].content, /الإدارة/);
 });
 
+test('custom form hints and lengths reach the real Discord modal',async()=>{
+  const suggestion=interaction();const configured=panel('suggestions');
+  Object.assign(configured.config,{subjectPlaceholder:'Short idea',subjectMaxLength:60,detailsPlaceholder:'Explain why',detailsMaxLength:500});
+  await handleReadyModuleInteraction(suggestion,pool(configured));
+  const inputs=suggestion.state.modals[0].components.map(row=>row.components[0]);
+  assert.equal(inputs[0].placeholder,'Short idea');assert.equal(inputs[0].max_length,60);
+  assert.equal(inputs[1].placeholder,'Explain why');assert.equal(inputs[1].max_length,500);
+});
+
 test('accepted store request can be marked complete by staff without publishing customer details', async () => {
   const updates = [];
   const order = interaction();

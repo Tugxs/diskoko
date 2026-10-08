@@ -543,6 +543,10 @@ test('completed AI module reply opens its specific editor only after the request
   doc.querySelector('[data-ai-module]').click();
   assert.match(doc.querySelector('#dialogContent').textContent, /مهام فريق الإدارة/);
   assert.equal(doc.querySelector('#moduleSubjectLabel').value, 'عنوان مهمة الفريق');
+  assert.equal(doc.querySelector('#modulesubjectMaxLength').value,'120');
+  assert.equal(doc.querySelector('#moduledetailsMaxLength').value,'1000');
+  assert.equal(doc.querySelector('#modulesubjectPlaceholder').maxLength,100);
+  assert.equal(doc.querySelector('#moduledetailsPlaceholder').maxLength,100);
   dom.window.close();
 });
 test('only the newest unpublished conversation draft offers publication controls',async()=>{
