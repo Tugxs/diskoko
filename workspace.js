@@ -2091,7 +2091,7 @@ async function assistant() {
       if (channel) $('#moduleChannel').value = channel.id;
       if(saved){$('#moduleChannel').value=saved.config.channelId;$('#moduleChannel').disabled=true;for(const [id,key] of [['moduleRole','roleId'],['moduleReviewChannel','reviewChannelId'],['moduleStaffRole','staffRoleId']])if($('#'+id))$('#'+id).value=saved.config[key] || '';if(saved.config.banner)$('#moduleBannerPreview').innerHTML=`<img style="max-width:100%" src="data:${esc(saved.config.banner.mime)};base64,${esc(saved.config.banner.base64)}" alt="الصورة الحالية للوحة">`;}
     }
-    mountEditorPrototype($('#dialogContent'), { english, markdown: discordMarkdownPreview, botName: connectedAiBot?.selected ? connectedAiBot.name : 'ديسكوكو', initial:saved?.config || draft || {} });
+    mountEditorPrototype($('#dialogContent'), { english, markdown: discordMarkdownPreview, botName: connectedAiBot?.selected ? connectedAiBot.name : 'ديسكوكو', initial:saved?.config || draft || {}, workflow:english?'':labels?.[2] || (kind==='interests'?'يمنح العضو الرتبة العادية المختارة أو يزيلها.':kind==='faq'?'يعرض للعضو الإجابة المحددة.':'يسجل مشاركة العضو في هذه الفعالية.') });
     $('#moduleCancel').onclick = closeDialog;
     $('#moduleReview').onclick = run(async () => {
       const button = $('#moduleReview'); button.disabled = true;

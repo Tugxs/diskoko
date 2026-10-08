@@ -28,7 +28,7 @@ export function readEditorExtras(root) {
   if(!placement)return null;
   return {imagePlacement:placement.value,links:[...root.querySelectorAll('[data-editor-link-row]')].filter(row=>!row.hidden).map(row=>({label:row.querySelector('input[data-link-label]').value.trim(),url:row.querySelector('input[data-link-url]').value.trim()}))};
 }
-export function mountEditorPrototype(root, { english = false, markdown, botName = 'Diskoko', initial = {} } = {}) {
+export function mountEditorPrototype(root, { english = false, markdown, botName = 'Diskoko', initial = {}, workflow = '' } = {}) {
   if (new URLSearchParams(location.search).get('editorPreview')==='0') return false;
   const body = root.querySelector('.dialog-body');
   const sections = [...body.querySelectorAll('.ai-module-section')];
@@ -43,6 +43,9 @@ export function mountEditorPrototype(root, { english = false, markdown, botName 
   // Content, appearance, then operational settings; move, never clone, real inputs.
   const ordered = [sections[0], sections[2], sections[1]].filter(Boolean);
   ordered.forEach((section,index)=>{section.dataset.editorSection=index; inspector.append(section);});
+  const guide=document.createElement('p');guide.className='editor-workflow-note';
+  guide.textContent=(workflow?workflow+' ':'')+(english?'The main button keeps this module action. Additional buttons open HTTPS links only. Channels, roles and permissions are checked again before publication.':'الزر الأساسي ينفّذ وظيفة هذه اللوحة. الأزرار الإضافية تفتح روابط HTTPS فقط. تُفحص القنوات والرتب والصلاحيات مجددًا قبل النشر.');
+  ordered[2].prepend(guide);
   const appearance = ordered[1];
   const text=(ar,en)=>english?en:ar;
   const tools=document.createElement('div');tools.className='editor-tools';
@@ -96,7 +99,7 @@ export function mountEditorPrototype(root, { english = false, markdown, botName 
     const channel=get('moduleChannel');
     layout.querySelector('.editor-destination').textContent=channel.value ? `# ${channel.selectedOptions[0].textContent}` : (english?'Choose the destination under Function & destination':'اختر قناة النشر من قسم الوظيفة والقناة');
     const image=layout.querySelector('.editor-image'), file=get('moduleBanner').files[0];
-    const composed=scene?.querySelector('[data-scene-preview]:not([hidden])');
+    const composed=scene?.querySelector('[data-scene-enabled]')?.checked ? scene.querySelector('[data-scene-preview]:not([hidden])') : null;
     const saved=get('moduleBannerPreview')?.querySelector('img');
     if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl=undefined; }
     const src=composed?.src || (file && /^image\/(png|jpeg|webp|gif)$/.test(file.type) && file.size<=8*1024*1024 ? (objectUrl=URL.createObjectURL(file)) : saved?.src);
