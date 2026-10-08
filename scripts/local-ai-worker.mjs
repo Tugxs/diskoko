@@ -195,7 +195,7 @@ async function propose(job, context, guild, answer, repair=false) {
   try {
     instructions += '\n'+capabilityKnowledge()+'\n'+draftContractInstructions()+'\n'+await semanticCapabilityKnowledge(job.prompt);
     instructions += '\nKeep JSON compact. No prose outside JSON. Maximum six design layers; never repeat content in a scene unnecessarily.';
-    if(repair)instructions+='\nThe previous response was invalid JSON. Return only a minimal valid contract (executeNow, interactive or message), with content and functional fields. Omit designScene and designEdits for this repair. Missing values must remain blank or null. This is the final repair attempt.';
+    if(repair)instructions+='\nThe previous response did not produce a valid requested draft. Return only a minimal valid contract (executeNow, interactive or message), with content and functional fields. A request to prepare a draft WITHOUT publishing still requires executeNow=true, because this flag means REVIEW ONLY. Omit designScene and designEdits for this repair. Missing values must remain blank or null. This is the final repair attempt. Unsupported essential functions must remain unavailable; never invent a handler.';
     const messages = [{ role: 'system', content: instructions }, { role: 'user', content: recent }];
     const body = planningProvider === 'ollama'
       ? await request(`${planningInference}/api/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: planningModel, stream: false, think: false, format: 'json', messages, options: { num_ctx: 8192, num_predict: 1800, temperature: 0 } }) })
@@ -205,7 +205,13 @@ async function propose(job, context, guild, answer, repair=false) {
     try {parsed=JSON.parse(raw);} catch(error) {if(!repair)return await propose(job,context,guild,answer,true);throw error;}
     if(process.env.AI_WORKER_TEST==='1' && process.env.AI_TEST_TRACE==='1')console.log('Planner test data:',JSON.stringify(parsed));
     if(parsed.interactive && Array.isArray(parsed.designEdits) && !parsed.interactive.designEdits)parsed.interactive.designEdits=parsed.designEdits;
-    if (parsed.executeNow !== true) return null;
+    if (parsed.executeNow !== true) {
+      const supportedCreation=editablePanelRequest(job.prompt) && !unsupportedAutomationRequest([{role:'user',content:job.prompt}]);
+      if(supportedCreation && !repair) return await propose(job,context,guild,answer,true);
+      // A generated supported draft is review data, never a publication command.
+      if(supportedCreation && (parsed.interactive || parsed.message)) parsed.executeNow=true;
+      else return null;
+    }
     if (/(الجدد|عضو جديد|الأعضاء الجدد)/.test(recent) && Array.isArray(parsed.operations)) {
       parsed.operations = parsed.operations.map(item => item?.resource_type === 'role' && /new.?member|member|عضو/i.test(String(item.name || '')) ? { ...item, name: 'عضو جديد' } : item);
     }
