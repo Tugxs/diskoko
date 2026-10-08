@@ -1,10 +1,10 @@
 /* Shared animated Diskoko violet backdrop; no remote assets or render loop. */
 body.dk-dashboard-theme {
-  --bg: #090610;
+  --bg: #05030a;
   --panel: #130c22ef;
   --panel2: #1c1030ef;
   --line: #6c3db330;
-  background: #090610;
+  background: #05030a;
   isolation: isolate;
 }
 body.dk-dashboard-theme::before,
@@ -17,10 +17,10 @@ body.dk-dashboard-theme::after {
 }
 body.dk-dashboard-theme::before {
   background:
-    radial-gradient(ellipse at 88% -8%,#6d35bd50 0%,#54239440 22%,transparent 46%),
-    radial-gradient(ellipse at 9% 25%,#6027aa50 0%,#48207838 25%,transparent 48%),
+    radial-gradient(ellipse at 88% -8%,#49207830 0%,#54239440 22%,transparent 46%),
+    radial-gradient(ellipse at 9% 25%,#401c7030 0%,#48207838 25%,transparent 48%),
     radial-gradient(ellipse at 67% 85%,#55258930 0%,transparent 43%),
-    radial-gradient(ellipse at 48% 30%,#160c29 12%,transparent 53%),#090610;
+    radial-gradient(ellipse at 48% 30%,#160c29 12%,transparent 53%),#05030a;
   animation: dk-mesh-drift 10s ease-in-out infinite alternate;
 }
 body.dk-dashboard-theme::after {
@@ -62,10 +62,10 @@ body.dk-dashboard-theme::after {
 }
 
 .dk-dashboard-theme .app-shell { background: transparent; }
-.dk-dashboard-theme .home-overlay { background: #090610; isolation: isolate; overflow-x: hidden; }
+.dk-dashboard-theme .home-overlay { background: #05030a; isolation: isolate; overflow-x: hidden; }
 .dk-dashboard-theme .home-overlay::before {
  content: ''; position: fixed; inset: -8%; z-index: -1; pointer-events: none;
- background: radial-gradient(ellipse at 80% 15%,#6124a650,transparent 48%),radial-gradient(ellipse at 15% 65%,#58209240,transparent 48%),radial-gradient(ellipse at 65% 90%,#45207845,transparent 45%),#090610;
+ background: radial-gradient(ellipse at 80% 15%,#45207535,transparent 48%),radial-gradient(ellipse at 15% 65%,#34165230,transparent 48%),radial-gradient(ellipse at 65% 90%,#45207845,transparent 45%),#05030a;
  animation: dk-mesh-drift 10s ease-in-out infinite alternate;
 }
 .dk-dashboard-theme .sidebar nav .nav-link { transition: background .25s,border-color .25s,box-shadow .25s,transform .25s; }
@@ -80,11 +80,24 @@ body.dk-dashboard-theme::after,
 .dk-dashboard-theme .home-overlay::after {
  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
  opacity: .8;
- background: radial-gradient(circle 330px at var(--dk-pointer-x,65%) var(--dk-pointer-y,35%),#7836cb55 0%,#57259644 35%,transparent 75%);
+ background: radial-gradient(circle 330px at var(--dk-pointer-x,65%) var(--dk-pointer-y,35%),#57268c38 0%,#57259644 35%,transparent 75%);
 }
 @media (prefers-reduced-motion:reduce) {
  body.dk-dashboard-theme::after,.dk-dashboard-theme .home-overlay::after { display:none; }
 }
 @media (forced-colors:active) {
  .dk-dashboard-theme .home-overlay::after { display:none; }
+}
+
+/* Layered perspective light, with depth following the pointer. */
+body.dk-dashboard-theme::before,.dk-dashboard-theme .home-overlay::before {
+ transform-origin: center; will-change: transform;
+ animation: dk-depth-drift 16s ease-in-out infinite alternate;
+}
+@keyframes dk-depth-drift {
+ from { transform: perspective(1100px) rotateX(var(--dk-tilt-y,0deg)) rotateY(var(--dk-tilt-x,0deg)) translate3d(-2%,-1%,-35px) scale(1.08); }
+ to { transform: perspective(1100px) rotateX(var(--dk-tilt-y,0deg)) rotateY(var(--dk-tilt-x,0deg)) translate3d(4%,3%,45px) scale(1.14); }
+}
+@media (prefers-reduced-motion:reduce) {
+ body.dk-dashboard-theme::before,.dk-dashboard-theme .home-overlay::before { animation:none; will-change:auto; }
 }
