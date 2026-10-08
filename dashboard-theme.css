@@ -62,7 +62,7 @@ body.dk-dashboard-theme::after {
 }
 
 .dk-dashboard-theme .app-shell { background: transparent; }
-.dk-dashboard-theme .home-overlay { background: #100b20; isolation: isolate; }
+.dk-dashboard-theme .home-overlay { background: #100b20; isolation: isolate; overflow-x: hidden; }
 .dk-dashboard-theme .home-overlay::before {
  content: ''; position: fixed; inset: -8%; z-index: -1; pointer-events: none;
  background: radial-gradient(ellipse at 80% 15%,#7c5cff70,transparent 48%),radial-gradient(ellipse at 15% 65%,#a78bfa55,transparent 48%),radial-gradient(ellipse at 65% 90%,#6043e755,transparent 45%),#100b20;
