@@ -1,6 +1,7 @@
 import { initializeAiLanguage } from './ai-ui-language.js';
 import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';
 import { aiPromptLibrary } from './ai-library-catalog.js';
+import { mountEditorPrototype, readEditorExtras, mountPanelStudio } from './ai-editor-prototype.js';
 
 const sceneReviewState=new WeakMap();
 function bindDesignScene(plan,prefix,confirmId,launchId,requestId) {
@@ -243,12 +244,16 @@ function draftBar() {
   $('#discardDraft').onclick = () => confirmDialog('تجاهل التغييرات؟', 'ستُزال قائمة التغييرات من هذا الجهاز. لن يتغير سيرفرك في Discord.', 'تجاهل التغييرات', () => { state.draft = []; saveDraft(); closeDialog(); render(); });
 }
 function modal(title, body, footer = '') {
+  $('#dialogContent').editorDispose?.();
+  $('#dialog').classList.remove('ai-editor-prototype');
   const dialog = $('#dialog'); $('#dialogContent').innerHTML = `<div class="dialog-head"><h2 id="dialogTitle">${title}</h2><button class="icon-btn" id="closeDialog" aria-label="إغلاق">×</button></div><div class="dialog-body"><div class="dialog-error" id="dialogError" role="alert" hidden></div>${body}</div>${footer ? `<div class="dialog-foot">${footer}</div>` : ''}`;
   $('#dialogContent').querySelectorAll('.ai-discord-bot-name').forEach(node => { node.innerHTML = `◈ ${esc(state.aiBotName || 'ديسكوكو')} <small>BOT</small>`; });
   if (state.aiBotName) $('#dialogContent').querySelectorAll('.form-note').forEach(node => { node.textContent = node.textContent.replace('بواسطة بوت ديسكوكو', `بواسطة بوت ${state.aiBotName}`); });
   $('#closeDialog').onclick = closeDialog;
   installAiEmojiPickers();
   if (!dialog.open) dialog.showModal();
+  const content=$('#dialogContent'),generation=Symbol();content.editorGeneration=generation;
+  queueMicrotask(()=>{if(content.editorGeneration===generation && dialog.open)mountPanelStudio(content);});
 }
 function closeDialog() { $('#dialog').querySelectorAll('input[type="password"]').forEach(input => { input.value = ''; }); $('#dialog').close(); }
 function modalError(error) { $('#dialogError').hidden = false; $('#dialogError').textContent = error.message; }
@@ -2086,11 +2091,13 @@ async function assistant() {
       if (channel) $('#moduleChannel').value = channel.id;
       if(saved){$('#moduleChannel').value=saved.config.channelId;$('#moduleChannel').disabled=true;for(const [id,key] of [['moduleRole','roleId'],['moduleReviewChannel','reviewChannelId'],['moduleStaffRole','staffRoleId']])if($('#'+id))$('#'+id).value=saved.config[key] || '';if(saved.config.banner)$('#moduleBannerPreview').innerHTML=`<img style="max-width:100%" src="data:${esc(saved.config.banner.mime)};base64,${esc(saved.config.banner.base64)}" alt="الصورة الحالية للوحة">`;}
     }
+    mountEditorPrototype($('#dialogContent'), { english, markdown: discordMarkdownPreview, botName: connectedAiBot?.selected ? connectedAiBot.name : 'ديسكوكو', initial:saved?.config || draft || {} });
     $('#moduleCancel').onclick = closeDialog;
     $('#moduleReview').onclick = run(async () => {
       const button = $('#moduleReview'); button.disabled = true;
       try {
         const payload = { kind, title: $('#moduleTitle').value, description: $('#moduleDescription').value, buttonLabel: $('#moduleButton').value, channelId: $('#moduleChannel').value, color: $('#moduleColor').value, buttonStyle: Number($('#moduleButtonStyle').value), executor: connectedAiBot?.selected ? 'custom' : 'diskoko' };
+        Object.assign(payload,readEditorExtras($('#dialogContent')) || {links:saved?.config.links || draft?.links || [],imagePlacement:saved?.config.imagePlacement || draft?.imagePlacement || 'image'});
         if (item.requestId) payload.sourceRequestId = item.requestId;
         if(item.editInstallId)payload.editInstallId=item.editInstallId;
         if (meta.form) Object.assign(payload, { reviewChannelId: $('#moduleReviewChannel').value, staffRoleId: $('#moduleStaffRole').value, subjectLabel: $('#moduleSubjectLabel').value, detailsLabel: $('#moduleDetailsLabel').value });
@@ -2107,6 +2114,9 @@ async function assistant() {
         else if(saved?.config.banner){payload.banner=saved.config.banner;if(saved.config.designScene)payload.designScene=saved.config.designScene;}
         const review = await api(`/api/workspace/${encodeURIComponent(guild)}/standalone-modules/review`, { method: 'POST', body: JSON.stringify(payload) });
         modal('مراجعة تركيب الميزة', `<div class="notice info"><div><b>${esc(review.config.title)}</b><p>${review.editing ? 'ستُعدّل اللوحة الحالية في' : 'ستُنشر لوحة في'} # ${esc(review.channelName)} بواسطة ${review.executor === 'custom' ? 'بوتك الخاص' : 'بوت ديسكوكو'}.</p></div></div><div class="ready-preview-card" style="--ready-accent:${esc(review.config.color)}">${payload.banner ? `<img class="ready-banner" src="data:${esc(payload.banner.mime)};base64,${esc(payload.banner.base64)}" alt="صورة اللوحة">` : ''}<b>${esc(review.config.title)}</b><p dir="auto">${discordMarkdownPreview(review.config.description)}</p><button class="btn small" style="background:${["","#5865f2","#4e5058","#248046","#da373c"][review.config.buttonStyle]}" disabled>${esc(review.config.buttonLabel)}</button></div><p class="form-note">${review.editing ? 'الإجراء الوحيد الآن: تعديل نفس الرسالة المنشورة؛ لا تُنشأ لوحة إضافية.' : 'الإجراء الوحيد الآن: نشر اللوحة التفاعلية.'} سيُحسب تغيير واحد بعد نجاح Discord، ولا ينشئ هذا الإجراء قنوات أو رتبًا جديدة.</p>`, '<button id="moduleLater" class="btn secondary" type="button">لاحقًا</button><button id="moduleApply" class="btn primary" type="button">نعم، انشر الميزة</button>');
+        const reviewCard=$('#dialogContent .ready-preview-card');
+        if(review.config.imagePlacement==='thumbnail' && reviewCard?.querySelector('img')) { const image=reviewCard.querySelector('img'); image.style.cssText='float:right;width:80px;height:80px;object-fit:contain;margin:0 0 12px 16px'; }
+        for(const link of review.config.links || []){const element=document.createElement('span');element.className='ai-discord-button';element.style.background='#4e5058';element.textContent=link.label+' ↗';element.title=link.url;reviewCard.append(element);}
         $('#moduleLater').onclick = closeDialog;
         $('#moduleApply').onclick = run(async () => { const apply = $('#moduleApply'); apply.disabled = true; try { const result = await api(`/api/workspace/${encodeURIComponent(guild)}/standalone-modules/${encodeURIComponent(review.id)}/apply`, { method: 'POST', body: '{}' }); closeDialog(); const source=messages.find(message=>message.id===item.requestId); if(source){source.proposal.interactive={...source.proposal.interactive,title:review.config.title,description:review.config.description,buttonLabel:review.config.buttonLabel,color:review.config.color,buttonStyle:review.config.buttonStyle,designScene:review.config.designScene};Object.assign(source,{interactive_kind:'module',publication_state:'completed',interactive_message_id:result.messageId,interactive_channel_id:result.channelId || payload.channelId,module_install_id:item.editInstallId || review.id});renderMessages();} toast(result.editing?'عُدّلت اللوحة الحالية بنجاح دون إنشاء لوحة إضافية.':'نُشرت الميزة بنجاح وحُسب تغيير واحد.'); if (result.channelId && result.messageId) window.open(`https://discord.com/channels/${encodeURIComponent(guild)}/${encodeURIComponent(result.channelId)}/${encodeURIComponent(result.messageId)}`, '_blank', 'noopener'); } catch (error) { modalError(error); apply.disabled = false; } });
       } catch (error) { modalError(error); button.disabled = false; }
