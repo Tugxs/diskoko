@@ -89,15 +89,19 @@ body.dk-dashboard-theme::after,
  .dk-dashboard-theme .home-overlay::after { display:none; }
 }
 
-/* Layered perspective light, with depth following the pointer. */
+
+/* Keep the page geometry fixed; only light fields drift. */
+body.dk-dashboard-theme { overflow-x: clip; }
 body.dk-dashboard-theme::before,.dk-dashboard-theme .home-overlay::before {
- transform-origin: center; will-change: transform;
- animation: dk-depth-drift 16s ease-in-out infinite alternate;
+ inset: 0; transform: none; will-change: auto;
+ background-size: 130% 130%;
+ animation: dk-light-drift 18s ease-in-out infinite alternate;
 }
-@keyframes dk-depth-drift {
- from { transform: perspective(1100px) rotateX(var(--dk-tilt-y,0deg)) rotateY(var(--dk-tilt-x,0deg)) translate3d(-2%,-1%,-35px) scale(1.08); }
- to { transform: perspective(1100px) rotateX(var(--dk-tilt-y,0deg)) rotateY(var(--dk-tilt-x,0deg)) translate3d(4%,3%,45px) scale(1.14); }
+@keyframes dk-light-drift {
+ from { background-position: 15% 25%; }
+ to { background-position: 75% 65%; }
 }
+.dk-dashboard-theme .sidebar nav .nav-link:is(:hover,:focus-visible) { transform: none; }
 @media (prefers-reduced-motion:reduce) {
- body.dk-dashboard-theme::before,.dk-dashboard-theme .home-overlay::before { animation:none; will-change:auto; }
+ body.dk-dashboard-theme::before,.dk-dashboard-theme .home-overlay::before { animation:none; }
 }

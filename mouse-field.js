@@ -44,15 +44,11 @@ if (document.body.classList.contains('dk-dashboard-theme')) {
   const resetGlow = () => {
     document.documentElement.style.removeProperty('--dk-pointer-x');
     document.documentElement.style.removeProperty('--dk-pointer-y');
-    document.documentElement.style.removeProperty('--dk-tilt-x');
-    document.documentElement.style.removeProperty('--dk-tilt-y');
   };
   document.addEventListener('pointermove', event => {
     if (reduced.matches || event.pointerType === 'touch') return;
     cancelAnimationFrame(glowFrame);
     glowFrame = requestAnimationFrame(() => {
-      document.documentElement.style.setProperty('--dk-tilt-x', ((event.clientX / innerWidth - .5) * 8) + 'deg');
-      document.documentElement.style.setProperty('--dk-tilt-y', ((.5 - event.clientY / innerHeight) * 6) + 'deg');
       document.documentElement.style.setProperty('--dk-pointer-x', (event.clientX / innerWidth * 100) + '%');
       document.documentElement.style.setProperty('--dk-pointer-y', (event.clientY / innerHeight * 100) + '%');
     });
