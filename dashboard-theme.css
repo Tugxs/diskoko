@@ -1,10 +1,10 @@
 /* Shared animated Diskoko violet backdrop; no remote assets or render loop. */
 body.dk-dashboard-theme {
-  --bg: #100b20;
-  --panel: #201536df;
-  --panel2: #302048df;
-  --line: #a78bfa30;
-  background: #100b20;
+  --bg: #090610;
+  --panel: #130c22ef;
+  --panel2: #1c1030ef;
+  --line: #6c3db330;
+  background: #090610;
   isolation: isolate;
 }
 body.dk-dashboard-theme::before,
@@ -17,11 +17,11 @@ body.dk-dashboard-theme::after {
 }
 body.dk-dashboard-theme::before {
   background:
-    radial-gradient(ellipse at 88% -8%,#a78bfa75 0%,#7c5cff48 22%,transparent 46%),
-    radial-gradient(ellipse at 9% 25%,#7c5cff66 0%,#6043e738 25%,transparent 48%),
-    radial-gradient(ellipse at 67% 85%,#a78bfa40 0%,transparent 43%),
-    radial-gradient(ellipse at 48% 30%,#160c29 12%,transparent 53%),#100b20;
-  animation: dk-mesh-drift 14s ease-in-out infinite alternate;
+    radial-gradient(ellipse at 88% -8%,#6d35bd50 0%,#54239440 22%,transparent 46%),
+    radial-gradient(ellipse at 9% 25%,#6027aa50 0%,#48207838 25%,transparent 48%),
+    radial-gradient(ellipse at 67% 85%,#55258930 0%,transparent 43%),
+    radial-gradient(ellipse at 48% 30%,#160c29 12%,transparent 53%),#090610;
+  animation: dk-mesh-drift 10s ease-in-out infinite alternate;
 }
 body.dk-dashboard-theme::after {
   inset: 0;
@@ -30,29 +30,29 @@ body.dk-dashboard-theme::after {
 }
 .dk-dashboard-theme :is(.workspace-shell,.main-shell,.shell,.checkout-shell) { background: transparent; }
 .dk-dashboard-theme :is(.sidebar,.side) {
-  background: radial-gradient(ellipse at 100% 0%,#a78bfa38,transparent 45%),linear-gradient(180deg,#25163bd9,#140d25eb);
+  background: radial-gradient(ellipse at 100% 0%,#602b9830,transparent 45%),linear-gradient(180deg,#160b28eb,#0b0715f5);
   border-color: #ffffff12;
 }
 .dk-dashboard-theme .sidebar nav .nav-link {
-  background: radial-gradient(ellipse at 100% 0%,#a78bfa30,transparent 70%),linear-gradient(110deg,#201334dd,#35214fbb);
+  background: radial-gradient(ellipse at 100% 0%,#6c3db330,transparent 70%),linear-gradient(110deg,#120a20ee,#201033dd);
   border-color: #ffffff12;
 }
 .dk-dashboard-theme .sidebar nav .nav-link:is(:hover,:focus-visible,.active) {
-  background: radial-gradient(ellipse at 100% 0%,#b998ff55,transparent 70%),linear-gradient(110deg,#32204e,#4b2e70);
-  border-color: #b998ff88;
+  background: radial-gradient(ellipse at 100% 0%,#783fc044,transparent 70%),linear-gradient(110deg,#211034,#32174e);
+  border-color: #804bc477;
 }
 .dk-dashboard-theme .topbar {
-  background: #1b102eaa;
+  background: #0d0818dd;
   border-color: #ffffff12;
 }
 .dk-dashboard-theme :is(.panel,.card,.checkout-card,.login-card,.ai-chat-main,.ai-chat-sidebar,.ai-library) {
-  background: linear-gradient(150deg,#302045ea,#1a112df2);
+  background: linear-gradient(150deg,#1b102bee,#0e091af5);
   border-color: #ffffff18;
 }
 .dk-dashboard-theme .workspace-footer { border-color: #ffffff10; }
 @keyframes dk-mesh-drift {
   from { transform: translate3d(-1%,-1%,0) scale(1); }
-  to { transform: translate3d(2%,2%,0) scale(1.035); }
+  to { transform: translate3d(5%,3%,0) scale(1.08); }
 }
 @media (prefers-reduced-motion:reduce) {
   body.dk-dashboard-theme::before { animation: none; }
@@ -62,11 +62,11 @@ body.dk-dashboard-theme::after {
 }
 
 .dk-dashboard-theme .app-shell { background: transparent; }
-.dk-dashboard-theme .home-overlay { background: #100b20; isolation: isolate; overflow-x: hidden; }
+.dk-dashboard-theme .home-overlay { background: #090610; isolation: isolate; overflow-x: hidden; }
 .dk-dashboard-theme .home-overlay::before {
  content: ''; position: fixed; inset: -8%; z-index: -1; pointer-events: none;
- background: radial-gradient(ellipse at 80% 15%,#7c5cff70,transparent 48%),radial-gradient(ellipse at 15% 65%,#a78bfa55,transparent 48%),radial-gradient(ellipse at 65% 90%,#6043e755,transparent 45%),#100b20;
- animation: dk-mesh-drift 14s ease-in-out infinite alternate;
+ background: radial-gradient(ellipse at 80% 15%,#6124a650,transparent 48%),radial-gradient(ellipse at 15% 65%,#58209240,transparent 48%),radial-gradient(ellipse at 65% 90%,#45207845,transparent 45%),#090610;
+ animation: dk-mesh-drift 10s ease-in-out infinite alternate;
 }
 .dk-dashboard-theme .sidebar nav .nav-link { transition: background .25s,border-color .25s,box-shadow .25s,transform .25s; }
 .dk-dashboard-theme .sidebar nav .nav-link:is(:hover,:focus-visible) { transform: translateX(-3px); box-shadow: 0 0 22px #7c5cff35; }
@@ -80,7 +80,7 @@ body.dk-dashboard-theme::after,
 .dk-dashboard-theme .home-overlay::after {
  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
  opacity: .8;
- background: radial-gradient(circle 330px at var(--dk-pointer-x,65%) var(--dk-pointer-y,35%),#b69aff66 0%,#7c5cff44 35%,transparent 75%);
+ background: radial-gradient(circle 330px at var(--dk-pointer-x,65%) var(--dk-pointer-y,35%),#7836cb55 0%,#57259644 35%,transparent 75%);
 }
 @media (prefers-reduced-motion:reduce) {
  body.dk-dashboard-theme::after,.dk-dashboard-theme .home-overlay::after { display:none; }
