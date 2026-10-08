@@ -1,10 +1,10 @@
-/* Shared Noir Mesh-inspired dashboard backdrop; no remote assets or render loop. */
+/* Shared animated Diskoko violet backdrop; no remote assets or render loop. */
 body.dk-dashboard-theme {
-  --bg: #090a0d;
-  --panel: #15161ddf;
-  --panel2: #202128df;
-  --line: #ffffff16;
-  background: #090a0d;
+  --bg: #05030a;
+  --panel: #130c22ef;
+  --panel2: #1c1030ef;
+  --line: #6c3db330;
+  background: #05030a;
   isolation: isolate;
 }
 body.dk-dashboard-theme::before,
@@ -17,11 +17,11 @@ body.dk-dashboard-theme::after {
 }
 body.dk-dashboard-theme::before {
   background:
-    radial-gradient(ellipse at 88% -8%,#dce0e385 0%,#90949d36 22%,transparent 46%),
-    radial-gradient(ellipse at 9% 25%,#8b8f9852 0%,#45475026 25%,transparent 48%),
-    radial-gradient(ellipse at 67% 85%,#5c606933 0%,transparent 43%),
-    radial-gradient(ellipse at 48% 30%,#050608 12%,transparent 53%),#090a0d;
-  animation: dk-mesh-drift 26s ease-in-out infinite alternate;
+    radial-gradient(ellipse at 88% -8%,#49207830 0%,#54239440 22%,transparent 46%),
+    radial-gradient(ellipse at 9% 25%,#401c7030 0%,#48207838 25%,transparent 48%),
+    radial-gradient(ellipse at 67% 85%,#55258930 0%,transparent 43%),
+    radial-gradient(ellipse at 48% 30%,#160c29 12%,transparent 53%),#05030a;
+  animation: dk-mesh-drift 10s ease-in-out infinite alternate;
 }
 body.dk-dashboard-theme::after {
   inset: 0;
@@ -30,33 +30,78 @@ body.dk-dashboard-theme::after {
 }
 .dk-dashboard-theme :is(.workspace-shell,.main-shell,.shell,.checkout-shell) { background: transparent; }
 .dk-dashboard-theme :is(.sidebar,.side) {
-  background: radial-gradient(ellipse at 100% 0%,#85899224,transparent 45%),linear-gradient(180deg,#181920d9,#0e0f15eb);
+  background: radial-gradient(ellipse at 100% 0%,#602b9830,transparent 45%),linear-gradient(180deg,#160b28eb,#0b0715f5);
   border-color: #ffffff12;
 }
 .dk-dashboard-theme .sidebar nav .nav-link {
-  background: radial-gradient(ellipse at 100% 0%,#a4a7b51c,transparent 70%),linear-gradient(110deg,#131419dd,#22242cbb);
+  background: radial-gradient(ellipse at 100% 0%,#6c3db330,transparent 70%),linear-gradient(110deg,#120a20ee,#201033dd);
   border-color: #ffffff12;
 }
 .dk-dashboard-theme .sidebar nav .nav-link:is(:hover,:focus-visible,.active) {
-  background: radial-gradient(ellipse at 100% 0%,#bcc0ca35,transparent 70%),linear-gradient(110deg,#20212b,#34353f);
-  border-color: #c6c2dc55;
+  background: radial-gradient(ellipse at 100% 0%,#783fc044,transparent 70%),linear-gradient(110deg,#211034,#32174e);
+  border-color: #804bc477;
 }
 .dk-dashboard-theme .topbar {
-  background: #10111680;
+  background: #0d0818dd;
   border-color: #ffffff12;
 }
 .dk-dashboard-theme :is(.panel,.card,.checkout-card,.login-card,.ai-chat-main,.ai-chat-sidebar,.ai-library) {
-  background: linear-gradient(150deg,#22232bea,#14151df2);
+  background: linear-gradient(150deg,#1b102bee,#0e091af5);
   border-color: #ffffff18;
 }
 .dk-dashboard-theme .workspace-footer { border-color: #ffffff10; }
 @keyframes dk-mesh-drift {
   from { transform: translate3d(-1%,-1%,0) scale(1); }
-  to { transform: translate3d(2%,2%,0) scale(1.035); }
+  to { transform: translate3d(5%,3%,0) scale(1.08); }
 }
 @media (prefers-reduced-motion:reduce) {
   body.dk-dashboard-theme::before { animation: none; }
 }
 @media (forced-colors:active) {
   body.dk-dashboard-theme::before,body.dk-dashboard-theme::after { display: none; }
+}
+
+.dk-dashboard-theme .app-shell { background: transparent; }
+.dk-dashboard-theme .home-overlay { background: #05030a; isolation: isolate; overflow-x: hidden; }
+.dk-dashboard-theme .home-overlay::before {
+ content: ''; position: fixed; inset: -8%; z-index: -1; pointer-events: none;
+ background: radial-gradient(ellipse at 80% 15%,#45207535,transparent 48%),radial-gradient(ellipse at 15% 65%,#34165230,transparent 48%),radial-gradient(ellipse at 65% 90%,#45207845,transparent 45%),#05030a;
+ animation: dk-mesh-drift 10s ease-in-out infinite alternate;
+}
+.dk-dashboard-theme .sidebar nav .nav-link { transition: background .25s,border-color .25s,box-shadow .25s,transform .25s; }
+.dk-dashboard-theme .sidebar nav .nav-link:is(:hover,:focus-visible) { transform: translateX(-3px); box-shadow: 0 0 22px #7c5cff35; }
+@media (prefers-reduced-motion:reduce) {
+ .dk-dashboard-theme .home-overlay::before { animation: none; }
+ .dk-dashboard-theme .sidebar nav .nav-link { transition: none; transform: none; }
+}
+
+/* A visible violet light follows the pointer behind the page content. */
+body.dk-dashboard-theme::after,
+.dk-dashboard-theme .home-overlay::after {
+ content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+ opacity: .8;
+ background: radial-gradient(circle 330px at var(--dk-pointer-x,65%) var(--dk-pointer-y,35%),#57268c38 0%,#57259644 35%,transparent 75%);
+}
+@media (prefers-reduced-motion:reduce) {
+ body.dk-dashboard-theme::after,.dk-dashboard-theme .home-overlay::after { display:none; }
+}
+@media (forced-colors:active) {
+ .dk-dashboard-theme .home-overlay::after { display:none; }
+}
+
+
+/* Keep the page geometry fixed; only light fields drift. */
+body.dk-dashboard-theme { overflow-x: clip; }
+body.dk-dashboard-theme::before,.dk-dashboard-theme .home-overlay::before {
+ inset: 0; transform: none; will-change: auto;
+ background-size: 130% 130%;
+ animation: dk-light-drift 18s ease-in-out infinite alternate;
+}
+@keyframes dk-light-drift {
+ from { background-position: 15% 25%; }
+ to { background-position: 75% 65%; }
+}
+.dk-dashboard-theme .sidebar nav .nav-link:is(:hover,:focus-visible) { transform: none; }
+@media (prefers-reduced-motion:reduce) {
+ body.dk-dashboard-theme::before,.dk-dashboard-theme .home-overlay::before { animation:none; }
 }

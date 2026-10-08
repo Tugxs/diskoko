@@ -77,7 +77,7 @@
 @media (prefers-reduced-motion:reduce) {
   .sidebar nav .nav-link,.sidebar nav .nav-link::after { transition: none; }
 }
-:root body :is(.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button,.icon-btn,.icon-button,.dialog-close,.modal-close,button):not(:where(.rail-item,.template,.skin-option,.knowledge-small-card,.avatar,[role="switch"],[role="checkbox"],[role="radio"],.editor-card button,.discord-window button,.community-preview button,.music-panel-preview button,.preview-card button,.bot-preset button,.ai-library-card,.ai-conversation-item)) {
+:root body :is(.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button,.icon-btn,.icon-button,.dialog-close,.modal-close,button):not(:where(.rail-item,.template,.skin-option,.knowledge-small-card,.avatar,[role="switch"],[role="checkbox"],[role="radio"],.editor-card button,.discord-window button,.community-preview button,.music-panel-preview button,.preview-card button,.bot-preset button,.ai-library-card,.ai-conversation-item,.ai-library-item,.ai-conversation,.ai-conversation-delete,.ai-library-categories button)) {
   --dk-accent: var(--dk-action-accent);
   --dk-surface: var(--dk-action-surface);
   border-radius: 999px;
