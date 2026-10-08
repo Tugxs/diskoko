@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { aiPromptLibrary } from '../ai-library-catalog.js';
-import { aiCapabilities, capabilityKnowledge } from '../lib/ai-capabilities.js';
+import { aiCapabilities, capabilityKnowledge, auditCapabilityLibrary } from '../lib/ai-capabilities.js';
+import { existsSync } from 'node:fs';
+import { READY_MODULE_TYPES } from '../lib/ready-template-module-types.js';
 import { mergePanelEdits, applyReferencePreferences } from '../lib/ai-welcome-design.js';
 import { normalizeAiProposal } from '../lib/local-ai.js';
 import { designIdeas, selectDesignIdeas } from '../scripts/ai-design-library.mjs';
@@ -42,6 +44,17 @@ test('knowledge follows the existing library without promoting editors into exec
     assert.equal(item.scope, 'user/guild/bot');
   }
   assert.match(capabilityKnowledge(), /starter messages, never fixed designs/);
+});
+
+test('every current library starter has a registered executor and isolated draft contract',()=>{
+  const report=auditCapabilityLibrary();
+  assert.equal(report.length,aiPromptLibrary.length);
+  for(const item of report){
+    assert.equal(item.compatible,true,item.title);
+    assert.equal(item.availability,'reviewed_draft',item.title);
+    assert.ok(existsSync(new URL('../'+item.executor,import.meta.url)),item.executor);
+  }
+  for(const kind of Object.keys(READY_MODULE_TYPES))assert.ok(report.some(item=>item.id===kind),kind);
 });
 
 test('Arabic and English square requests survive normalization and preserve function',()=>{
