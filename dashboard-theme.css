@@ -1,0 +1,62 @@
+/* Shared Noir Mesh-inspired dashboard backdrop; no remote assets or render loop. */
+body.dk-dashboard-theme {
+  --bg: #090a0d;
+  --panel: #15161ddf;
+  --panel2: #202128df;
+  --line: #ffffff16;
+  background: #090a0d;
+  isolation: isolate;
+}
+body.dk-dashboard-theme::before,
+body.dk-dashboard-theme::after {
+  content: '';
+  position: fixed;
+  pointer-events: none;
+  inset: -5%;
+  z-index: -1;
+}
+body.dk-dashboard-theme::before {
+  background:
+    radial-gradient(ellipse at 88% -8%,#dce0e385 0%,#90949d36 22%,transparent 46%),
+    radial-gradient(ellipse at 9% 25%,#8b8f9852 0%,#45475026 25%,transparent 48%),
+    radial-gradient(ellipse at 67% 85%,#5c606933 0%,transparent 43%),
+    radial-gradient(ellipse at 48% 30%,#050608 12%,transparent 53%),#090a0d;
+  animation: dk-mesh-drift 26s ease-in-out infinite alternate;
+}
+body.dk-dashboard-theme::after {
+  inset: 0;
+  opacity: .055;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' opacity='.8' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.dk-dashboard-theme :is(.workspace-shell,.main-shell,.shell,.checkout-shell) { background: transparent; }
+.dk-dashboard-theme :is(.sidebar,.side) {
+  background: radial-gradient(ellipse at 100% 0%,#85899224,transparent 45%),linear-gradient(180deg,#181920d9,#0e0f15eb);
+  border-color: #ffffff12;
+}
+.dk-dashboard-theme .sidebar nav .nav-link {
+  background: radial-gradient(ellipse at 100% 0%,#a4a7b51c,transparent 70%),linear-gradient(110deg,#131419dd,#22242cbb);
+  border-color: #ffffff12;
+}
+.dk-dashboard-theme .sidebar nav .nav-link:is(:hover,:focus-visible,.active) {
+  background: radial-gradient(ellipse at 100% 0%,#bcc0ca35,transparent 70%),linear-gradient(110deg,#20212b,#34353f);
+  border-color: #c6c2dc55;
+}
+.dk-dashboard-theme .topbar {
+  background: #10111680;
+  border-color: #ffffff12;
+}
+.dk-dashboard-theme :is(.panel,.card,.checkout-card,.login-card,.ai-chat-main,.ai-chat-sidebar,.ai-library) {
+  background: linear-gradient(150deg,#22232bea,#14151df2);
+  border-color: #ffffff18;
+}
+.dk-dashboard-theme .workspace-footer { border-color: #ffffff10; }
+@keyframes dk-mesh-drift {
+  from { transform: translate3d(-1%,-1%,0) scale(1); }
+  to { transform: translate3d(2%,2%,0) scale(1.035); }
+}
+@media (prefers-reduced-motion:reduce) {
+  body.dk-dashboard-theme::before { animation: none; }
+}
+@media (forced-colors:active) {
+  body.dk-dashboard-theme::before,body.dk-dashboard-theme::after { display: none; }
+}

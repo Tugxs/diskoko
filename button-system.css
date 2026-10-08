@@ -1,0 +1,187 @@
+/* Diskoko action controls. Kept separate from Discord card previews and content tiles. */
+@property --dk-ring-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 35deg;
+}
+:root {
+  --dk-action-accent: #b09aff;
+  --dk-action-surface: #171522;
+}
+/* Navigation uses inset tiles and a side rail, distinct from action pills. */
+.sidebar nav .nav-label {
+  margin: 0 5px 12px;
+  font-size: 10px;
+  letter-spacing: .2px;
+  color: #8992ad;
+}
+.sidebar nav .nav-link {
+  --dk-nav-accent: #b59aff;
+  position: relative;
+  min-height: 40px;
+  gap: 10px;
+  padding: 7px 9px;
+  margin-bottom: 7px;
+  border: 1px solid #ffffff0c;
+  border-radius: 10px;
+  background: linear-gradient(110deg,#171a2755,#191d2c);
+  color: #b9c1d5;
+  font-size: 11px;
+  box-shadow: inset 0 1px 0 #ffffff05;
+  transition: border-color .2s ease,background .2s ease,color .2s ease,box-shadow .2s ease;
+}
+.sidebar nav .nav-link .nav-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 27px;
+  width: 27px;
+  height: 27px;
+  border: 1px solid color-mix(in srgb,var(--dk-nav-accent) 16%,transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb,var(--dk-nav-accent) 8%,#141722);
+  color: var(--dk-nav-accent);
+  font-size: 15px;
+}
+.sidebar nav .nav-link[href$="#assistant"] { --dk-nav-accent: #d8a6ff; }
+.sidebar nav .nav-link[href$="#analytics"] { --dk-nav-accent: #6be0c5; }
+.sidebar nav .nav-link[href$="#safety"] { --dk-nav-accent: #8abfff; }
+.sidebar nav .nav-link[href$="#alerts"] { --dk-nav-accent: #f0c487; }
+.sidebar nav .nav-link::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: -1px;
+  top: 12px;
+  bottom: 12px;
+  width: 2px;
+  height: auto;
+  margin: 0;
+  border-radius: 3px;
+  background: var(--dk-nav-accent);
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.sidebar nav .nav-link:is(:hover,:focus-visible,.active) {
+  color: #f5efff;
+  border-color: color-mix(in srgb,var(--dk-nav-accent) 38%,transparent);
+  background: linear-gradient(100deg,#1b1b2a,color-mix(in srgb,var(--dk-nav-accent) 14%,#171a27));
+  box-shadow: inset 0 1px 0 #ffffff09,0 3px 12px #0002;
+}
+.sidebar nav .nav-link:is(:hover,:focus-visible,.active)::after {
+  opacity: 1;
+  box-shadow: 0 0 9px var(--dk-nav-accent);
+}
+.sidebar nav .nav-link.active .nav-icon {
+  border-color: color-mix(in srgb,var(--dk-nav-accent) 55%,transparent);
+  box-shadow: 0 0 10px color-mix(in srgb,var(--dk-nav-accent) 18%,transparent);
+}
+@media (prefers-reduced-motion:reduce) {
+  .sidebar nav .nav-link,.sidebar nav .nav-link::after { transition: none; }
+}
+:root body :is(.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button,.icon-btn,.icon-button,.dialog-close,.modal-close,button):not(:where(.rail-item,.template,.skin-option,.knowledge-small-card,.avatar,[role="switch"],[role="checkbox"],[role="radio"],.editor-card button,.discord-window button,.community-preview button,.music-panel-preview button,.preview-card button,.bot-preset button,.ai-library-card,.ai-conversation-item)) {
+  --dk-accent: var(--dk-action-accent);
+  --dk-surface: var(--dk-action-surface);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: linear-gradient(155deg,color-mix(in srgb,var(--dk-surface) 92%,white),var(--dk-surface)) padding-box,
+    conic-gradient(from var(--dk-ring-angle),color-mix(in srgb,var(--dk-accent) 28%,transparent),var(--dk-accent),#e5f7ff,color-mix(in srgb,var(--dk-accent) 25%,transparent) 38%,color-mix(in srgb,var(--dk-accent) 25%,transparent) 70%,var(--dk-accent)) border-box;
+  color: #f4f1ff;
+  box-shadow: inset 0 1px 0 #ffffff0b,0 0 8px color-mix(in srgb,var(--dk-accent) 22%,transparent);
+  text-decoration: none;
+  transition: background .2s ease,box-shadow .2s ease,border-color .2s ease,color .2s ease;
+}
+:root body :is(.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button):not(:where(.editor-card button,.discord-window button,.community-preview button,.music-panel-preview button)) {
+  padding: 6px 11px;
+  font-size: 11px;
+  line-height: 1.5;
+  min-height: 30px;
+  height: auto;
+  animation: dk-button-orbit 5s linear infinite;
+}
+/* Action pills get a small orbiting icon; compact controls keep their existing icon and width. */
+:root body :is(.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button):not(:where(.icon-btn,.icon-button,.lang-toggle,.editor-card button,.discord-window button,.community-preview button,.music-panel-preview button))::before {
+  content: '';
+  display: inline-grid;
+  place-items: center;
+  vertical-align: middle;
+  width: 1.3em;
+  height: 1.3em;
+  margin-inline-end: .4em;
+  flex: 0 0 1.3em;
+  border-radius: 50%;
+  border: 1px solid transparent;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 17 17 7M7 7h10v10' fill='none' stroke='%23eee8ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 55% no-repeat,
+    linear-gradient(145deg,#24222e,#0f1017) padding-box,
+    conic-gradient(from var(--dk-ring-angle),transparent 0deg,var(--dk-accent) 75deg,#d6eeff 120deg,transparent 180deg,var(--dk-accent) 270deg,transparent 360deg) border-box;
+  color: var(--dk-accent);
+  box-shadow: 0 0 7px color-mix(in srgb,var(--dk-accent) 55%,transparent),inset 0 1px 2px #ffffff10;
+  animation: dk-button-orbit 3s linear infinite;
+  pointer-events: none;
+}
+:root body :is(.btn.primary,.button.primary,.primary-btn,.hero-cta,.primary-plan,.generate-button,.btn.auth) {
+  --dk-accent: #c1a9ff;
+  --dk-surface: #382760;
+  color: #fff;
+}
+:root body :is(.btn.secondary,.button.ghost,.outline-btn,.btn.text) {
+  --dk-accent: #acb9d4;
+  --dk-surface: #171b26;
+}
+:root body :is(.btn.success,.btn.green,[data-button-tone="success"]) {
+  --dk-accent: #70dfbf;
+  --dk-surface: #14352f;
+}
+:root body :is(.btn.danger,.button.danger,[data-button-tone="danger"]) {
+  --dk-accent: #ffa3b3;
+  --dk-surface: #3c1c2a;
+  color: #ffe0e7;
+}
+:root body :is([data-button-tone="info"],.btn.auth.discord) {
+  --dk-accent: #aab8ff;
+  --dk-surface: #262f58;
+}
+:root body :is([data-button-tone="warning"]) {
+  --dk-accent: #ffd294;
+  --dk-surface: #3a2c1c;
+}
+:root body button:is([aria-selected="true"],[aria-pressed="true"],.active):not(:where([role="switch"],.skin-option,.rail-item,.discord-window button,.editor-card button)) {
+  border-color: var(--dk-accent,#b09aff);
+  color: #eee5ff;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--dk-accent,#b09aff) 25%,transparent),0 0 12px #a78bfa12;
+}
+:root body :is(button,.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button):focus-visible {
+  outline: 2px solid var(--dk-accent,#b09aff);
+  outline-offset: 3px;
+}
+@media (hover:hover) {
+  :root body :is(.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button,.icon-btn,.icon-button,.dialog-close,.modal-close):not(:disabled):not([aria-disabled="true"]):hover {
+    box-shadow: inset 0 1px 0 #ffffff16,0 0 0 1px color-mix(in srgb,var(--dk-accent,#b09aff) 28%,transparent),0 5px 20px color-mix(in srgb,var(--dk-accent,#b09aff) 14%,transparent);
+  }
+  :root body :is(.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button):not(:disabled):not([aria-disabled="true"]):hover::before {
+    animation-play-state: running;
+  }
+}
+:root body :is(button,.btn,.button)[aria-busy="true"] { cursor: progress; }
+:root body :is(button,.btn,.button):is(:disabled,[aria-disabled="true"]) {
+  opacity: .45;
+  cursor: not-allowed;
+  box-shadow: none;
+  animation: none;
+}
+:root body :is(button,.btn,.button):is(:disabled,[aria-disabled="true"],[aria-busy="true"])::before { animation: none; }
+@keyframes dk-button-orbit { to { --dk-ring-angle: 395deg; } }
+@media (prefers-reduced-motion:reduce) {
+  :root body :is(button,.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button),
+  :root body :is(button,.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button)::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media (forced-colors:active) {
+  :root body :is(button,.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button) {
+    border-color: ButtonText;
+    background: ButtonFace;
+    color: ButtonText;
+    box-shadow: none;
+  }
+  :root body :is(.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button)::before { display: none; }
+}
