@@ -41,6 +41,7 @@ for(const [ar,en] of Object.entries({
 }))translations.set(ar,en);
 
 export function initializeAiLanguage(root,dialog,userId,catalog=[]) {
+  if (document.getElementById('sitePreferences')) { for (const item of catalog) { if(item.titleEn)translations.set(item.title,item.titleEn);if(item.promptEn)translations.set(item.prompt,item.promptEn); } return {language:()=>document.documentElement.lang==='en'?'en':'ar',disconnect:()=>{}}; }
   for(const item of catalog){if(item.titleEn)translations.set(item.title,item.titleEn);if(item.promptEn)translations.set(item.prompt,item.promptEn);}
   const key=`diskoko:ai-language:${userId}`;
   let language;
@@ -51,6 +52,7 @@ export function initializeAiLanguage(root,dialog,userId,catalog=[]) {
   root.querySelector('.ai-chat-main .panel-head')?.append(select);
   const originals=new WeakMap();
   const translate=()=>{
+    if(window.diskokoSitePreferences){select.hidden=true;return;}
     if(!root.ownerDocument?.defaultView?.document || !root.contains(select))return;
     for(const scope of [root,dialog].filter(Boolean)){
       scope.dir=language==='en'?'ltr':'rtl';
@@ -75,5 +77,7 @@ export function initializeAiLanguage(root,dialog,userId,catalog=[]) {
   const observer=new MutationObserver(()=>{if(!scheduled){scheduled=true;queueMicrotask(()=>{scheduled=false;translate();});}});
   observer.observe(root,{childList:true,subtree:true});if(dialog)observer.observe(dialog,{childList:true,subtree:true});
   select.onchange=()=>{language=select.value;try{localStorage.setItem(key,language);}catch{}translate();};translate();
-  return {language:()=>language==='auto'?undefined:language,disconnect:()=>observer.disconnect()};
+  return {language:()=>window.diskokoSitePreferences?(document.documentElement.lang==='en'?'en':'ar'):(language==='auto'?undefined:language),disconnect:()=>observer.disconnect()};
 }
+
+export const uiTranslations = translations;
