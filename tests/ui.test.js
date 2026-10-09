@@ -512,9 +512,10 @@ test('an untouched library prompt with brackets can be submitted for an editable
   assert.ok(submitted);
   const body = JSON.parse(submitted.options.body);
   assert.match(body.prompt, /\[القناة\]/);
-  assert.equal(body.libraryTitle, undefined);
-  assert.equal(body.libraryCategory, undefined);
-  assert.equal(body.libraryMode, undefined);
+  assert.equal(body.libraryTitle, 'جيف آواي سريع');
+  assert.equal(body.libraryCategory, 'الجيف آواي');
+  assert.equal(body.libraryMode, 'execute');
+  assert.equal(requests.filter(entry=>entry.url==='/api/ai/requests').length,1);
   dom.window.close();
 });
 test('AI module cards open their own setup and the library can expand', async () => {
@@ -620,7 +621,7 @@ test('AI chat exposes reviewed Discord actions, image attachment and voice trans
     if (url === `/api/ai/conversations/${conversationId}/messages`) return { messages: [{ id: '22222222-2222-4222-8222-222222222222', prompt: 'أرسل ترحيبًا', answer: 'جهزت الرسالة للمراجعة.', status: 'completed', proposal: { operations: [{ resource_type: 'role', name: 'عضو جديد', action: 'create' }], message: { channel: 'الدردشة', content: 'أهلًا بالجميع!' }, interactive: { kind: 'giveaway', prize: 'اشتراك', channel: 'الدردشة', durationMinutes: 60, winnerCount: 1 } } }] };
     return fixtureResponse(url);
   };
-  const { dom, doc } = await page('assistant', response);
+  const { dom, doc, requests } = await page('assistant', response);
   doc.querySelector('.ai-conversation').click(); await settle();
   assert.ok(doc.querySelector('[data-ai-delete]'));
   assert.equal(doc.querySelectorAll('.ai-library-item').length, aiPromptLibrary.length);
@@ -669,7 +670,9 @@ test('AI chat exposes reviewed Discord actions, image attachment and voice trans
   doc.querySelector(`[data-ai-template="${aiPromptLibrary.findIndex(item => item.title === 'جيف آواي سريع')}"]`).click();
   assert.match(doc.querySelector('#assistantPrompt').value, /جيف آواي/);
   assert.equal(doc.querySelector('#aiTemplateDraft').hidden, false);
-  assert.match(doc.querySelector('#aiNotice').textContent, /مسودة جديدة/);
+  await settle();
+  const starterRequest=requests.findLast(entry=>entry.url==='/api/ai/requests');
+  assert.equal(JSON.parse(starterRequest.options.body).libraryMode,'execute');
   dom.window.close();
 });
 test('retired staff template has no structure action in AI chat', async () => {
@@ -1143,4 +1146,20 @@ test('welcome reference opens editable style without previewing or publishing th
   assert.equal(doc.querySelector('#aiSpecialPreviewImage img'), null);
   assert.equal(requests.some(req => req.options.method === 'POST'), false);
   dom.window.close();
+});
+
+
+test('four pilot library selections open their actual editors without an AI generation wait', async()=>{
+  for(const kind of ['welcome','tickets','giveaway','poll']) {
+    const entry=aiPromptLibrary.find(item=>item.kind===kind);
+    const id='22222222-2222-4222-8222-222222222222',conversation='11111111-1111-4111-8111-111111111111';
+    const interactive=kind==='poll'?{kind,question:'',options:['','']} : kind==='giveaway'?{kind,prize:'',durationMinutes:'',winnerCount:1}:{kind,title:'',description:''};
+    const response=url=>url==='/api/ai/status'?{available:false,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:conversation,title:'Pilot',updated_at:'2026-10-09'}]} :url==='/api/ai/requests'?{id,conversationId:conversation,status:'completed'} :url===('/api/ai/conversations/'+conversation+'/messages')?{messages:[{id,prompt:entry.prompt,status:'completed',library_mode:'execute',proposal:{interactive,draft:true}}]}:fixtureResponse(url);
+    const {dom,doc,requests}=await page('assistant',response);
+    doc.querySelector('[data-ai-template="'+aiPromptLibrary.indexOf(entry)+'"]').click();await settle();await settle();
+    assert.equal(doc.querySelector('#dialog').open,true,kind+' '+doc.querySelector('#aiNotice').textContent+' requests='+requests.map(x=>x.url).join(','));
+    assert.equal(JSON.parse(requests.find(x=>x.url==='/api/ai/requests').options.body).libraryMode,'execute');
+    assert.equal(requests.some(x=>x.url.includes('launch-interactive')),false);
+    dom.window.close();
+  }
 });

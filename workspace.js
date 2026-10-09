@@ -2141,9 +2141,10 @@ async function assistant() {
     $('#aiLibraryCategories').querySelectorAll('[data-ai-category]').forEach(button => button.onclick = () => { libraryCategory = button.dataset.aiCategory; renderLibrary(); });
     const query = $('#aiLibrarySearch').value.trim().toLocaleLowerCase('ar');
     const matched = aiPromptLibrary.map((item, index) => ({ ...item, index })).filter(item => (libraryCategory === 'الكل' || item.category === libraryCategory) && (!query || `${item.title} ${item.titleEn} ${item.category} ${item.prompt} ${item.promptEn}`.toLocaleLowerCase('ar').includes(query)));
-    $('#aiLibraryList').innerHTML = matched.length ? matched.map(item => `<button type="button" class="ai-library-item" data-ai-template="${item.index}"><span>${aiLanguage.language()==='en'?'✦ Starter message':'✦ رسالة بداية'}</span><b>${esc(item.title)}</b><small>${esc(item.prompt)}</small><small>${aiLanguage.language()==='en'?'Send and customize this request. AI builds an editable draft for your needs.':'أرسل الطلب وعدّله باحتياجك؛ يبني AI مسودة قابلة للتعديل.'}</small></button>`).join('') : '<p class="ai-library-empty">لا توجد نتائج. جرّب كلمة أخرى.</p>';
+    $('#aiLibraryList').innerHTML = matched.length ? matched.map(item => `<button type="button" class="ai-library-item" data-ai-template="${item.index}"><span>${['welcome','tickets','giveaway','poll'].includes(item.kind)?(aiLanguage.language()==='en'?'✦ Open editor':'✦ افتح المحرر'):(aiLanguage.language()==='en'?'✦ Starter message':'✦ رسالة بداية')}</span><b>${esc(item.title)}</b><small>${esc(item.prompt)}</small><small>${['welcome','tickets','giveaway','poll'].includes(item.kind)?(aiLanguage.language()==='en'?'Open the preview, complete your details and confirm when ready.':'افتح المعاينة، أكمل بياناتك وعدّل الشكل، ثم أكد عند الجاهزية.'):(aiLanguage.language()==='en'?'Send and customize this request. AI builds an editable draft for your needs.':'أرسل الطلب وعدّله باحتياجك؛ يبني AI مسودة قابلة للتعديل.')}</small></button>`).join('') : '<p class="ai-library-empty">لا توجد نتائج. جرّب كلمة أخرى.</p>';
     $('#aiLibraryList').querySelectorAll('[data-ai-template]').forEach(button => button.onclick = () => {
       selectedTemplate = aiPromptLibrary[Number(button.dataset.aiTemplate)];
+      const directEditor=['welcome','tickets','giveaway','poll'].includes(selectedTemplate.kind);
       if (selected && messages.length) {
         selected = ''; messages = []; sessionStorage.removeItem(storageKey); renderList(); renderMessages();
         notice.textContent = 'بدأت مسودة جديدة حتى لا تختلط المهمة بسياق محادثة سابقة.';
@@ -2152,6 +2153,7 @@ async function assistant() {
       $('#aiTemplateDraft').hidden = false;
       $('#aiTemplateDraft').innerHTML = `<div><b>مسودة: ${esc(selectedTemplate.title)}</b><small>${selectedTemplate.moduleKind ? 'أرسل الطلب أولًا، ثم سيرد ديسكوكو AI بخطوة إعداد هذه الميزة ومراجعتها.' : `${esc(aiLibraryFlow(selectedTemplate))}. تقدر ترسلها كما هي وتكمل التفاصيل في بطاقة المراجعة.`}</small></div><button id="aiClearTemplate" type="button" class="btn small secondary">مسح المسودة</button>`;
       $('#aiClearTemplate').onclick = () => { selectedTemplate = null; input.value = ''; $('#aiTemplateDraft').hidden = true; input.focus(); };
+      if(directEditor){ attachedFile=null; $('#aiFile').value=''; showAttachment(); $('#assistantForm').requestSubmit(); return; }
       input.focus(); input.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
     });
   };
@@ -2629,11 +2631,11 @@ async function assistant() {
     busy = true; $('#aiSend').disabled = true; notice.textContent = '';
     try {
       const image = attachedFile?.type === 'image/gif' ? await prepareAiMedia(attachedFile) : attachedFile?.type.startsWith('image/') ? await prepareAiImage(attachedFile) : undefined;
-      const result = await api('/api/ai/requests', { method: 'POST', body: JSON.stringify({ guildId: guild, conversationId: selected || undefined, prompt, image, language:aiLanguage.language() }) });
+      const result = await api('/api/ai/requests', { method: 'POST', body: JSON.stringify({ guildId: guild, conversationId: selected || undefined, prompt, image, language:aiLanguage.language(), ...(selectedTemplate && ['welcome','tickets','giveaway','poll'].includes(selectedTemplate.kind)?{libraryMode:'execute',libraryTitle:selectedTemplate.title,libraryCategory:selectedTemplate.category}:{}) }) });
       if (!active()) return;
       selected = result.conversationId; sessionStorage.setItem(storageKey, selected); input.value = ''; selectedTemplate = null; $('#aiTemplateDraft').hidden = true; attachedFile = null; $('#aiFile').value = ''; showAttachment();
       messages.push({ id: result.id, prompt, status: 'pending', has_attachment: !!image }); renderMessages();
-      try { await refreshList(); await loadMessages(); }
+      try { await refreshList(); await loadMessages(); if(result.status==='completed' && messages.find(entry=>entry.id===result.id)?.library_mode==='execute')thread.querySelector(`[data-ai-interactive="${result.id}"]`)?.click(); }
       catch (error) { notice.textContent = 'حُفظت رسالتك، لكن تعذر تحديث السجل الآن. أعد فتح المحادثة بعد قليل.'; poll(result.id, selected); }
     } finally { busy = false; if (active()) $('#aiSend').disabled = false; }
   });
