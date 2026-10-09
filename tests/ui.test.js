@@ -511,9 +511,10 @@ test('an untouched library prompt with brackets can be submitted for an editable
   assert.ok(submitted);
   const body = JSON.parse(submitted.options.body);
   assert.match(body.prompt, /\[القناة\]/);
-  assert.equal(body.libraryTitle, undefined);
-  assert.equal(body.libraryCategory, undefined);
-  assert.equal(body.libraryMode, undefined);
+  assert.equal(body.libraryTitle, 'جيف آواي سريع');
+  assert.equal(body.libraryCategory, 'الجيف آواي');
+  assert.equal(body.libraryMode, 'execute');
+  assert.equal(requests.filter(entry=>entry.url==='/api/ai/requests').length,1);
   dom.window.close();
 });
 test('AI module cards open their own setup and the library can expand', async () => {
@@ -619,7 +620,7 @@ test('AI chat exposes reviewed Discord actions, image attachment and voice trans
     if (url === `/api/ai/conversations/${conversationId}/messages`) return { messages: [{ id: '22222222-2222-4222-8222-222222222222', prompt: 'أرسل ترحيبًا', answer: 'جهزت الرسالة للمراجعة.', status: 'completed', proposal: { operations: [{ resource_type: 'role', name: 'عضو جديد', action: 'create' }], message: { channel: 'الدردشة', content: 'أهلًا بالجميع!' }, interactive: { kind: 'giveaway', prize: 'اشتراك', channel: 'الدردشة', durationMinutes: 60, winnerCount: 1 } } }] };
     return fixtureResponse(url);
   };
-  const { dom, doc } = await page('assistant', response);
+  const { dom, doc, requests } = await page('assistant', response);
   doc.querySelector('.ai-conversation').click(); await settle();
   assert.ok(doc.querySelector('[data-ai-delete]'));
   assert.equal(doc.querySelectorAll('.ai-library-item').length, aiPromptLibrary.length);
@@ -668,7 +669,9 @@ test('AI chat exposes reviewed Discord actions, image attachment and voice trans
   doc.querySelector(`[data-ai-template="${aiPromptLibrary.findIndex(item => item.title === 'جيف آواي سريع')}"]`).click();
   assert.match(doc.querySelector('#assistantPrompt').value, /جيف آواي/);
   assert.equal(doc.querySelector('#aiTemplateDraft').hidden, false);
-  assert.match(doc.querySelector('#aiNotice').textContent, /مسودة جديدة/);
+  await settle();
+  const starterRequest=requests.findLast(entry=>entry.url==='/api/ai/requests');
+  assert.equal(JSON.parse(starterRequest.options.body).libraryMode,'execute');
   dom.window.close();
 });
 test('retired staff template has no structure action in AI chat', async () => {
