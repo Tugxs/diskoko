@@ -41,6 +41,7 @@ for(const [ar,en] of Object.entries({
 }))translations.set(ar,en);
 
 export function initializeAiLanguage(root,dialog,userId,catalog=[]) {
+  if (document.getElementById('sitePreferences')) { for (const item of catalog) { if(item.titleEn)translations.set(item.title,item.titleEn);if(item.promptEn)translations.set(item.prompt,item.promptEn); } return {language:()=>document.documentElement.lang==='en'?'en':'ar',disconnect:()=>{}}; }
   for(const item of catalog){if(item.titleEn)translations.set(item.title,item.titleEn);if(item.promptEn)translations.set(item.prompt,item.promptEn);}
   const key=`diskoko:ai-language:${userId}`;
   let language;
@@ -77,3 +78,5 @@ export function initializeAiLanguage(root,dialog,userId,catalog=[]) {
   select.onchange=()=>{language=select.value;try{localStorage.setItem(key,language);}catch{}translate();};translate();
   return {language:()=>language==='auto'?undefined:language,disconnect:()=>observer.disconnect()};
 }
+
+export const uiTranslations = translations;
