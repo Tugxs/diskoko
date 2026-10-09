@@ -1147,3 +1147,19 @@ test('welcome reference opens editable style without previewing or publishing th
   assert.equal(requests.some(req => req.options.method === 'POST'), false);
   dom.window.close();
 });
+
+
+test('four pilot library selections open their actual editors without an AI generation wait', async()=>{
+  for(const kind of ['welcome','tickets','giveaway','poll']) {
+    const entry=aiPromptLibrary.find(item=>item.kind===kind);
+    const id='22222222-2222-4222-8222-222222222222',conversation='11111111-1111-4111-8111-111111111111';
+    const interactive=kind==='poll'?{kind,question:'',options:['','']} : kind==='giveaway'?{kind,prize:'',durationMinutes:'',winnerCount:1}:{kind,title:'',description:''};
+    const response=url=>url==='/api/ai/status'?{available:false,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:conversation,title:'Pilot',updated_at:'2026-10-09'}]} :url==='/api/ai/requests'?{id,conversationId:conversation,status:'completed'} :url===('/api/ai/conversations/'+conversation+'/messages')?{messages:[{id,prompt:entry.prompt,status:'completed',library_mode:'execute',proposal:{interactive,draft:true}}]}:fixtureResponse(url);
+    const {dom,doc,requests}=await page('assistant',response);
+    doc.querySelector('[data-ai-template="'+aiPromptLibrary.indexOf(entry)+'"]').click();await settle();await settle();
+    assert.equal(doc.querySelector('#dialog').open,true,kind+' '+doc.querySelector('#aiNotice').textContent+' requests='+requests.map(x=>x.url).join(','));
+    assert.equal(JSON.parse(requests.find(x=>x.url==='/api/ai/requests').options.body).libraryMode,'execute');
+    assert.equal(requests.some(x=>x.url.includes('launch-interactive')),false);
+    dom.window.close();
+  }
+});
