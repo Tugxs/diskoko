@@ -185,3 +185,14 @@
   }
   :root body :is(.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button)::before { display: none; }
 }
+
+/* Quiet controls matching the supplied motion reference. */
+:root body :is(.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button,.icon-btn,.icon-button,.dialog-close,.modal-close):not(:where(.editor-card button,.discord-window button,.community-preview button,.music-panel-preview button)) {
+ border-radius:9px; background:#1b2032; border:1px solid #a78bfa30;
+ box-shadow:none; animation:none;
+}
+:root body :is(.btn.primary,.button.primary,.primary-btn,.hero-cta,.primary-plan,.generate-button,.btn.auth) {
+ background:linear-gradient(120deg,#9261ed,#7048cd);border-color:#a782f255;box-shadow:0 5px 18px #7048cd24;color:#fff;
+}
+:root body :is(.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button)::before { display:none; }
+:root body :is(.btn,.button,.primary-btn,.outline-btn,.legal-cta,.hero-cta,.plan-button):not(:disabled):hover { border-color:#b394f380;box-shadow:0 3px 14px #7048cd22; }

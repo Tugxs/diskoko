@@ -1,10 +1,10 @@
 /* Shared animated Diskoko violet backdrop; no remote assets or render loop. */
 body.dk-dashboard-theme {
-  --bg: #05030a;
-  --panel: #130c22ef;
-  --panel2: #1c1030ef;
+  --bg: #080b14;
+  --panel: #111725ef;
+  --panel2: #192033ef;
   --line: #6c3db330;
-  background: #05030a;
+  background: #080b14;
   isolation: isolate;
 }
 body.dk-dashboard-theme::before,
@@ -20,7 +20,7 @@ body.dk-dashboard-theme::before {
     radial-gradient(ellipse at 88% -8%,#49207830 0%,#54239440 22%,transparent 46%),
     radial-gradient(ellipse at 9% 25%,#401c7030 0%,#48207838 25%,transparent 48%),
     radial-gradient(ellipse at 67% 85%,#55258930 0%,transparent 43%),
-    radial-gradient(ellipse at 48% 30%,#160c29 12%,transparent 53%),#05030a;
+    radial-gradient(ellipse at 48% 30%,#160c29 12%,transparent 53%),#080b14;
   animation: dk-mesh-drift 10s ease-in-out infinite alternate;
 }
 body.dk-dashboard-theme::after {
@@ -30,23 +30,23 @@ body.dk-dashboard-theme::after {
 }
 .dk-dashboard-theme :is(.workspace-shell,.main-shell,.shell,.checkout-shell) { background: transparent; }
 .dk-dashboard-theme :is(.sidebar,.side) {
-  background: radial-gradient(ellipse at 100% 0%,#602b9830,transparent 45%),linear-gradient(180deg,#160b28eb,#0b0715f5);
+  background: radial-gradient(ellipse at 100% 0%,#602b9830,transparent 45%),linear-gradient(180deg,#111625ef,#0b101cf5);
   border-color: #ffffff12;
 }
 .dk-dashboard-theme .sidebar nav .nav-link {
-  background: radial-gradient(ellipse at 100% 0%,#6c3db330,transparent 70%),linear-gradient(110deg,#120a20ee,#201033dd);
+  background: radial-gradient(ellipse at 100% 0%,#6c3db330,transparent 70%),linear-gradient(110deg,#121727ee,#20203add);
   border-color: #ffffff12;
 }
 .dk-dashboard-theme .sidebar nav .nav-link:is(:hover,:focus-visible,.active) {
-  background: radial-gradient(ellipse at 100% 0%,#783fc044,transparent 70%),linear-gradient(110deg,#211034,#32174e);
+  background: radial-gradient(ellipse at 100% 0%,#783fc044,transparent 70%),linear-gradient(110deg,#24203c,#30264c);
   border-color: #804bc477;
 }
 .dk-dashboard-theme .topbar {
-  background: #0d0818dd;
+  background: #0d1320dd;
   border-color: #ffffff12;
 }
 .dk-dashboard-theme :is(.panel,.card,.checkout-card,.login-card,.ai-chat-main,.ai-chat-sidebar,.ai-library) {
-  background: linear-gradient(150deg,#1b102bee,#0e091af5);
+  background: linear-gradient(150deg,#171c2bee,#101522f5);
   border-color: #ffffff18;
 }
 .dk-dashboard-theme .workspace-footer { border-color: #ffffff10; }
@@ -62,10 +62,10 @@ body.dk-dashboard-theme::after {
 }
 
 .dk-dashboard-theme .app-shell { background: transparent; }
-.dk-dashboard-theme .home-overlay { background: #05030a; isolation: isolate; overflow-x: hidden; }
+.dk-dashboard-theme .home-overlay { background: #080b14; isolation: isolate; overflow-x: hidden; }
 .dk-dashboard-theme .home-overlay::before {
  content: ''; position: fixed; inset: -8%; z-index: -1; pointer-events: none;
- background: radial-gradient(ellipse at 80% 15%,#45207535,transparent 48%),radial-gradient(ellipse at 15% 65%,#34165230,transparent 48%),radial-gradient(ellipse at 65% 90%,#45207845,transparent 45%),#05030a;
+ background: radial-gradient(ellipse at 80% 15%,#45207535,transparent 48%),radial-gradient(ellipse at 15% 65%,#34165230,transparent 48%),radial-gradient(ellipse at 65% 90%,#45207845,transparent 45%),#080b14;
  animation: dk-mesh-drift 10s ease-in-out infinite alternate;
 }
 .dk-dashboard-theme .sidebar nav .nav-link { transition: background .25s,border-color .25s,box-shadow .25s,transform .25s; }
@@ -105,3 +105,17 @@ body.dk-dashboard-theme::before,.dk-dashboard-theme .home-overlay::before {
 @media (prefers-reduced-motion:reduce) {
  body.dk-dashboard-theme::before,.dk-dashboard-theme .home-overlay::before { animation:none; }
 }
+
+/* Palette sampled visually from the supplied Diskoko motion reference. */
+body.dk-dashboard-theme { --text:#f3f3fa; --muted:#9a9caf; --purple:#a78bfa; --line:#a78bfa20; }
+body.dk-dashboard-theme::before,.dk-dashboard-theme .home-overlay::before {
+ background-image: radial-gradient(ellipse at 65% 15%,#592cb43a,transparent 48%),radial-gradient(ellipse at 82% 78%,#087c9224,transparent 42%),radial-gradient(ellipse at 12% 65%,#4b27902b,transparent 43%);
+ background-color:#080b14;
+ animation-duration:26s;
+}
+body.dk-dashboard-theme::after,.dk-dashboard-theme .home-overlay::after {
+ opacity:.45;
+ background:radial-gradient(circle 380px at var(--dk-pointer-x,65%) var(--dk-pointer-y,35%),#7850ba38,transparent 75%);
+}
+.dk-dashboard-theme :is(h1,h2,h3) { color:#f3f3fa; }
+.dk-dashboard-theme .hero-title span { background:none; color:#b394f3; -webkit-text-fill-color:#b394f3; }
