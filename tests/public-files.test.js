@@ -13,6 +13,7 @@ test('every browser module dependency is publicly served', () => {
     for (const match of source.matchAll(/(?:from\s*|import\s*)['"]\.\/([^'"]+)['"]/g)) check(match[1]);
   }
   check('workspace.js');
+  check('site-preferences.js');
 });
 
 test('site serves its pages and assets without exposing source or internal documents', () => {

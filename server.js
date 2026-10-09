@@ -1085,7 +1085,7 @@ app.get("/admin-login", async (req, res, next) => { try { const user = await cur
 app.get("/admin", async (req, res, next) => { try { const user = await currentUser(req); if (!user) return res.redirect("/admin-login"); if (!isAdmin(user)) return res.redirect("/account.html"); res.sendFile(path.join(__dirname, "admin-console.html")); } catch (error) { next(error); } });
 app.get('/admin-console.20260921.js', requireAdmin, (_req, res) => res.sendFile(path.join(__dirname, 'admin-console.20260921.js')));
 app.get("/studio", (req, res, next) => { if (!req.query.guild) return res.redirect(302, "/account.html#servers"); next(); });
-app.use(['/ai-design-scene.js','/ai-ui-language.js','/ai-library-english.js','/ai-editor-prototype.js'],(_req,res,next)=>{res.set('Cache-Control','no-store, max-age=0, must-revalidate');next();});
+app.use(['/ai-design-scene.js','/ai-ui-language.js','/ai-library-english.js','/ai-editor-prototype.js','/site-preferences.js','/site-translations.js','/site-format.js'],(_req,res,next)=>{res.set('Cache-Control','no-store, max-age=0, must-revalidate');next();});
 const publicStatic = express.static(__dirname, { extensions: ["html"], maxAge: IS_PRODUCTION ? "1h" : 0, dotfiles: "deny" });
 app.use((req, res, next) => isPublicStaticPath(req.path) ? publicStatic(req, res, next) : next());
 app.get("/login", (_req, res) => res.sendFile(path.join(__dirname, "account.html")));

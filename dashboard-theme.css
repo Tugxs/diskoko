@@ -131,3 +131,16 @@ html[dir=ltr] .dk-dashboard-theme :is(.sidebar nav .nav-link,.breadcrumb,.panel-
 @media(max-width:580px){#siteLanguage{min-width:78px;font-size:10px}.topbar-end{gap:5px;flex-wrap:wrap}}
 
 body:has(#sitePreferences) #langToggle{display:none}
+
+body.dk-dashboard-theme,.dk-dashboard-theme .home-overlay{background-color:color-mix(in srgb,var(--dk-user-base,#080b14) 24%,#080b14)}
+body.dk-dashboard-theme::before,.dk-dashboard-theme .home-overlay::before{background-color:color-mix(in srgb,var(--dk-user-base,#080b14) 24%,#080b14)}
+
+@media(max-width:580px){
+ .topbar{height:auto;min-height:65px;flex-wrap:wrap;gap:8px;padding-block:10px}
+ .topbar-end{min-width:0;flex:1 1 220px;justify-content:flex-end}
+ .breadcrumb{min-width:0;overflow-wrap:anywhere}
+}
+@media(max-width:760px){
+ html[dir=ltr] .sidebar{right:auto;left:0;transform:translateX(-100%)}
+ html[dir=ltr] .sidebar.open{transform:translateX(0)}
+}
