@@ -1,4 +1,24 @@
 // Presentation layer. Existing fields and review handlers remain authoritative.
+function enhanceEditorContent(root,english) {
+  for(const field of root.querySelectorAll('textarea[maxlength],input[maxlength]:not([type])')) {
+    if(field.dataset.editorEnhanced)continue;
+    field.dataset.editorEnhanced='true';
+    const count=document.createElement('small');count.className='form-note';count.setAttribute('aria-live','polite');
+    field.after(count);const update=()=>count.textContent=`${field.value.length} / ${field.maxLength}`;field.addEventListener('input',update);update();
+    if(field.tagName!=='TEXTAREA')continue;
+    const bar=document.createElement('div');bar.className='editor-tools';
+    for(const [ar,en,start,end] of [['عريض','Bold','**','**'],['مائل','Italic','*','*'],['اقتباس','Quote','> ',''],['قائمة','List','- ',''],['كود','Code','`','`']]){
+      const button=document.createElement('button');button.type='button';button.textContent=english?en:ar;
+      button.onclick=()=>{const a=field.selectionStart,b=field.selectionEnd;const value=field.value.slice(a,b);if(field.value.length+start.length+end.length>field.maxLength)return;field.setRangeText(start+value+end,a,b,'select');field.dispatchEvent(new root.ownerDocument.defaultView.Event('input',{bubbles:true}));field.focus();};bar.append(button);
+    }
+    field.before(bar);
+  }
+  for(const field of root.querySelectorAll('input[type="color"]')){
+    if(field.dataset.editorEnhanced)continue;field.dataset.editorEnhanced='true';
+    const palette=document.createElement('div');palette.className='editor-tools';
+    for(const color of ['#5865f2','#248046','#da373c','#f0b232','#4e5058','#8d72e8']){const button=document.createElement('button');button.type='button';button.textContent=color;button.style.borderColor=color;button.title=color;button.onclick=()=>{field.value=color;field.dispatchEvent(new root.ownerDocument.defaultView.Event('input',{bubbles:true}));};palette.append(button);}field.after(palette);
+  }
+}
 export function mountPanelStudio(root) {
   let optedOut;try{optedOut=new URLSearchParams(root.ownerDocument.defaultView.location.search).get('editorPreview')==='0';}catch{return false;}
   const body=root.querySelector('.dialog-body'),preview=body?.querySelector('.ai-discord-preview');
@@ -21,12 +41,13 @@ export function mountPanelStudio(root) {
     node.tabIndex=0;node.setAttribute('role','button');node.title=english?'Edit this element':'تعديل هذا العنصر';
     const edit=()=>{select(Number(field.closest('[data-studio-fields]').dataset.studioFields));field.focus();field.scrollIntoView({block:'nearest'});};node.onclick=edit;node.onkeydown=event=>{if(event.key==='Enter' || event.key===' '){event.preventDefault();edit();}};
   }
+  enhanceEditorContent(root,english);
   root.editorDispose=()=>root.closest('dialog').classList.remove('ai-editor-prototype');return true;
 }
 export function readEditorExtras(root) {
   const placement=root.querySelector('#moduleImagePlacement');
   if(!placement)return null;
-  return {imagePlacement:placement.value,links:[...root.querySelectorAll('[data-editor-link-row]')].filter(row=>!row.hidden).map(row=>({label:row.querySelector('input[data-link-label]').value.trim(),url:row.querySelector('input[data-link-url]').value.trim()}))};
+  return {footer:root.querySelector('#moduleFooter')?.value || '',imagePlacement:placement.value,links:[...root.querySelectorAll('[data-editor-link-row]')].filter(row=>!row.hidden).map(row=>({label:row.querySelector('input[data-link-label]').value.trim(),url:row.querySelector('input[data-link-url]').value.trim()}))};
 }
 export function mountEditorPrototype(root, { english = false, markdown, botName = 'Diskoko', initial = {}, workflow = '' } = {}) {
   if (new URLSearchParams(location.search).get('editorPreview')==='0') return false;
@@ -55,12 +76,20 @@ export function mountEditorPrototype(root, { english = false, markdown, botName 
   const positionInput=document.createElement('select');positionInput.id='moduleImagePlacement';
   positionInput.innerHTML=`<option value="image">${text('صورة كبيرة تحت النص','Large image below text')}</option><option value="thumbnail">${text('صورة صغيرة أعلى اليمين','Small image at top right')}</option>`;
   positionInput.value=initial.imagePlacement || 'image';position.append(positionInput);appearance.append(position);
+  const footerLabel=document.createElement('label');footerLabel.textContent=text('تذييل اختياري — لا يضاف تلقائيًا','Optional footer — never added automatically');
+  const footerInput=document.createElement('input');footerInput.id='moduleFooter';footerInput.maxLength=300;footerInput.value=initial.footer || '';footerLabel.append(footerInput);ordered[0].append(footerLabel);
+  const footerPreview=document.createElement('small');footerPreview.className='editor-footer';layout.querySelector('.editor-card').append(footerPreview);
+  const actionPreview=document.createElement('section');actionPreview.className='editor-action-preview';layout.querySelector('.editor-stage').append(actionPreview);
   const linkSection=document.createElement('div');linkSection.className='editor-links';ordered[0].append(linkSection);
   for(let i=0;i<4;i++){
     const row=document.createElement('div');row.dataset.editorLinkRow=i;row.hidden=!initial.links?.[i];
     row.innerHTML=`<label>${text('اسم زر الرابط','Link button label')}<input data-link-label id="editorLinkLabel${i}" maxlength="80"></label><label>${text('رابط HTTPS','HTTPS URL')}<input data-link-url id="editorLinkUrl${i}" type="url" maxlength="512" dir="ltr"></label><button type="button" data-remove-link>${text('حذف الرابط','Remove link')}</button>`;
     row.querySelector('[data-link-label]').value=initial.links?.[i]?.label || '';row.querySelector('[data-link-url]').value=initial.links?.[i]?.url || '';
     row.querySelector('[data-remove-link]').onclick=()=>{row.hidden=true;row.querySelectorAll('input').forEach(field=>field.value='');row.dispatchEvent(new root.ownerDocument.defaultView.Event('input',{bubbles:true}));};linkSection.append(row);
+    for(const [direction,ar,en] of [[-1,'تقديم الرابط','Move link up'],[1,'تأخير الرابط','Move link down']]){
+      const move=document.createElement('button');move.type='button';move.textContent=text(ar,en);
+      move.onclick=()=>{const visible=[...linkSection.children].filter(node=>!node.hidden);const at=visible.indexOf(row),other=visible[at+direction];if(!other)return;if(direction<0)other.before(row);else other.after(row);row.dispatchEvent(new root.ownerDocument.defaultView.Event('input',{bubbles:true}));};row.append(move);
+    }
   }
   const previewLinks=document.createElement('div');previewLinks.className='editor-preview-links';layout.querySelector('.editor-card').append(previewLinks);
   for (const selector of ['.ai-scene-review', '#moduleBanner', '#moduleBannerPreview']) {
@@ -89,8 +118,21 @@ export function mountEditorPrototype(root, { english = false, markdown, botName 
   });
   let objectUrl;
   const update = () => {
+    if(!root.ownerDocument.defaultView?.document)return;
     layout.querySelectorAll('.editor-title,.editor-description,.editor-button').forEach(node=>node.setAttribute('dir','auto'));
     layout.querySelector('.editor-bot').textContent=botName;
+    footerPreview.textContent=footerInput.value;footerPreview.hidden=!footerInput.value;
+    actionPreview.replaceChildren();
+    const heading=document.createElement('b');heading.textContent=text('ما يحدث عند ضغط الزر','What happens when the button is pressed');actionPreview.append(heading);
+    const explanation=document.createElement('p');explanation.textContent=workflow;actionPreview.append(explanation);
+    if(get('moduleSubjectLabel'))for(const prefix of ['subject','details']){
+      const label=document.createElement('label');label.textContent=get(prefix==='subject'?'moduleSubjectLabel':'moduleDetailsLabel').value+' *';
+      const hint=get('module'+prefix+'Placeholder')?.value || '';const input=document.createElement(prefix==='subject'?'input':'textarea');input.placeholder=hint;input.disabled=true;label.append(input);
+      const limit=document.createElement('small');limit.textContent=text('الحد الأقصى: ','Maximum: ')+(get('module'+prefix+'MaxLength')?.value || '') ;label.append(limit);actionPreview.append(label);
+    }
+    if(get('moduleAnswer')){const answer=document.createElement('p');answer.textContent=get('moduleAnswer').value || text('أكمل الإجابة التي تظهر للعضو','Complete the private answer');actionPreview.append(answer);}
+    if(get('moduleCapacity')){const summary=document.createElement('p');summary.textContent=text('عدد الأماكن: ','Capacity: ')+(get('moduleCapacity').value==='0'?text('مفتوح','Unlimited'):get('moduleCapacity').value)+' · '+(get('moduleStartsAt')?.value || text('دون موعد إغلاق','No closing time'));actionPreview.append(summary);}
+    if(get('moduleRole')){const role=document.createElement('p');role.textContent=get('moduleRole').selectedOptions[0]?.textContent || '';actionPreview.append(role);}
     layout.querySelector('.editor-title').textContent=get('moduleTitle').value;
     layout.querySelector('.editor-description').innerHTML=markdown(get('moduleDescription').value);
     const button=layout.querySelector('.editor-button'); button.textContent=get('moduleButton').value;
@@ -113,11 +155,11 @@ export function mountEditorPrototype(root, { english = false, markdown, botName 
     }
   };
   const fields=()=>[...inspector.querySelectorAll('input,textarea,select')].filter(field=>field.id && field.type!=='file');
-  const snapshot=()=>({fields:Object.fromEntries(fields().map(field=>[field.id,field.type==='checkbox'?field.checked:field.value])),rows:[...linkSection.children].map(row=>row.hidden)});
+  const snapshot=()=>({fields:Object.fromEntries(fields().map(field=>[field.id,field.type==='checkbox'?field.checked:field.value])),rows:Object.fromEntries([...linkSection.children].map(row=>[row.dataset.editorLinkRow,row.hidden])),order:[...linkSection.children].map(row=>row.dataset.editorLinkRow)});
   let history=[snapshot()],cursor=0,restoring=false;
   const syncHistoryButtons=()=>{tools.querySelector('[data-editor-undo]').disabled=cursor===0;tools.querySelector('[data-editor-redo]').disabled=cursor===history.length-1;};
   const changed=()=>{update();if(restoring)return;const next=snapshot();if(JSON.stringify(next)!==JSON.stringify(history[cursor])){history.splice(cursor+1);history.push(next);if(history.length>40)history.shift();cursor=history.length-1;}syncHistoryButtons();};
-  const restore=step=>{const next=cursor+step;if(next<0 || next>=history.length)return;cursor=next;restoring=true;for(const field of fields()){const value=history[cursor].fields[field.id];if(value===undefined)continue;if(field.type==='checkbox')field.checked=value;else field.value=value;field.dispatchEvent(new root.ownerDocument.defaultView.Event('input',{bubbles:true}));} [...linkSection.children].forEach((row,i)=>row.hidden=history[cursor].rows[i]);restoring=false;update();syncHistoryButtons();};
+  const restore=step=>{const next=cursor+step;if(next<0 || next>=history.length)return;cursor=next;restoring=true;for(const field of fields()){const value=history[cursor].fields[field.id];if(value===undefined)continue;if(field.type==='checkbox')field.checked=value;else field.value=value;field.dispatchEvent(new root.ownerDocument.defaultView.Event('input',{bubbles:true}));} for(const id of history[cursor].order){const row=[...linkSection.children].find(row=>row.dataset.editorLinkRow===id);row.hidden=history[cursor].rows[id];linkSection.append(row);}restoring=false;update();syncHistoryButtons();};
   tools.querySelector('[data-editor-undo]').onclick=()=>restore(-1);tools.querySelector('[data-editor-redo]').onclick=()=>restore(1);
   body.addEventListener('input',changed); body.addEventListener('change',changed);syncHistoryButtons();
   const observer=new MutationObserver(update);
@@ -125,5 +167,6 @@ export function mountEditorPrototype(root, { english = false, markdown, botName 
   const dialog=root.closest('dialog');
   const dispose=()=>{observer.disconnect();if(objectUrl)URL.revokeObjectURL(objectUrl);dialog.classList.remove('ai-editor-prototype');dialog.removeEventListener('close',dispose);root.editorDispose=null;};
   root.editorDispose=dispose;dialog.addEventListener('close',dispose,{once:true});
+  enhanceEditorContent(root,english);
   select(0); update(); return true;
 }

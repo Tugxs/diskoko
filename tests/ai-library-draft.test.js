@@ -4,6 +4,19 @@ import { aiPromptLibrary, readyAiTemplate } from '../ai-library-catalog.js';
 import { libraryDraftProposal, incompleteLibraryValue, validatedAiMedia } from '../lib/ai-library-draft.js';
 import { migrateLocalAi, presentAiRequest } from '../lib/local-ai.js';
 
+test('every module library entry creates a persisted editable function-specific draft',()=>{
+  for(const entry of aiPromptLibrary.filter(item=>item.moduleKind)){
+    for(const prompt of [entry.prompt,entry.promptEn]){
+      const proposal=libraryDraftProposal({mode:'module',title:entry.title,category:entry.category,prompt});
+      assert.equal(proposal.interactive.kind,'module');
+      assert.equal(proposal.interactive.moduleKind,entry.moduleKind);
+      assert.ok(proposal.interactive.buttonLabel);
+      assert.equal(proposal.message,null);
+      assert.equal(proposal.interactive.footer,undefined);
+    }
+  }
+});
+
 test('executable library requests keep their action card even when the prompt mentions a plan', () => {
   const prompt = 'جهز لوحة تذاكر دعم في #[القناة] بعنوان [العنوان]، ووصفها [الوصف]. اعرض الخطة قبل النشر.';
   const proposal = libraryDraftProposal({ mode: 'execute', category: 'تذاكر الدعم', title: 'لوحة تذاكر الدعم', prompt });

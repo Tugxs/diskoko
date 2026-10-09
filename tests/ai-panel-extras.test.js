@@ -21,3 +21,10 @@ test('Discord payload retains real module action, uses link buttons and thumbnai
   assert.equal(attached.embeds[0].thumbnail.url,'attachment://feature.png');
   assert.equal(attached.embeds[0].image,undefined);
 });
+
+test('optional customer footer reaches Discord and is never added by default',()=>{
+  assert.equal(panelExtras({}).footer,undefined);
+  assert.throws(()=>panelExtras({footer:'x'.repeat(301)}));
+  const config={title:'Panel',description:'Details',color:'#123456',buttonStyle:1,buttonLabel:'Open',...panelExtras({footer:'Customer note'})};
+  assert.deepEqual(JSON.parse(panelBody(config,'panel1')).embeds[0].footer,{text:'Customer note'});
+});
