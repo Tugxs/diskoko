@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { account, fixtureResponse, guild, workspace } from './fixtures.js';
 import { aiPromptLibrary } from '../ai-library-catalog.js';
+import { libraryDraftProposal } from '../lib/ai-library-draft.js';
 import { READY_TEMPLATES } from '../lib/ready-templates.js';
 const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(resolve => setTimeout(resolve, 5)); };
 async function page(hash = 'overview', response = fixtureResponse, file = 'studio.html', script = 'workspace.js', setup = () => {}) {
@@ -549,6 +550,11 @@ test('completed AI module reply opens its specific editor only after the request
   assert.equal(doc.querySelector('#moduledetailsMaxLength').value,'1000');
   assert.equal(doc.querySelector('#modulesubjectPlaceholder').maxLength,100);
   assert.equal(doc.querySelector('#moduledetailsPlaceholder').maxLength,100);
+  assert.match(doc.querySelector('.editor-action-preview').textContent,/عنوان مهمة الفريق/);
+  const footer=doc.querySelector('#moduleFooter');assert.equal(footer.value,'');footer.value='تذييل اختياري';footer.dispatchEvent(new dom.window.Event('input',{bubbles:true}));assert.equal(doc.querySelector('.editor-footer').textContent,'تذييل اختياري');
+  const description=doc.querySelector('#moduleDescription');description.value='نص';description.setSelectionRange(0,2);description.closest('label').querySelector('.editor-tools button').click();assert.equal(description.value,'**نص**');assert.ok(doc.querySelector('.editor-description strong'));
+  doc.querySelector('[data-editor-add-link]').click();doc.querySelector('[data-editor-add-link]').click();
+  const rows=[...doc.querySelectorAll('[data-editor-link-row]')].filter(row=>!row.hidden);rows[0].querySelector('[data-link-label]').value='الأول';rows[1].querySelector('[data-link-label]').value='الثاني';rows[1].querySelector('[data-link-label]').dispatchEvent(new dom.window.Event('input',{bubbles:true}));rows[1].querySelectorAll('button')[1].click();assert.equal([...doc.querySelectorAll('[data-editor-link-row]')].filter(row=>!row.hidden)[0],rows[1]);doc.querySelector('[data-editor-undo]').click();assert.equal([...doc.querySelectorAll('[data-editor-link-row]')].filter(row=>!row.hidden)[0],rows[0]);
   dom.window.close();
 });
 test('only the newest unpublished conversation draft offers publication controls',async()=>{
@@ -1149,16 +1155,17 @@ test('welcome reference opens editable style without previewing or publishing th
 });
 
 
-test('four pilot library selections open their actual editors without an AI generation wait', async()=>{
-  for(const kind of ['welcome','tickets','giveaway','poll']) {
-    const entry=aiPromptLibrary.find(item=>item.kind===kind);
+test('every current library selection opens its own editor without an AI generation wait', async()=>{
+  for(const entry of aiPromptLibrary) {
+    const kind=entry.moduleKind || entry.kind;
     const id='22222222-2222-4222-8222-222222222222',conversation='11111111-1111-4111-8111-111111111111';
-    const interactive=kind==='poll'?{kind,question:'',options:['','']} : kind==='giveaway'?{kind,prize:'',durationMinutes:'',winnerCount:1}:{kind,title:'',description:''};
-    const response=url=>url==='/api/ai/status'?{available:false,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:conversation,title:'Pilot',updated_at:'2026-10-09'}]} :url==='/api/ai/requests'?{id,conversationId:conversation,status:'completed'} :url===('/api/ai/conversations/'+conversation+'/messages')?{messages:[{id,prompt:entry.prompt,status:'completed',library_mode:'execute',proposal:{interactive,draft:true}}]}:fixtureResponse(url);
+    const mode=entry.moduleKind?'module':'execute';
+    const proposal=libraryDraftProposal({mode,category:entry.category,title:entry.title,prompt:entry.prompt});
+    const response=url=>url==='/api/ai/status'?{available:false,planEnabled:true}:url.startsWith('/api/ai/conversations?')?{conversations:[{id:conversation,title:'Pilot',updated_at:'2026-10-09'}]} :url==='/api/ai/requests'?{id,conversationId:conversation,status:'completed'} :url===('/api/ai/conversations/'+conversation+'/messages')?{messages:[{id,prompt:entry.prompt,status:'completed',library_mode:mode,library_category:entry.category,library_title:entry.title,proposal}]}:fixtureResponse(url);
     const {dom,doc,requests}=await page('assistant',response);
     doc.querySelector('[data-ai-template="'+aiPromptLibrary.indexOf(entry)+'"]').click();await settle();await settle();
     assert.equal(doc.querySelector('#dialog').open,true,kind+' '+doc.querySelector('#aiNotice').textContent+' requests='+requests.map(x=>x.url).join(','));
-    assert.equal(JSON.parse(requests.find(x=>x.url==='/api/ai/requests').options.body).libraryMode,'execute');
+    assert.equal(JSON.parse(requests.find(x=>x.url==='/api/ai/requests').options.body).libraryMode,mode);
     assert.equal(requests.some(x=>x.url.includes('launch-interactive')),false);
     dom.window.close();
   }
