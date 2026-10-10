@@ -1,7 +1,7 @@
 import {siteDate} from './site-format.js';
 import { initializeAiLanguage } from './ai-ui-language.js';
 import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';
-import { aiPromptLibrary } from './ai-library-catalog.js';
+import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from './ai-library-catalog.js';
 import { mountEditorPrototype, readEditorExtras, mountPanelStudio } from './ai-editor-prototype.js';
 
 const sceneReviewState=new WeakMap();
@@ -89,6 +89,7 @@ async function loadPublishedDesignImage(item, anchor, refresh) {
   } catch(error) { toast(error.message); }
 }
 const READY_MODULE_TYPES = {
+  ...Object.fromEntries(libraryModuleExtensions.map(item=>[item.moduleKind,{icon:item.icon,label:item.title,form:true}])),
   interests: { icon: '🎯', label: 'اختيار الاهتمامات', role: true }, suggestions: { icon: '💡', label: 'لوحة الاقتراحات', form: true },
   reports: { icon: '🚨', label: 'البلاغات الخاصة', form: true }, events: { icon: '🗓️', label: 'التسجيل في الفعاليات' },
   applications: { icon: '📝', label: 'طلبات الانضمام', form: true }, faq: { icon: '❔', label: 'الأسئلة السريعة', answer: true },
@@ -96,6 +97,7 @@ const READY_MODULE_TYPES = {
   learning: { icon: '🎓', label: 'متابعة التعلّم', form: true }, tasks: { icon: '📌', label: 'مهام فريق الإدارة', form: true, staffOnly: true },
 };
 const READY_MODULE_FIELDS = {
+  ...Object.fromEntries(libraryModuleExtensions.map(item=>[item.moduleKind,[item.subject,item.details,item.prompt]])),
   suggestions: ['عنوان الاقتراح', 'الاقتراح وسبب فائدته', 'بعد موافقة الفريق يُنشر الاقتراح مع زر تصويت.'],
   reports: ['موضوع البلاغ', 'ما حدث وأين حدث؟', 'البلاغ خاص ويظهر لفريق المراجعة فقط.'],
   applications: ['الدور الذي تتقدم له', 'خبرتك ولماذا ترغب في الانضمام', 'يقبل الفريق الطلب أو يرفضه داخل قناة خاصة.'],
@@ -2071,8 +2073,8 @@ async function assistant() {
     const channelOptions = `<option value="">اختر قناة</option>${channels.map(channel => `<option value="${esc(channel.id)}"># ${esc(channel.name)}</option>`).join('')}`;
     const roleOptions = `<option value="">اختر رتبة</option>${roles.map(role => `<option data-i18n-preserve value="${esc(role.id)}">${esc(role.name)}</option>`).join('')}`;
     const labels = READY_MODULE_FIELDS[kind];
-    const moduleActions={interests:['اختيار الرتبة','Choose role'],suggestions:['قدّم اقتراحًا','Suggest an idea'],reports:['أرسل بلاغًا خاصًا','Send private report'],events:['سجّل مشاركتك','Register'],applications:['قدّم طلبًا','Apply'],faq:['اعرض الإجابة','Show answer'],submissions:['أرسل مشاركتك','Submit your work'],orders:['أنشئ طلبًا','Start an order'],learning:['سجّل تقدمك','Record progress'],tasks:['أضف مهمة','Add task']};
-    const englishFields={suggestions:['Suggestion title','Idea and its benefit'],reports:['Report subject','What happened and where?'],applications:['Role you are applying for','Experience and motivation'],submissions:['Submission title','Description and work link'],orders:['Product or service','Quantity and requirements'],learning:['Lesson or assignment','Progress and help needed'],tasks:['Task title','Requirements, owner and deadline']};
+    const moduleActions={...Object.fromEntries(libraryModuleExtensions.map(item=>[item.moduleKind,[item.action,item.actionEn]])),interests:['اختيار الرتبة','Choose role'],suggestions:['قدّم اقتراحًا','Suggest an idea'],reports:['أرسل بلاغًا خاصًا','Send private report'],events:['سجّل مشاركتك','Register'],applications:['قدّم طلبًا','Apply'],faq:['اعرض الإجابة','Show answer'],submissions:['أرسل مشاركتك','Submit your work'],orders:['أنشئ طلبًا','Start an order'],learning:['سجّل تقدمك','Record progress'],tasks:['أضف مهمة','Add task']};
+    const englishFields={...Object.fromEntries(libraryModuleExtensions.map(item=>[item.moduleKind,[item.subjectEn,item.detailsEn]])),suggestions:['Suggestion title','Idea and its benefit'],reports:['Report subject','What happened and where?'],applications:['Role you are applying for','Experience and motivation'],submissions:['Submission title','Description and work link'],orders:['Product or service','Quantity and requirements'],learning:['Lesson or assignment','Progress and help needed'],tasks:['Task title','Requirements, owner and deadline']};
 
     const formFields = meta.form ? `<label>قناة مراجعة خاصة لا يراها الأعضاء<select id="moduleReviewChannel">${channelOptions}</select></label><label>رتبة الفريق<select id="moduleStaffRole">${roleOptions}</select></label><label>اسم خانة الموضوع<input id="moduleSubjectLabel" maxlength="45" value="${esc(labels?.[0] || 'الموضوع')}"></label><label>اسم خانة التفاصيل<input id="moduleDetailsLabel" maxlength="45" value="${esc(labels?.[1] || 'التفاصيل')}"></label>` : '';
     const extra = kind === 'interests' ? `<label>رتبة اهتمام عادية بلا صلاحيات<select id="moduleRole">${roleOptions}</select></label><p class="form-note">يضيف العضو هذه الرتبة أو يزيلها بنفسه. يجب أن تكون رتبة البوت أعلى منها.</p>` : kind === 'faq' ? '<label>الإجابة التي تظهر للعضو<textarea id="moduleAnswer" maxlength="1800" rows="4" placeholder="اكتب جوابًا واحدًا واضحًا"></textarea></label>' : kind === 'events' ? '<label>موعد إغلاق التسجيل (اختياري)<input id="moduleStartsAt" type="datetime-local"></label><label>عدد الأماكن؛ صفر يعني مفتوح<input id="moduleCapacity" type="number" min="0" max="10000" value="0"></label>' : '';
@@ -2147,7 +2149,7 @@ async function assistant() {
     $('#aiLibraryCategories').querySelectorAll('[data-ai-category]').forEach(button => button.onclick = () => { libraryCategory = button.dataset.aiCategory; renderLibrary(); });
     const query = $('#aiLibrarySearch').value.trim().toLocaleLowerCase('ar');
     const matched = aiPromptLibrary.map((item, index) => ({ ...item, index })).filter(item => (libraryCategory === 'الكل' || item.category === libraryCategory) && (!query || `${item.title} ${item.titleEn} ${item.category} ${item.prompt} ${item.promptEn}`.toLocaleLowerCase('ar').includes(query)));
-    $('#aiLibraryList').innerHTML = matched.length ? matched.map(item => `<button type="button" class="ai-library-item" data-ai-template="${item.index}"><span>${!!(item.kind || item.moduleKind)?(aiLanguage.language()==='en'?'✦ Open editor':'✦ افتح المحرر'):(aiLanguage.language()==='en'?'✦ Starter message':'✦ رسالة بداية')}</span><b>${esc(item.title)}</b><small>${esc(item.prompt)}</small><small>${!!(item.kind || item.moduleKind)?(aiLanguage.language()==='en'?'Open the preview, complete your details and confirm when ready.':'افتح المعاينة، أكمل بياناتك وعدّل الشكل، ثم أكد عند الجاهزية.'):(aiLanguage.language()==='en'?'Send and customize this request. AI builds an editable draft for your needs.':'أرسل الطلب وعدّله باحتياجك؛ يبني AI مسودة قابلة للتعديل.')}</small></button>`).join('') : '<p class="ai-library-empty">لا توجد نتائج. جرّب كلمة أخرى.</p>';
+    $('#aiLibraryList').innerHTML = matched.length ? matched.map(item => `<button type="button" class="ai-library-item" data-ai-template="${item.index}"><span>${!!(item.kind || item.moduleKind)?(aiLanguage.language()==='en'?'✦ Open editor':'✦ افتح المحرر'):(aiLanguage.language()==='en'?'✦ Starter message':'✦ رسالة بداية')}</span><b>${esc(item.title)}</b><small>${esc(item.prompt)}</small><span class="ai-library-features">${libraryFeatures(item,aiLanguage.language()==='en').map(feature=>`<small>${esc(feature)}</small>`).join('')}</span><small>${!!(item.kind || item.moduleKind)?(aiLanguage.language()==='en'?'Open the preview, complete your details and confirm when ready.':'افتح المعاينة، أكمل بياناتك وعدّل الشكل، ثم أكد عند الجاهزية.'):(aiLanguage.language()==='en'?'Send and customize this request. AI builds an editable draft for your needs.':'أرسل الطلب وعدّله باحتياجك؛ يبني AI مسودة قابلة للتعديل.')}</small></button>`).join('') : '<p class="ai-library-empty">لا توجد نتائج. جرّب كلمة أخرى.</p>';
     $('#aiLibraryList').querySelectorAll('[data-ai-template]').forEach(button => button.onclick = () => {
       selectedTemplate = aiPromptLibrary[Number(button.dataset.aiTemplate)];
       const directEditor=!!(selectedTemplate.kind || selectedTemplate.moduleKind);

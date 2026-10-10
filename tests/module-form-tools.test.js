@@ -23,3 +23,14 @@ test('unrelated edits preserve form requirements while explicit length changes a
   assert.equal(mergePanelEdits(prior,proposed,'Change the title').subjectMaxLength,60);
   assert.equal(mergePanelEdits(prior,proposed,'Change the subject length limit').subjectMaxLength,120);
 });
+
+test('reviewed receipt and submission cooldown are bounded and preserved on unrelated edits',()=>{
+  assert.equal(moduleFormTools({cooldownSeconds:120,receiptText:'Received'}).cooldownSeconds,120);
+  for(const value of [0,29,3601,30.5,'60'])assert.throws(()=>moduleFormTools({cooldownSeconds:value}));
+  assert.throws(()=>moduleFormTools({receiptText:'x'.repeat(301)}));
+  const prior={kind:'module',moduleKind:'feedback',cooldownSeconds:120,receiptText:'Received'};
+  const proposed={...prior,cooldownSeconds:60,receiptText:'Updated'};
+  assert.equal(mergePanelEdits(prior,proposed,'Change the title').receiptText,'Received');
+  assert.equal(mergePanelEdits(prior,proposed,'Change the cooldown').cooldownSeconds,60);
+  assert.equal(mergePanelEdits(prior,proposed,'غيّر رسالة الاستلام').receiptText,'Updated');
+});

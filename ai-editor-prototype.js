@@ -7,11 +7,15 @@ function enhanceEditorContent(root,english) {
     field.after(count);const update=()=>count.textContent=`${field.value.length} / ${field.maxLength}`;field.addEventListener('input',update);update();
     if(field.tagName!=='TEXTAREA')continue;
     const bar=document.createElement('div');bar.className='editor-tools';
-    for(const [ar,en,start,end] of [['عريض','Bold','**','**'],['مائل','Italic','*','*'],['اقتباس','Quote','> ',''],['قائمة','List','- ',''],['كود','Code','`','`']]){
+    for(const [ar,en,start,end] of [['عريض','Bold','**','**'],['مائل','Italic','*','*'],['تسطير','Underline','__','__'],['شطب','Strike','~~','~~'],['مخفي','Spoiler','||','||'],['اقتباس','Quote','> ',''],['قائمة','List','- ',''],['كود','Code','`','`']]){
       const button=document.createElement('button');button.type='button';button.textContent=english?en:ar;
       button.onclick=()=>{const a=field.selectionStart,b=field.selectionEnd;const value=field.value.slice(a,b);if(field.value.length+start.length+end.length>field.maxLength)return;field.setRangeText(start+value+end,a,b,'select');field.dispatchEvent(new root.ownerDocument.defaultView.Event('input',{bubbles:true}));field.focus();};bar.append(button);
     }
     field.before(bar);
+  }
+  const colorField=root.querySelector('input[type="color"]');
+  if(colorField && !root.querySelector('[data-editor-palette]')){const presets=document.createElement('div');presets.dataset.editorPalette='true';presets.className='editor-tools';presets.setAttribute('aria-label',english?'Color combinations':'ألوان متناسقة');
+    for(const [ar,en,color,style] of [['هادئ','Calm','#5865f2',1],['واضح','Clear','#248046',3],['محايد','Neutral','#4e5058',2]]){const preset=document.createElement('button');preset.type='button';preset.textContent=english?en:ar;preset.onclick=()=>{colorField.value=color;const buttonStyle=root.querySelector('#moduleButtonStyle');if(buttonStyle)buttonStyle.value=style;colorField.dispatchEvent(new root.ownerDocument.defaultView.Event('input',{bubbles:true}));};presets.append(preset);}colorField.closest('label').after(presets);
   }
   for(const field of root.querySelectorAll('input[type="color"]')){
     if(field.dataset.editorEnhanced)continue;field.dataset.editorEnhanced='true';
@@ -47,7 +51,7 @@ export function mountPanelStudio(root) {
 export function readEditorExtras(root) {
   const placement=root.querySelector('#moduleImagePlacement');
   if(!placement)return null;
-  return {footer:root.querySelector('#moduleFooter')?.value || '',imagePlacement:placement.value,links:[...root.querySelectorAll('[data-editor-link-row]')].filter(row=>!row.hidden).map(row=>({label:row.querySelector('input[data-link-label]').value.trim(),url:row.querySelector('input[data-link-url]').value.trim()}))};
+  return {...(root.querySelector('#moduleCooldown')?{cooldownSeconds:Number(root.querySelector('#moduleCooldown').value),receiptText:root.querySelector('#moduleReceipt').value}:{}),footer:root.querySelector('#moduleFooter')?.value || '',imagePlacement:placement.value,links:[...root.querySelectorAll('[data-editor-link-row]')].filter(row=>!row.hidden).map(row=>({label:row.querySelector('input[data-link-label]').value.trim(),url:row.querySelector('input[data-link-url]').value.trim()}))};
 }
 export function mountEditorPrototype(root, { english = false, markdown, botName = 'Diskoko', initial = {}, workflow = '' } = {}) {
   if (new URLSearchParams(location.search).get('editorPreview')==='0') return false;
@@ -76,6 +80,10 @@ export function mountEditorPrototype(root, { english = false, markdown, botName 
   const positionInput=document.createElement('select');positionInput.id='moduleImagePlacement';
   positionInput.innerHTML=`<option value="image">${text('صورة كبيرة تحت النص','Large image below text')}</option><option value="thumbnail">${text('صورة صغيرة أعلى اليمين','Small image at top right')}</option>`;
   positionInput.value=initial.imagePlacement || 'image';position.append(positionInput);appearance.append(position);
+  if(root.querySelector('#moduleSubjectLabel')){
+    const cooldownLabel=document.createElement('label');cooldownLabel.textContent=text('فاصل طلبات العضو بالثواني (30–3600)','Seconds between member submissions (30–3600)');const cooldown=document.createElement('input');cooldown.id='moduleCooldown';cooldown.type='number';cooldown.min=30;cooldown.max=3600;cooldown.value=initial.cooldownSeconds ?? 30;cooldownLabel.append(cooldown);ordered[2].append(cooldownLabel);
+    const receiptLabel=document.createElement('label');receiptLabel.textContent=text('رسالة استلام خاصة اختيارية — يضاف رقم متابعة','Optional private receipt — tracking number is retained');const receipt=document.createElement('textarea');receipt.id='moduleReceipt';receipt.maxLength=300;receipt.value=initial.receiptText || '';receiptLabel.append(receipt);ordered[2].append(receiptLabel);
+  }
   const footerLabel=document.createElement('label');footerLabel.textContent=text('تذييل اختياري — لا يضاف تلقائيًا','Optional footer — never added automatically');
   const footerInput=document.createElement('input');footerInput.id='moduleFooter';footerInput.maxLength=300;footerInput.value=initial.footer || '';footerLabel.append(footerInput);ordered[0].append(footerLabel);
   const footerPreview=document.createElement('small');footerPreview.className='editor-footer';layout.querySelector('.editor-card').append(footerPreview);
@@ -130,6 +138,8 @@ export function mountEditorPrototype(root, { english = false, markdown, botName 
       const hint=get('module'+prefix+'Placeholder')?.value || '';const input=document.createElement(prefix==='subject'?'input':'textarea');input.placeholder=hint;input.disabled=true;label.append(input);
       const limit=document.createElement('small');limit.textContent=text('الحد الأقصى: ','Maximum: ')+(get('module'+prefix+'MaxLength')?.value || '') ;label.append(limit);actionPreview.append(label);
     }
+    if(get('moduleReceipt')?.value){const receipt=document.createElement('p');receipt.textContent=text('رسالة الاستلام: ','Private receipt: ')+get('moduleReceipt').value+' · '+text('رقم متابعة','Tracking number');actionPreview.append(receipt);}
+    if(get('moduleCooldown')){const note=document.createElement('small');note.textContent=text('فاصل الطلبات بالثواني: ','Submission cooldown in seconds: ')+get('moduleCooldown').value;actionPreview.append(note);}
     if(get('moduleAnswer')){const answer=document.createElement('p');answer.textContent=get('moduleAnswer').value || text('أكمل الإجابة التي تظهر للعضو','Complete the private answer');actionPreview.append(answer);}
     if(get('moduleCapacity')){const summary=document.createElement('p');summary.textContent=text('عدد الأماكن: ','Capacity: ')+(get('moduleCapacity').value==='0'?text('مفتوح','Unlimited'):get('moduleCapacity').value)+' · '+(get('moduleStartsAt')?.value || text('دون موعد إغلاق','No closing time'));actionPreview.append(summary);}
     if(get('moduleRole')){const role=document.createElement('p');role.textContent=get('moduleRole').selectedOptions[0]?.textContent || '';actionPreview.append(role);}
