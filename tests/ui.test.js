@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { account, fixtureResponse, guild, workspace } from './fixtures.js';
-import { aiPromptLibrary } from '../ai-library-catalog.js';
+import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from '../ai-library-catalog.js';
 import { libraryDraftProposal } from '../lib/ai-library-draft.js';
 import { READY_TEMPLATES } from '../lib/ready-templates.js';
 const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(resolve => setTimeout(resolve, 5)); };
@@ -18,9 +18,9 @@ async function page(hash = 'overview', response = fixtureResponse, file = 'studi
   const formatSource=fs.readFileSync(new URL('../site-format.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const languageSource=fs.readFileSync(new URL('../ai-ui-language.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const sceneSource=fs.readFileSync(new URL('../ai-design-scene.js',import.meta.url),'utf8').replace(/^export /gm,'');
-  const workspaceSource=source.replace("import { initializeAiLanguage } from './ai-ui-language.js';",'').replace("import { aiPromptLibrary } from './ai-library-catalog.js';",'').replace("import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';",'');
+  const workspaceSource=source.replace("import { initializeAiLanguage } from './ai-ui-language.js';",'').replace("import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from './ai-library-catalog.js';",'').replace("import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';",'');
   const editorSource=fs.readFileSync(new URL('../ai-editor-prototype.js',import.meta.url),'utf8').replace(/^export /gm,'');
-  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)};\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio } from './ai-editor-prototype.js';",'')}` : source)); await settle();
+  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)}; const libraryModuleExtensions=${JSON.stringify(libraryModuleExtensions)}; const libraryFeatures=${libraryFeatures.toString()};\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio } from './ai-editor-prototype.js';",'')}` : source)); await settle();
   return { dom, requests, doc: dom.window.document };
 }
 test('voice recognition resumes after a browser pause and stops only when the user asks', async () => {
@@ -631,7 +631,7 @@ test('AI chat exposes reviewed Discord actions, image attachment and voice trans
   doc.querySelector('.ai-conversation').click(); await settle();
   assert.ok(doc.querySelector('[data-ai-delete]'));
   assert.equal(doc.querySelectorAll('.ai-library-item').length, aiPromptLibrary.length);
-  assert.equal(doc.querySelectorAll('.ai-library-item').length, doc.querySelectorAll('.ai-library-item span').length);
+  assert.equal(doc.querySelectorAll('.ai-library-item').length, doc.querySelectorAll('.ai-library-item > span:first-child').length);
   assert.ok(doc.querySelector('#aiVoice'));
   assert.equal(doc.querySelector('[data-ai-plan]'), null);
   doc.querySelector('[data-ai-message]').click();
@@ -1167,6 +1167,13 @@ test('every current library selection opens its own editor without an AI generat
     assert.equal(doc.querySelector('#dialog').open,true,kind+' '+doc.querySelector('#aiNotice').textContent+' requests='+requests.map(x=>x.url).join(','));
     assert.equal(JSON.parse(requests.find(x=>x.url==='/api/ai/requests').options.body).libraryMode,mode);
     assert.equal(requests.some(x=>x.url.includes('launch-interactive')),false);
+    assert.ok(doc.querySelector('[data-ai-template="'+aiPromptLibrary.indexOf(entry)+'"] .ai-library-features small'));
+    if(doc.querySelector('#moduleSubjectLabel')){
+      assert.equal(doc.querySelector('#moduleCooldown').value,'30');assert.equal(doc.querySelector('#moduleReceipt').value,'');
+      doc.querySelector('#moduleCooldown').value='120';doc.querySelector('#moduleReceipt').value='Received safely';doc.querySelector('#moduleReceipt').dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+      const serialized=dom.window.eval("readEditorExtras(document.querySelector('#dialogContent'))");assert.equal(serialized.cooldownSeconds,120);assert.equal(serialized.receiptText,'Received safely');assert.match(doc.querySelector('.editor-action-preview').textContent,/Received safely/);
+      doc.querySelector('[data-editor-palette] button').click();assert.equal(doc.querySelector('#moduleColor').value,'#5865f2');assert.equal(doc.querySelector('#moduleButtonStyle').value,'1');
+    }
     dom.window.close();
   }
 });

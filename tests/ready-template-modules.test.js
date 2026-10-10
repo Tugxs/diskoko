@@ -57,3 +57,30 @@ test('accepted store request can be marked complete by staff without publishing 
   assert.match(updates[0].embeds[0].description, /مكتمل/);
   assert.deepEqual(updates[0].components, []);
 });
+
+test('all seven new intake tools open real configured forms and reject another bot',async()=>{
+  for(const kind of ['bug_reports','appeals','partnerships','feedback','commissions','mentoring','resources']){
+    const valid=interaction();await handleReadyModuleInteraction(valid,pool(panel(kind)));
+    assert.equal(valid.state.modals.length,1,kind);assert.equal(valid.state.modals[0].components.length,2);
+    const wrong=interaction();wrong.client.user.id='other';await handleReadyModuleInteraction(wrong,pool(panel(kind)));assert.equal(wrong.state.modals.length,0,kind);
+  }
+});
+test('new private workflows never publish approvals and only fulfillment tools allow completion',async()=>{
+  for(const kind of ['bug_reports','appeals','partnerships','feedback','commissions','mentoring']){
+    const updates=[],sqls=[];const action=interaction();action.customId=`diskoko:module-review:${id}:approved`;action.channelId='review';action.message={id:'review-message',edit:async value=>updates.push(value)};action.memberPermissions={has:()=>true};
+    action.client.channels={fetch:async()=>{throw Error('Private approval must not publish');}};
+    const entry={id,panel_id:id,guild_id:'guild',review_channel_id:'review',review_message_id:'review-message',publishing_bot_id:'bot',status:'new',subject:'Subject',details:'Private details',user_id:'member',config:{kind,title:'Review',color:'#5865f2'}};
+    const db={query:async(sql,values)=>{sqls.push([sql,values]);return sql.includes('UPDATE')?{rowCount:1,rows:[{id}]}:{rows:[entry]};}};
+    await handleReadyModuleInteraction(action,db);assert.equal(updates.length,1,kind);assert.equal(sqls.find(([sql])=>sql.includes('UPDATE'))[1][0],'approved');assert.equal(updates[0].components.length,['commissions','mentoring'].includes(kind)?1:0,kind);
+  }
+});
+test('approved resources publish through existing staff review without a vote or automatic approval',async()=>{
+  const published=[];const action=interaction();action.customId=`diskoko:module-review:${id}:approved`;action.channelId='review';action.message={id:'review-message',edit:async()=>{}};action.memberPermissions={has:()=>true};
+  action.client.channels={fetch:async()=>({isTextBased:()=>true,guildId:'guild',send:async value=>{published.push(value);return{id:'resource-message'};}})};
+  const entry={id,panel_id:id,guild_id:'guild',review_channel_id:'review',review_message_id:'review-message',publishing_bot_id:'bot',status:'new',subject:'Guide',details:'Resource description',user_id:'member',config:{kind:'resources',channelId:'channel',title:'Resources',color:'#5865f2'}};
+  const db={query:async(sql)=>sql.includes('UPDATE')?{rowCount:1,rows:[{id}]}:{rows:[entry]}};await handleReadyModuleInteraction(action,db);assert.equal(published.length,1);assert.equal(published[0].components,undefined);assert.deepEqual(published[0].allowedMentions,{parse:[]});
+});
+test('configured cooldown and private receipt reach the actual intake handler',async()=>{
+  const calls=[];const action=interaction();action.customId=`diskoko:module-submit:${id}`;action.isButton=()=>false;action.isModalSubmit=()=>true;action.fields={getTextInputValue:name=>name==='subject'?'Title':'Details'};action.client.channels={fetch:async()=>({isTextBased:()=>true,guildId:'guild',send:async()=>({id:'review-message'})})};const configured=panel('feedback');configured.review_channel_id='review';Object.assign(configured.config,{cooldownSeconds:120,receiptText:'Thank you for the feedback'});
+  const db={query:async(sql,values)=>{calls.push([sql,values]);return sql.startsWith('SELECT *')?{rows:[configured]}:sql.startsWith('SELECT 1')?{rows:[],rowCount:0}:{rows:[],rowCount:1};}};await handleReadyModuleInteraction(action,db);assert.equal(calls.find(([sql])=>sql.startsWith('SELECT 1'))[1][2],120);assert.match(action.state.replies.at(-1),/Thank you for the feedback/);assert.match(action.state.replies.at(-1),/رقم المتابعة/);
+});
