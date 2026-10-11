@@ -15,6 +15,7 @@ import { manageable, problem, connectionState } from "./lib/workspace-domain.js"
 import { BOT_COMMANDS, DEFAULT_BOT_COMMAND_KEYS, validBotCommandKeys } from "./lib/bot-catalog.js";
 import { migrateLocalAi, mountLocalAi, workerAuthorized } from "./lib/local-ai.js";
 import { migrateInteractiveSystems, mountInteractiveSystems, startGiveawayRunner } from "./lib/interactive-systems.js";
+import { startModuleReminderRunner } from './lib/module-event-runner.js';
 import { mountNativeEvents } from "./lib/native-events.js";
 import { mountChannelControl } from "./lib/channel-control.js";
 import { isPublicStaticPath } from "./lib/public-files.js";
@@ -1120,4 +1121,10 @@ migrate().then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).th
     if (!bot) return { ok: false, status: 410, data: { message: 'Connected bot removed' } };
     return discordBotFetch(pathname, { ...options, headers: { ...options.headers, Authorization: `Bot ${bot.token}` } });
   } });
+  startModuleReminderRunner({pool,discordBotFetch:async(pathname,options,panel)=>{
+    const custom=await connectedBot(pool,panel.guild_id,panel.publishing_bot_id);
+    if(custom)return discordBotFetch(pathname,{...options,headers:{...options.headers,Authorization:`Bot ${custom.token}`}});
+    const self=await discordBotFetch('/users/@me');if(!self.ok || self.data.id!==panel.publishing_bot_id)return {ok:false,status:410};
+    return discordBotFetch(pathname,options);
+  }});
 }).catch((error) => { console.error("Database migration failed", error); process.exit(1); });

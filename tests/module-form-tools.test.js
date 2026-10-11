@@ -34,3 +34,5 @@ test('reviewed receipt and submission cooldown are bounded and preserved on unre
   assert.equal(mergePanelEdits(prior,proposed,'Change the cooldown').cooldownSeconds,60);
   assert.equal(mergePanelEdits(prior,proposed,'غيّر رسالة الاستلام').receiptText,'Updated');
 });
+
+test('custom fields preserve order and optional answers while enforcing bounds',()=>{const config={formFields:[{id:'topic',label:'Topic',required:true,maxLength:50},{id:'notes',label:'Notes',style:2,required:false,maxLength:100}]};assert.equal(moduleFormTools(config).formFields[1].required,false);const result=validateModuleSubmission(config,{topic:'Issue',notes:''});assert.equal(result.subject,'Issue');assert.equal(result.answers.length,2);assert.throws(()=>validateModuleSubmission(config,{topic:'',notes:''}));assert.throws(()=>moduleFormTools({formFields:Array.from({length:6},(_,i)=>({id:'f'+i,label:'Field'}))}));assert.throws(()=>moduleFormTools({formFields:[{id:'same',label:'One'},{id:'same',label:'Two'}]}));});

@@ -156,10 +156,10 @@ export function libraryFeatures(item,english=false){
   const kind=item.moduleKind || item.kind;
   const t=(ar,en)=>english?en:ar;
   if(item.moduleKind){const extension=libraryModuleExtensions.find(x=>x.moduleKind===kind);const flow=extension?.workflow || kind;
-    if(kind==='interests')return [t('رتبة عادية قابلة للإزالة','Reversible ordinary role'),t('صورة وأزرار روابط','Image and link buttons')];
-    if(kind==='faq')return [t('إجابة خاصة للعضو','Private member answer'),t('صورة وأزرار روابط','Image and link buttons')];
-    if(kind==='events')return [t('سعة وموعد إغلاق','Capacity and closing time'),t('تسجيل وإلغاء','Register and cancel')];
-    return [t('نموذج بخانات قابلة للتعديل','Editable intake fields'),t('مراجعة خاصة ورقم متابعة','Private review and tracking'),['orders','learning','tasks'].includes(flow)?t('قبول وإنجاز','Accept and complete'):['suggestions','submissions'].includes(flow)?t('النشر بعد الموافقة','Publish after approval'):t('قبول أو رفض دون نشر','Accept or reject privately')];
+    if(kind==='interests')return [t('اختيار عدة رتب بحد محدد','Multiple roles with selection limit'),t('صورة وأزرار روابط','Image and link buttons')];
+    if(kind==='faq')return [t('حتى 25 سؤالًا بإجابات خاصة','Up to 25 private answers'),t('صورة وأزرار روابط','Image and link buttons')];
+    if(kind==='events')return [t('سعة وموعد إغلاق','Capacity and closing time'),t('انتظار وتأكيد حضور وتذكير','Waiting list, check-in and reminder')];
+    return [t('نموذج بخانات قابلة للتعديل','Editable intake fields'),t('متابعة خاصة ورد على الفريق','Private tracking and team follow-up'),['orders','learning','tasks'].includes(flow)?t('قبول وإنجاز','Accept and complete'):['suggestions','submissions'].includes(flow)?t('النشر بعد الموافقة','Publish after approval'):t('قبول أو رفض دون نشر','Accept or reject privately')];
   }
   const features={giveaway:[['المدة والفائزون','Duration and winners'],['مشاركة وسحب فعلي','Participation and real draw']],tickets:[['تذكرة خاصة وفريق الدعم','Private ticket and support staff'],['استلام وإغلاق','Claim and close']],welcome:[['عند انضمام العضو','On member join'],['متغيرات العضو وصورته','Member variables and avatar']],rules:[['طرق عرض القوانين','Rules presentation choices'],['نص وألوان وصورة','Text, color and image']],poll:[['خيارات التصويت','Voting choices'],['تصويت ونتائج','Votes and results']],event:[['تفاصيل وصورة','Details and image'],['تسجيل اختياري','Optional registration']],channel_control:[['صلاحيات وبطء المحادثة','Permissions and slow mode'],['مراجعة التغييرات','Review changes']],scheduled_event:[['الموعد والمكان','Time and location'],['حدث Discord أصلي','Native Discord event']],message:[['تنسيق وصورة','Formatting and image'],['روابط ومراجعة الإرسال','Links and send review']]};
   return (features[kind] || []).map(pair=>pair[english?1:0]);
