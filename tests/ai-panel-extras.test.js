@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { panelExtras } from '../lib/ai-panel-extras.js';
+test('image-first layout is bounded and emits two actual embeds with the same approved controls',()=>{
+  assert.throws(()=>panelExtras({layout:'arbitrary-html'}));
+  const body=panelBody({title:'Panel',description:'Body',color:'#5865f2',buttonStyle:1,buttonLabel:'Open',layout:'image_first',banner:{mime:'image/png',base64:'AA=='}},'panel');
+  const payload=JSON.parse(body.get('payload_json'));assert.equal(payload.embeds.length,2);assert.equal(payload.embeds[0].image.url,'attachment://feature.png');assert.equal(payload.embeds[1].title,'Panel');assert.equal(payload.components[0].components[0].custom_id,'diskoko:module:panel');
+});
 import { panelBody } from '../lib/standalone-modules-api.js';
 test('panel extras accept bounded HTTPS link buttons and truthful image slots',()=>{
   assert.deepEqual(panelExtras({imagePlacement:'thumbnail',links:[{label:'Guide',url:'https://example.com/help'}]}),{imagePlacement:'thumbnail',links:[{label:'Guide',url:'https://example.com/help'}]});

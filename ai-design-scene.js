@@ -8,6 +8,7 @@ export function normalizeDesignScene(source) {
     return [{id:`layer-${index}`,type:layer.type,x:number(layer.x,10,0,100),y:number(layer.y,10,0,100),width:number(layer.width,80,1,100),height:number(layer.height,30,1,100),
       color:hex(layer.color),opacity:number(layer.opacity,1,0,1),shape:['circle','square','rounded'].includes(layer.shape)?layer.shape:'square',strokeColor:hex(layer.strokeColor),strokeWidth:number(layer.strokeWidth,0,0,20),
       ...(layer.type==='text'?{text:String(layer.text || '').slice(0,500),fontFamily:['Arial','Tahoma','Verdana'].includes(layer.fontFamily)?layer.fontFamily:'Arial',fontSize:number(layer.fontSize,36,14,96),align:['left','center','right'].includes(layer.align)?layer.align:'center',bold:layer.bold===true}:{}),
+      ...(layer.type==='image'?{fit:layer.fit==='contain'?'contain':'cover',focusX:number(layer.focusX,50,0,100),focusY:number(layer.focusY,50,0,100)}:{}),
     }];
   }) : [];
   for(const layer of layers){layer.x=Math.min(layer.x,100-layer.width);layer.y=Math.min(layer.y,100-layer.height);}
@@ -17,7 +18,7 @@ export function normalizeDesignScene(source) {
 export function applyDesignEdits(source, edits) {
   const scene=normalizeDesignScene(source);
   if(!scene || !Array.isArray(edits))return scene;
-  const fields=new Set(['text','x','y','width','height','color','opacity','shape','fontSize','fontFamily','align','bold','strokeColor','strokeWidth']);
+  const fields=new Set(['text','x','y','width','height','color','opacity','shape','fontSize','fontFamily','align','bold','strokeColor','strokeWidth','fit','focusX','focusY']);
   for(const edit of edits.slice(0,24)){
     if(!edit || edit.op!=='set')continue;
     if(edit.layer==='background' && edit.field==='color') {scene.background=hex(edit.value);continue;}
@@ -75,7 +76,7 @@ export async function renderDesignScene(source, file) {
         else if (layer.shape==='rounded') ctx.roundRect(x,y,w,h,Math.min(w,h)*0.12);
         else ctx.rect(x,y,w,h);
         if (layer.type==='box') ctx.fill();
-        else {ctx.clip();const scale=Math.max(w/bitmap.width,h/bitmap.height);ctx.drawImage(bitmap,x+(w-bitmap.width*scale)/2,y+(h-bitmap.height*scale)/2,bitmap.width*scale,bitmap.height*scale);}
+        else {ctx.clip();const scale=(layer.fit==='contain'?Math.min:Math.max)(w/bitmap.width,h/bitmap.height);ctx.drawImage(bitmap,x+(w-bitmap.width*scale)*layer.focusX/100,y+(h-bitmap.height*scale)*layer.focusY/100,bitmap.width*scale,bitmap.height*scale);}
         if(layer.strokeWidth){ctx.strokeStyle=layer.strokeColor;ctx.lineWidth=layer.strokeWidth;ctx.stroke();}
       }
       ctx.restore();
