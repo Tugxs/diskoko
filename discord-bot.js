@@ -1,3 +1,4 @@
+import { recordSupportReply } from './lib/support-service-tools.js';
 import crypto from 'node:crypto';
 import { handleMusicCommand, handleMusicInteraction, musicSlashOptions } from './lib/music-panel.js';
 import { handleYoutubePanelInteraction, youtubePanelMessage } from './lib/youtube-panel.js';
@@ -230,6 +231,7 @@ export async function startDiscordBot({ pool } = {}) {
 
   // Count events only after an administrator opts in. This handler does not store message content.
   client.on(Events.MessageCreate, async (message) => {
+    void recordSupportReply(message,databasePool).catch(error=>console.error('Support response tracking failed:',error.message));
     if (!databasePool || !message.guildId || message.author.bot) return;
     try {
       await databasePool.query(`INSERT INTO community_activity(guild_id,day,user_id,channel_id,display_name,messages)
