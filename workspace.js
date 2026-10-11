@@ -177,7 +177,7 @@ const fmt = value => new Intl.NumberFormat(document.documentElement.lang==='en'?
 const date = value => value ? siteDate(new Date(value), "toLocaleString", { dateStyle: 'medium', timeStyle: 'short' }) : 'لم يتم بعد';
 const state = { account: null, guild: new URLSearchParams(location.search).get('guild'), data: null, loading: true, error: null, tab: 'channels', channelFilter: 'permanent', draft: [], templates: null, readyCatalog: null, readyRuns: [], readyDraft: null, readyDraftCache: {}, readyKey: null, readyMode: 'add', readyStep: 'structure', readyFilter: 'all', readySearch: '', epoch: 0, days: 7 };
 function temporaryTicketChannel(channel) { return /^(?:تذكرة|ticket)[-・_]/i.test(String(channel.name || '')); }
-const sections = [ ['overview', '⌂', 'نظرة عامة'], ['alerts', '⚠', 'التنبيهات'], ['builder', '▤', 'القنوات والرتب'], ['ready-templates', '▣', 'قوالب جاهزة'], ['bots', '◈', 'اللوحات التفاعلية'], ['commands', '⌘', 'الأوامر'], ['assistant', '✦', 'AI ديسكوكو'], ['automation', '◷', 'الرسائل المجدولة'], ['analytics', '⌁', 'النشاط والتحليلات'], ['safety', '◇', 'الأمان والصلاحيات'], ['activity', '≡', 'سجل التغييرات'], ['settings', '⚙', 'إعدادات السيرفر'] ];
+const sections = [ ['overview', '⌂', 'نظرة عامة'], ['alerts', '⚠', 'التنبيهات'], ['builder', '▤', 'القنوات والرتب'], ['ready-templates', '▣', 'قوالب جاهزة'], ['server-import', '⇩', 'استيراد قالب سيرفر'], ['bots', '◈', 'اللوحات التفاعلية'], ['commands', '⌘', 'الأوامر'], ['assistant', '✦', 'AI ديسكوكو'], ['automation', '◷', 'الرسائل المجدولة'], ['analytics', '⌁', 'النشاط والتحليلات'], ['safety', '◇', 'الأمان والصلاحيات'], ['activity', '≡', 'سجل التغييرات'], ['settings', '⚙', 'إعدادات السيرفر'] ];
 const aliases = { dashboard: 'overview', 'bot-settings': 'commands', 'custom-bot': 'bots', 'server-detail': 'builder', preview: 'builder', 'custom-template': 'builder', newserver: 'builder' };
 function screen() { const hash = location.hash.slice(1); return aliases[hash] || (sections.some(([key]) => key === hash) || hash === 'servers' ? hash : 'overview'); }
 let csrfPromise;
@@ -299,7 +299,7 @@ function render() {
   if (state.error) { area.innerHTML = head('تعذر فتح مساحة العمل', 'لم نغيّر حالة الربط أو بيانات سيرفرك.') + `<div class="panel">${empty('نحتاج خطوة للمتابعة', esc(state.error.message), `<div class="actions"><button class="btn primary" id="retry">إعادة المحاولة</button><a class="btn secondary" href="/account.html#servers">اختيار سيرفر آخر</a>${state.error.status === 401 ? `<a class="btn secondary" href="/auth/discord?returnTo=${encodeURIComponent(location.pathname + location.search + location.hash)}">إعادة ربط الحساب</a>` : ''}</div>`)}</div>`; $('#retry').onclick = run(() => state.account ? loadGuild() : start()); return; }
   if (!state.guild || screen() === 'servers') { renderServers(); return; }
   const selected = screen();
-  const pages = { overview: overview, alerts: alertsPage, builder: builder, 'ready-templates': readyTemplatesPage, bots: bots, commands: commands, assistant: assistant, automation: automation, analytics: analytics, activity: activity, settings: settings, safety: safety };
+  const pages = { 'server-import': serverImportPage, overview: overview, alerts: alertsPage, builder: builder, 'ready-templates': readyTemplatesPage, bots: bots, commands: commands, assistant: assistant, automation: automation, analytics: analytics, activity: activity, settings: settings, safety: safety };
   Promise.resolve(pages[selected]?.()).catch(error => { if (screen() === selected) area.innerHTML = head('تعذر تحميل القسم', 'حاول مرة أخرى دون تغيير إعداداتك.') + `<div class="panel">${empty('البيانات غير متاحة الآن', esc(error.message), '<button class="btn primary" id="retrySection">إعادة المحاولة</button>')}</div>`; $('#retrySection')?.addEventListener('click', render); });
 }
 function renderServers() {
@@ -1363,7 +1363,8 @@ async function readyTemplatesPage() {
   const epoch = state.epoch, guild = state.guild;
   $('#workspace').innerHTML = head('قوالب جاهزة لسيرفرك', 'اختر قالبًا، عدّل كل تفاصيله، ثم شاهد الفرق قبل أن يلمس البوت سيرفرك.') + '<div class="loading">نحمّل القوالب…</div>';
   const [catalog, runs, connected] = await Promise.all([state.readyCatalog ? Promise.resolve({ templates: state.readyCatalog }) : api('/api/ready-templates'), api(`/api/workspace/${encodeURIComponent(guild)}/ready-templates/runs`), api(`/api/ai/bot-connection?guildId=${encodeURIComponent(guild)}`)]);
-  state.readyCatalog = catalog.templates;
+  state.readyCatalog = catalog.templates.filter(item => item.key !== 'imported-server-template');
+  try { const imported = JSON.parse(sessionStorage.getItem(`diskoko:import:${state.account?.user?.id}:${guild}`)); if (imported?.definition) state.readyCatalog.push(imported); } catch {}
   state.readyRuns = runs.runs || [];
   state.readyCustomBot = connected.bot;
   if (epoch !== state.epoch || guild !== state.guild || screen() !== 'ready-templates') return;
@@ -1621,6 +1622,15 @@ function renderReadyEditor() {
     $('#readySearch')?.setSelectionRange(start, start);
   });
   if (!d) return;
+  $('#readyReset')?.insertAdjacentHTML('afterend', '<button class="btn secondary" id="readyExportFile">تحميل ملف القالب</button>');
+  $('#readyExportFile').onclick = run(async () => {
+    const definition = structuredClone(state.readyDraft);
+    definition.roles.forEach(role => { delete role.permissions; });
+    const bundle = { format: 'diskoko-server-template', version: 1, definition };
+    const checked = await api('/api/server-templates/import', { method: 'POST', body: JSON.stringify(bundle) });
+    const blob = new Blob([JSON.stringify({ ...bundle, definition: checked.definition }, null, 2)], { type: 'application/json' });
+    const href = URL.createObjectURL(blob), link = document.createElement('a'); link.href = href; link.download = 'diskoko-server-template.json'; link.click(); setTimeout(() => URL.revokeObjectURL(href), 1000);
+  });
   if ($('#readyCounts')) $('#readyCounts').textContent = `${fmt(readyCounts(d).units)} تغييرًا · ${fmt(readyCounts(d).categories)} تصنيفات · ${fmt(readyCounts(d).channels)} قنوات · ${fmt(readyCounts(d).roles)} رتب`;
   const modeTitle = [...document.querySelectorAll('.ready-editor h3')].find(node => node.textContent === 'طريقة التنصيب');
   if (modeTitle) {
@@ -2899,3 +2909,30 @@ $('#dialog').addEventListener('cancel', event => { if ($('#applyPlan')?.textCont
 start();
 
 
+
+function serverImportPage() {
+  $('#workspace').innerHTML = head('استيراد قالب سيرفر', 'استورد البنية والميزات المحفوظة في ملف القالب، ثم عدّلها وراجعها قبل التنفيذ.') + panel('ملف قالب ديسكوكو', `<div class="panel-body"><p>يشمل الملف القنوات والرتب والترحيب والدعم والميزات التفاعلية التي يحتويها. لا يبدأ التنفيذ عند رفعه.</p><label for="serverTemplateFile">ملف JSON · حتى 5 ميجابايت</label><input id="serverTemplateFile" type="file" accept=".json,application/json"><p id="serverImportError" role="alert" hidden></p><button class="btn primary" id="serverImportOpen">استيراد ومعاينة</button><p class="form-note">رابط الدعوة ليس ملف قالب. الميزات غير المدعومة تُعرض كخطأ؛ لا تُفعّل أكواد أو أسرار من الملف.</p></div>`);
+  $('#serverImportOpen').onclick = async event => {
+    const button = event.currentTarget, file = $('#serverTemplateFile').files[0], errorBox = $('#serverImportError'), guild = state.guild, epoch = state.epoch;
+    errorBox.hidden = true; button.disabled = true;
+    try {
+      if (!file || file.size > 5_000_000) throw Error('اختر ملف JSON لا يتجاوز 5 ميجابايت.');
+      const bundle = JSON.parse(await file.text());
+      const result = await api('/api/server-templates/import', { method: 'POST', body: JSON.stringify(bundle) });
+      if (guild !== state.guild || epoch !== state.epoch || screen() !== 'server-import') return;
+      const catalog = state.readyCatalog ? { templates: state.readyCatalog } : await api('/api/ready-templates');
+      if (guild !== state.guild || epoch !== state.epoch || screen() !== 'server-import') return;
+      state.readyCatalog = catalog.templates.filter(item => item.key !== 'imported-server-template');
+      const template = { key: 'imported-server-template', name: result.definition.name, icon: '⇩', language: 'ar', revision: 1, definition: result.definition, description: 'قالب مستورد قابل للتعديل قبل التنفيذ.' };
+      state.readyCatalog.push(template);
+      sessionStorage.setItem(`diskoko:import:${state.account?.user?.id}:${state.guild}`, JSON.stringify(template));
+      delete state.readyDraftCache[readyDraftCacheKey(template.key)];
+      sessionStorage.removeItem(readyStorageKey(template.key));
+      state.readyDraft = null;
+      readyStart(template);
+      shell();
+      await readyTemplatesPage();
+    } catch (error) { errorBox.textContent = error.message; errorBox.hidden = false; }
+    finally { button.disabled = false; }
+  };
+}
