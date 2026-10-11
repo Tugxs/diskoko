@@ -18,9 +18,10 @@ async function page(hash = 'overview', response = fixtureResponse, file = 'studi
   const formatSource=fs.readFileSync(new URL('../site-format.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const languageSource=fs.readFileSync(new URL('../ai-ui-language.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const sceneSource=fs.readFileSync(new URL('../ai-design-scene.js',import.meta.url),'utf8').replace(/^export /gm,'');
-  const workspaceSource=source.replace("import { initializeAiLanguage } from './ai-ui-language.js';",'').replace("import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from './ai-library-catalog.js';",'').replace("import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';",'');
+  const workspaceSource=source.replace("import { mountCodeEditor } from './code-command-editor.js';",'').replace("import { initializeAiLanguage } from './ai-ui-language.js';",'').replace("import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from './ai-library-catalog.js';",'').replace("import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';",'');
+  const codeEditorSource=fs.readFileSync(new URL('../code-command-editor.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const editorSource=fs.readFileSync(new URL('../ai-editor-prototype.js',import.meta.url),'utf8').replace(/^export /gm,'');
-  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)}; const libraryModuleExtensions=${JSON.stringify(libraryModuleExtensions)}; const libraryFeatures=${libraryFeatures.toString()};\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio } from './ai-editor-prototype.js';",'')}` : source)); await settle();
+  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)}; const libraryModuleExtensions=${JSON.stringify(libraryModuleExtensions)}; const libraryFeatures=${libraryFeatures.toString()};\n${codeEditorSource}\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio } from './ai-editor-prototype.js';",'')}` : source)); await settle();
   return { dom, requests, doc: dom.window.document };
 }
 test('voice recognition resumes after a browser pause and stops only when the user asks', async () => {

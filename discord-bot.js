@@ -1,5 +1,6 @@
 import { recordSupportReply } from './lib/support-service-tools.js';
 import crypto from 'node:crypto';
+import { handleCodeInteraction } from './lib/code-commands.js';
 import { handleMusicCommand, handleMusicInteraction, musicSlashOptions } from './lib/music-panel.js';
 import { handleYoutubePanelInteraction, youtubePanelMessage } from './lib/youtube-panel.js';
 import { handleMovieClubCommand, handleMovieClubInteraction } from './lib/movie-club.js';
@@ -141,7 +142,7 @@ async function recordCommand(guildId, commandKey, success) {
 
 async function registerGuildCommands(rest, applicationId, guildId, token) {
   try {
-    const panelCommands = databasePool ? (await databasePool.query("SELECT name,description,response_kind FROM customer_bot_commands WHERE guild_id=$1 AND bot_user_id=$2 AND response_kind IN ('music_panel','youtube_panel','movie_club','community_panel')", [guildId, applicationId])).rows : [];
+    const panelCommands = databasePool ? (await databasePool.query("SELECT name,description,response_kind FROM customer_bot_commands WHERE guild_id=$1 AND bot_user_id=$2 AND response_kind IN ('music_panel','youtube_panel','movie_club','community_panel','code')", [guildId, applicationId])).rows : [];
     await rest.put(Routes.applicationGuildCommands(applicationId, guildId), { body: [...COMMAND_JSON, ...panelCommands.filter(command => command.name !== 'diskoko').map(command => ({ name: command.name, description: command.description, type: 1, ...(command.response_kind === 'music_panel' ? { options: musicSlashOptions } : {}) }))] });
     return true;
   } catch (error) {
@@ -293,6 +294,10 @@ export async function startDiscordBot({ pool } = {}) {
   client.on("guildCreate", async (guild) => { state.guilds = client.guilds.cache.size; const rest = new REST({ version: "10" }).setToken(token); if (await registerGuildCommands(rest, client.user.id, guild.id, token)) state.commands.registered += COMMAND_JSON.length; else state.commands.failed += COMMAND_JSON.length; });
   client.on("guildDelete", () => { state.guilds = client.guilds.cache.size; });
   client.on(Events.InteractionCreate, async (interaction) => {
+    if (interaction.customId?.startsWith('diskoko-code:') || (interaction.isChatInputCommand() && interaction.commandName !== 'diskoko')) {
+      try { if(await handleCodeInteraction(interaction,databasePool,client.user.id))return; }
+      catch(error) { console.error('Public code command failed',error.message); if(!interaction.replied && !interaction.deferred)await interaction.reply({content:'تعذر تنفيذ الأمر الآن.',ephemeral:true}).catch(()=>{}); return; }
+    }
     if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith('diskoko-games:')) {
       try { await handleCommunityGame(interaction, databasePool); }
       catch (error) { console.error('Community game failed', error); if (interaction.deferred || interaction.replied) await interaction.editReply({ content: 'تعذرت الجولة الآن. حاول مجددًا.', components: [] }).catch(() => {}); else await interaction.reply({ content: 'تعذرت الجولة الآن. حاول مجددًا.', ephemeral: true }).catch(() => {}); }

@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>دليل أوامر الكود | ديسكوكو</title><link rel="stylesheet" href="/styles.css?v=1c2c4bda18"><link rel="stylesheet" href="/legal.css?v=5174db854b"><script type="module" src="/site-preferences.js?v=f87a832d5d"></script></head><body><main class="legal-main legal-card code-guide"><a href="/studio#commands">العودة إلى الأوامر</a><h1>أوامرك، بطريقتك</h1><p>اكتب JavaScript، جرّبه واحفظه في مساحة خاصة بحسابك وسيرفرك وبوتك. التفعيل خطوة منفصلة بعد مراجعتك.</p><h2>مثال قائمة تفاعلية</h2><pre dir="ltr"><code data-i18n-preserve>function handle(ctx) {
+  if (ctx.event.action === "choose") {
+    return { message: { content: "Selected: " + ctx.event.values[0] } };
+  }
+  return { message: {
+    content: "Hello " + ctx.user.name,
+    controls: [{ type: "select", action: "choose", options: [
+      { label: "Support", value: "support" },
+      { label: "Rules", value: "rules" }
+    ] }]
+  }};
+}</code></pre><h2>البيانات المتاحة</h2><p><code data-i18n-preserve>ctx.user</code> اسم المستخدم ومعرّفه، <code data-i18n-preserve>ctx.guild</code> السيرفر، <code data-i18n-preserve>ctx.event</code> نوع الحدث والإجراء والاختيارات والحقول، و<code data-i18n-preserve>ctx.state</code> بياناتك المحفوظة لهذا المستخدم والأمر فقط.</p><h2>ما يمكنك بناؤه</h2><p>رسائل وبطاقات وصور عبر HTTPS وأزرار وروابط وقوائم ونماذج. أرجع <code data-i18n-preserve>message</code> أو <code data-i18n-preserve>modal</code> ومعهما <code data-i18n-preserve>state</code> اختياريًا.</p><p>الزر: <code data-i18n-preserve>{type:"button",label:"Open",action:"open",style:1}</code>. الرابط: <code data-i18n-preserve>{type:"link",label:"Website",url:"https://example.com"}</code>.</p><p>النموذج: <code data-i18n-preserve>{modal:{title:"Feedback",action:"submit",fields:[{id:"opinion",label:"Your feedback",paragraph:true}]}}</code>. تجد الرد في <code data-i18n-preserve>ctx.event.fields.opinion</code>.</p><h2>حدود البيئة الخاصة</h2><p>الدالة متزامنة. لا تتاح ملفات البوت أو توكناته أو الإنترنت أو مكتبات Node. لا توجد إدارة رتب وقنوات في هذا الإصدار. الكود 24 KB والحالة 8 KB، وحتى 5 عناصر تفاعلية و3 بطاقات. الأزرار تخص المستخدم الذي فتح الأمر وتنتهي بعد 15 دقيقة.</p><h2>الحفظ والنسخ</h2><p>الحفظ لا يغير النسخة المفعّلة. جرّب النسخة ثم أكد التفعيل. استعد نسخة سابقة من سجل النسخ وراجعها قبل تفعيلها. يمكنك إيقاف الأمر أو تنزيل ملفه أو حذفه.</p><h2>مساعد AI</h2><p>اطلب بناء الكود أو شرحه أو إصلاحه. تحصل على مسودة للمراجعة؛ لا يحفظها المساعد ولا يفعّلها تلقائيًا. يحتاج عامل AI متصلًا وباقة مناسبة.</p></main></body></html>

@@ -279,3 +279,12 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 .editor-action-preview{margin-top:20px;padding:20px;background:#141722;border:1px solid #383d54;border-radius:12px}.editor-action-preview label{display:block;margin:12px 0}.editor-action-preview input,.editor-action-preview textarea{display:block;width:100%;margin:8px 0}.editor-action-preview small,.editor-footer{display:block;color:#b5bac1;font-size:12px}.editor-footer{margin-top:14px;overflow-wrap:anywhere}.editor-links>div>button{margin:4px;padding:8px;border-radius:8px}
 
 .ai-library-features{display:flex!important;gap:5px;flex-wrap:wrap;margin:8px 0}.ai-library-features small{padding:3px 6px;border:1px solid #383d54;border-radius:6px;font-size:11px}
+/* Scoped command source editor: regular compact controls, no global layout shifts. */
+.code-command-studio { margin-top: 24px; }
+.code-editor-layout { display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:20px;align-items:start; }
+.code-command-studio [data-code-source] { font-family:Consolas,monospace;font-size:13px;line-height:1.6;tab-size:2;min-height:380px;background:#0b0912;text-align:left;white-space:pre;overflow:auto; }
+.code-command-studio pre { white-space:pre-wrap;overflow-wrap:anywhere;max-height:280px;overflow:auto; }
+.code-preview-card { padding:16px;border:1px solid #75609755;border-radius:10px;margin-bottom:12px;overflow-wrap:anywhere; }
+.code-command-studio .preview .btn { margin:4px; }
+.code-command-studio .notice.danger { color:#ffb9c0;background:#3e162440;border:1px solid #c6536555;padding:12px;border-radius:10px; }
+@media(max-width:800px){.code-editor-layout{grid-template-columns:minmax(0,1fr)}.code-command-studio [data-code-source]{min-height:300px}}
