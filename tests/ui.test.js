@@ -50,7 +50,7 @@ test('voice recognition resumes after a browser pause and stops only when the us
 test('deep link opens the requested guild with true live data and one navigation controller', async () => {
   const { dom, doc, requests } = await page('builder');
   assert.match(doc.querySelector('h1').textContent, /القنوات والرتب/); assert.match(doc.body.textContent, /الدردشة/);
-  assert.equal(doc.querySelectorAll('.nav-link').length, 12); assert.equal(requests.filter(r => r.url === '/api/account/overview').length, 1); dom.window.close();
+  assert.equal(doc.querySelectorAll('.nav-link').length, 13); assert.equal(requests.filter(r => r.url === '/api/account/overview').length, 1); dom.window.close();
 });
 test('channel and role editor exposes detailed permissions before review', async () => {
   const { dom, doc } = await page('builder');
@@ -1176,4 +1176,19 @@ test('every current library selection opens its own editor without an AI generat
     }
     dom.window.close();
   }
+});
+
+test('server template file imports supported features into an editable draft without Discord execution', async () => {
+  const definition=READY_TEMPLATES[0].definition;
+  const response=url=>url==='/api/server-templates/import'?{definition}:url==='/api/ready-templates'?{templates:READY_TEMPLATES}:url.includes('/ready-templates/runs')?{runs:[]}:fixtureResponse(url);
+  const {dom,requests}=await page('server-import',response,'studio.html','workspace.js',window=>{window.structuredClone=structuredClone;window.HTMLElement.prototype.scrollIntoView=()=>{};});
+  const doc=dom.window.document;
+  Object.defineProperty(doc.querySelector('#serverTemplateFile'),'files',{value:[{size:100,text:async()=>JSON.stringify({format:'diskoko-server-template',version:1,definition})}]});
+  doc.querySelector('#serverImportOpen').click(); await settle();
+  assert.match(dom.window.location.hash,/ready-templates/);
+  assert.ok(doc.querySelector('#readyReview'));
+  assert.ok(doc.querySelector('#readyExportFile'));
+  assert.ok(doc.querySelector('[data-ready-field="features.ticket.enabled"]'));
+  assert.equal(requests.filter(row=>/\/apply$/.test(row.url)).length,0);
+  dom.window.close();
 });
