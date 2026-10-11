@@ -15,6 +15,12 @@ const interaction = kind => {
 };
 const pool = row => ({ query: async () => ({ rows: row ? [row] : [] }) });
 
+test('a submission arriving during preflight is rejected inside the transaction before staff delivery',async()=>{
+  const calls=[];let deliveries=0,released=false;const action=interaction();action.customId=`diskoko:module-submit:${id}`;action.isButton=()=>false;action.isModalSubmit=()=>true;action.fields={getTextInputValue:key=>key==='subject'?'Subject':'Details'};action.client.channels={fetch:async()=>({isTextBased:()=>true,guildId:'guild',send:async()=>{deliveries++;return{id:'message'};}})};const configured=panel('reports');configured.review_channel_id='review';
+  const db={query:async(sql)=>sql.startsWith('SELECT *')?{rows:[configured]}:{rowCount:0},connect:async()=>({query:async(sql,values)=>{calls.push([sql,values]);return{rowCount:sql.startsWith('SELECT 1')?1:0};},release:()=>released=true})};
+  await handleReadyModuleInteraction(action,db);assert.equal(deliveries,0);assert.equal(released,true);assert.equal(calls[0][0],'BEGIN');assert.match(calls[1][0],/pg_advisory_xact_lock/);assert.equal(calls[1][1][0],`module-intake:${id}:member`);assert.equal(calls.at(-1)[0],'COMMIT');assert.equal(calls.some(([sql])=>sql.startsWith('INSERT')),false);assert.match(action.state.replies.at(-1),/no duplicate/);
+});
+
 test('staff management uses bounded native selections and never accepts an unapproved delivery stage',async()=>{
   const action=interaction();action.customId=`diskoko:module-manage:${id}`;action.channelId='review';action.message.id='review-message';action.memberPermissions={has:()=>true};const entry={...panel('orders'),review_channel_id:'review',review_message_id:'review-message',status:'new',metadata:{}};
   await handleReadyModuleInteraction(action,pool(entry));assert.equal(action.state.modals[0].components.length,5);assert.equal(action.state.modals[0].components[1].component.type,3);
@@ -107,7 +113,7 @@ test('approved resources publish through existing staff review without a vote or
 });
 test('configured cooldown and private receipt reach the actual intake handler',async()=>{
   const calls=[];const action=interaction();action.customId=`diskoko:module-submit:${id}`;action.isButton=()=>false;action.isModalSubmit=()=>true;action.fields={getTextInputValue:name=>name==='subject'?'Title':'Details'};action.client.channels={fetch:async()=>({isTextBased:()=>true,guildId:'guild',send:async()=>({id:'review-message'})})};const configured=panel('feedback');configured.review_channel_id='review';Object.assign(configured.config,{cooldownSeconds:120,receiptText:'Thank you for the feedback'});
-  const db={query:async(sql,values)=>{calls.push([sql,values]);return sql.startsWith('SELECT *')?{rows:[configured]}:sql.startsWith('SELECT 1')?{rows:[],rowCount:0}:{rows:[],rowCount:1};}};await handleReadyModuleInteraction(action,db);assert.equal(calls.find(([sql])=>sql.startsWith('SELECT 1'))[1][2],120);assert.match(action.state.replies.at(-1).content,/Thank you for the feedback/);assert.match(action.state.replies.at(-1).content,/رقم المتابعة/);
+  const db={query:async(sql,values)=>{calls.push([sql,values]);return sql.startsWith('SELECT *')?{rows:[configured]}:sql.startsWith('SELECT 1')?{rows:[],rowCount:0}:{rows:[],rowCount:1};}};db.connect=async()=>({query:db.query,release:()=>{}});await handleReadyModuleInteraction(action,db);assert.equal(calls.find(([sql])=>sql.startsWith('SELECT 1'))[1][2],120);assert.match(action.state.replies.at(-1).content,/Thank you for the feedback/);assert.match(action.state.replies.at(-1).content,/رقم المتابعة/);
 });
 
 test('custom forms open ordered optional Discord text inputs',async()=>{const row=panel('reports');row.config.formFields=[{id:'summary',label:'Summary',style:1,required:true,maxLength:80},{id:'extra',label:'Optional detail',style:2,required:false,maxLength:300}];const member=interaction();await handleReadyModuleInteraction(member,pool(row));assert.equal(member.state.modals[0].components[1].components[0].required,false);assert.equal(member.state.modals[0].components[0].components[0].custom_id,'summary');});

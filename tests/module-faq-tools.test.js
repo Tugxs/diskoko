@@ -7,3 +7,4 @@ test('FAQ normalizes bounded questions with server-owned option IDs',()=>{
   for(const questions of [[],Array(26).fill({question:'Q',answer:'A'}),[{question:'x'.repeat(101),answer:'A'}],[{question:'Q',answer:''}]])assert.throws(()=>moduleFaqTools({questions}));
   assert.equal(moduleDraft({kind:'module',moduleKind:'faq',questions:[{question:'Q',answer:'A'}]}).questions[0].answer,'A');
 });
+test('AI event drafts preserve only bounded executable optional features',()=>{const valid=moduleDraft({kind:'module',moduleKind:'events',waitlist:true,checkIn:true,reminderMinutes:30});assert.equal(valid.waitlist,true);assert.equal(valid.checkIn,true);assert.equal(valid.reminderMinutes,30);const invalid=moduleDraft({kind:'module',moduleKind:'events',waitlist:'yes',reminderMinutes:10081});assert.equal(invalid.waitlist,undefined);assert.equal(invalid.reminderMinutes,undefined);});
