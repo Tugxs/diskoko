@@ -34,7 +34,7 @@ test('resource search and public editing reject another review message or bot',a
 test('delivery acceptance is owner-only and uses a guarded state transition',async()=>{
   const entry={...panel('orders'),user_id:'owner',status:'approved',metadata:{stage:'delivered'}};const queries=[];const db={query:async(sql,args)=>{queries.push([sql,args]);return sql.startsWith('SELECT')?{rows:[entry]}:{rowCount:1};}};
   const action=interaction();action.customId=`diskoko:module-accept-delivery:${id}`;await handleReadyModuleInteraction(action,db);assert.equal(queries.length,1);
-  action.user.id='owner';await handleReadyModuleInteraction(action,db);assert.match(queries.at(-1)[0],/status='approved' AND metadata->>'stage'='delivered'/);
+  action.user.id='owner';await handleReadyModuleInteraction(action,db);assert.match(queries.find(([sql])=>sql.startsWith('UPDATE'))[0],/status='approved' AND metadata->>'stage'='delivered'/);assert.ok(queries.some(([sql])=>sql.startsWith('INSERT INTO ready_template_module_history')));
 });
 
 test('multi-question FAQ selects approved answers and rejects cross-bot interaction',async()=>{
@@ -102,7 +102,7 @@ test('new private workflows never publish approvals and only fulfillment tools a
     action.client.channels={fetch:async()=>{throw Error('Private approval must not publish');}};
     const entry={id,panel_id:id,guild_id:'guild',review_channel_id:'review',review_message_id:'review-message',publishing_bot_id:'bot',status:'new',subject:'Subject',details:'Private details',user_id:'member',config:{kind,title:'Review',color:'#5865f2'}};
     const db={query:async(sql,values)=>{sqls.push([sql,values]);return sql.includes('UPDATE')?{rowCount:1,rows:[{id}]}:{rows:[entry]};}};
-    await handleReadyModuleInteraction(action,db);assert.equal(updates.length,1,kind);assert.equal(sqls.find(([sql])=>sql.includes('UPDATE'))[1][0],'approved');assert.equal(updates[0].components[0].components.length,['commissions','mentoring'].includes(kind)?3:2,kind);
+    await handleReadyModuleInteraction(action,db);assert.equal(updates.length,1,kind);assert.equal(sqls.find(([sql])=>sql.includes('UPDATE'))[1][0],'approved');assert.equal(updates[0].components[0].components.length,['commissions','mentoring'].includes(kind)?4:3,kind);
   }
 });
 test('approved resources publish through existing staff review without a vote or automatic approval',async()=>{
