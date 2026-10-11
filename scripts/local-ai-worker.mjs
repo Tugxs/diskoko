@@ -239,7 +239,22 @@ while (!stopping && process.env.AI_WORKER_TEST !== '1') {
   try {
     await request(`${inference}${provider === 'ollama' ? '/api/tags' : '/health'}`);
     const { request: job } = await request(`${site}/api/ai/worker/next`, { headers: { Authorization: `Bearer ${token}`, 'X-AI-Model': model } });
-    if (!job) { await delay(3000); continue; }
+    if (!job) {
+      const {request:codeJob}=await request(`${site}/api/ai/worker/code-next`,{headers:{Authorization:`Bearer ${token}`}});
+      if(codeJob){
+        let generated;
+        try {
+          const raw=await generate([{role:'system',content:codeJob.contract},{role:'user',content:JSON.stringify({request:codeJob.prompt,currentSource:codeJob.source})}],2200,0.15);
+          generated=JSON.parse(raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));
+          if(typeof generated.source!=='string')throw new Error('Missing source');
+          const validation=await request(`${site}/api/ai/worker/code-validate`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({source:generated.source})});
+          if(!validation.ok)throw new Error(validation.error);
+          generated.source=validation.source;
+        }catch(error){generated={error:'تعذر توليد مسودة كود صالحة. جرّب طلبًا أوضح أو راجع اتصال النموذج.'};}
+        await request(`${site}/api/ai/worker/code-complete/${codeJob.id}`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(generated)});
+      }else await delay(3000);
+      continue;
+    }
     let result;
     try {
       if (job.image && visionModel) {
