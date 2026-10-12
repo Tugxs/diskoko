@@ -294,3 +294,9 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 .code-preview-card>img{display:block;max-width:100%;max-height:240px;object-fit:contain;border-radius:8px;margin:12px 0}.code-preview-card>.code-preview-thumbnail{float:right;width:64px;height:64px;margin:0 0 8px 12px}.code-preview-card>small{display:block;margin:6px 0}.code-preview-field{padding-top:8px}.code-preview-card:after{content:"";display:block;clear:both}
 
 .code-runtime-picker{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.code-runtime{border:1px solid #8272b344;border-radius:12px;background:#171424;color:#e7e1f6;padding:12px 10px;text-align:center;font:inherit}.code-runtime small{display:block;font-size:11px;margin-top:4px;color:#aaa0be}.code-runtime.active{border-color:#a88aff;background:#302346}.code-runtime:disabled{opacity:.5;cursor:not-allowed}.code-ai-assistant{padding:14px;border:1px solid #8272b344;border-radius:12px}.code-ai-assistant summary{margin-bottom:12px}@media(max-width:520px){.code-runtime-picker{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Shared studio logos preserve the uploaded shape and transparency. */
+.music-panel-preview{background:radial-gradient(circle at 85% 12%,color-mix(in srgb,var(--music-accent) 24%,transparent),transparent 45%),var(--music-background,#141020)}
+.music-panel-preview .music-card-brand span{border:0;border-radius:0;background-color:transparent;background-size:contain;background-repeat:no-repeat}
+.ai-card-logo-preview,.ai-card-logo-overlay{border:0;background:transparent;border-radius:0!important;object-fit:contain}
+

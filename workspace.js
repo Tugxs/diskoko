@@ -1106,12 +1106,13 @@ async function bots() {
     const available = availableBots;
     modal('تصميم استديو الموسيقى', `<form id="musicPanelForm" class="form-grid"><p class="form-note">الأمر /موسيقى يضم خانتي «رابط» و«روم» معًا داخل Discord. بعد التنفيذ تظهر لوحة تشغيل بأزرار الإيقاف والتخطي ورفع الصوت وخفضه مباشرة؛ إدخال الرابط داخل بطاقة الرسالة نفسها غير مدعوم من Discord.</p><label>البوت الذي يشغّل الصوت<select id="musicPanelBot" required>${available.map(item => `<option data-i18n-preserve value="${esc(item.id)}" ${(panelEdit ? item.id === panelEdit.botId : item.selected) ? 'selected' : ''}>${esc(item.label)}</option>`).join('')}</select></label><label>الأمر بعد /<input id="musicPanelCommand" required maxlength="32" pattern="[-_\\p{L}\\p{N}]+" value="موسيقى"></label><label>عنوان اللوحة<input id="musicPanelTitle" required maxlength="100" value="استديو الموسيقى"></label><label>وصف قصير<input id="musicPanelDescription" maxlength="500" value="ضع الرابط واختر الروم في أمر /موسيقى، ثم تحكم من هذه اللوحة."></label><label>خلفية البطاقة (رابط مرفق Discord)<input id="musicPanelBanner" type="url" placeholder="https://cdn.discordapp.com/..."></label><label>صورة الغلاف بدل صورة YouTube (اختياري)<input id="musicPanelCover" type="url" placeholder="https://cdn.discordapp.com/..."></label><label>شعار البطاقة (رابط مرفق Discord)<input id="musicPanelLogo" type="url" placeholder="https://cdn.discordapp.com/..."></label><label>لون الهوية<input id="musicPanelColor" type="color" value="#8659e6"></label><label>طريقة العرض<select id="musicPanelLayout"><option value="wide">بنر عريض مع شعار</option><option value="compact">بطاقة مركزة</option></select></label><label>مستوى الصوت الابتدائي<input id="musicPanelVolume" type="number" min="1" max="100" value="80"></label><div class="music-panel-preview" id="musicPanelPreview" aria-label="معاينة لوحة الموسيقى"></div><p class="form-note">صورة الغلاف تظهر مكان صورة YouTube، والخلفية تظهر خلف البطاقة. ارفع الصور في Discord والصق روابط المرفقات. ألوان الأزرار محددة بما يتيحه Discord. ضع رابط فيديو YouTube عامًا أو رابط ملف صوتي. يظهر اسم المقطع تلقائيًا، وقد يتعذر تشغيل المقاطع المقيّدة أو غير المتاحة.</p></form>`, '<button class="btn secondary" type="button" id="musicPanelCancel">إلغاء</button><button class="btn primary" type="submit" form="musicPanelForm" id="musicPanelSave">إنشاء اللوحة والأمر</button>');
     $('#musicPanelCancel').onclick = closeDialog;
-    $('#musicPanelColor').closest('label').insertAdjacentHTML('afterend', '<label>شكل الإطار<select id="musicPanelFrame"><option value="neon">نيون مضيء</option><option value="glass">زجاجي</option><option value="minimal">هادئ</option></select></label><label>لون أزرار Discord<select id="musicPanelControlStyle"><option value="2">رمادي</option><option value="1">بنفسجي</option><option value="3">أخضر</option></select></label>');
+    $('#musicPanelColor').closest('label').insertAdjacentHTML('afterend', '<label>لون خلفية التصميم / Design background<input id="musicPanelBackground" type="color" value="#141020"></label><label>شكل الإطار<select id="musicPanelFrame"><option value="neon">نيون مضيء</option><option value="glass">زجاجي</option><option value="minimal">هادئ</option></select></label><label>لون أزرار Discord<select id="musicPanelControlStyle"><option value="2">رمادي</option><option value="1">بنفسجي</option><option value="3">أخضر</option></select></label>');
     $('#musicPanelPreview').innerHTML = '<div class="music-card-backdrop" id="musicPanelPreviewBanner"></div><div class="music-card-art" id="musicPanelPreviewCover">♫</div><div class="music-card-copy"><span class="music-card-status">NOW PLAYING</span><strong id="musicPanelPreviewTitle">استديو الموسيقى</strong><p id="musicPanelPreviewDescription">الأغنية التي تعمل في الروم</p><span class="music-card-progress"><i></i></span><span class="music-card-times">0:42 / 3:52 <b>VOL 80%</b></span></div><div class="music-card-brand"><span id="musicPanelPreviewLogo">dk</span><small>ACTIVITY</small></div><div class="music-card-buttons"><span>🔁</span><span>🔉</span><span>⏸️</span><span>🔊</span><span>⏭️</span><span>⏹️</span></div>';
     const preview = () => {
       $('#musicPanelPreviewTitle').textContent = $('#musicPanelTitle').value || 'استديو الموسيقى';
       $('#musicPanelPreviewDescription').textContent = $('#musicPanelDescription').value || '';
       $('#musicPanelPreview').style.setProperty('--music-accent', $('#musicPanelColor').value);
+      $('#musicPanelPreview').style.setProperty('--music-background', $('#musicPanelBackground').value);
       $('#musicPanelPreview').classList.toggle('compact', $('#musicPanelLayout').value === 'compact');
       $('#musicPanelPreview').dataset.frame = $('#musicPanelFrame').value;
       $('#musicPanelPreview').dataset.controls = $('#musicPanelControlStyle').value;
@@ -1145,8 +1146,8 @@ async function bots() {
       const config = existing.panel_config || {};
       $('#musicPanelCommand').value = existing.name;
       $('#musicPanelDj').value=config.djRoleId || '';
-      for (const [field, key] of [['Title','title'],['Description','description'],['Banner','bannerUrl'],['Logo','logoUrl'],['Color','color'],['Layout','layout'],['Frame','frameStyle'],['ControlStyle','controlStyle'],['Cover','coverUrl'],['Volume','defaultVolume']]) {
-        if (config[key] != null) $('#musicPanel' + field).value = config[key];
+      for (const [field, key] of [['Title','title'],['Description','description'],['Banner','bannerUrl'],['Logo','logoUrl'],['Color','color'],['Background','backgroundColor'],['Layout','layout'],['Frame','frameStyle'],['ControlStyle','controlStyle'],['Cover','coverUrl'],['Volume','defaultVolume']]) {
+        if (config[key] != null && config[key] !== '') $('#musicPanel' + field).value = config[key];
       }
       $('#musicPanelSave').textContent = 'حفظ تصميم اللوحة';
       preview();
@@ -1157,7 +1158,7 @@ async function bots() {
       event.preventDefault();
       const button = $('#musicPanelSave'); button.disabled = true;
       try {
-        const panelConfig = { title: $('#musicPanelTitle').value, description: $('#musicPanelDescription').value, bannerUrl: $('#musicPanelBanner').value.trim(), logoUrl: $('#musicPanelLogo').value.trim(), color: $('#musicPanelColor').value, layout: $('#musicPanelLayout').value, frameStyle: $('#musicPanelFrame').value, controlStyle: Number($('#musicPanelControlStyle').value), coverUrl: $('#musicPanelCover').value.trim(), djRoleId:$('#musicPanelDj').value,defaultVolume: Number($('#musicPanelVolume').value) };
+        const panelConfig = { title: $('#musicPanelTitle').value, description: $('#musicPanelDescription').value, bannerUrl: $('#musicPanelBanner').value.trim(), logoUrl: $('#musicPanelLogo').value.trim(), color: $('#musicPanelColor').value, backgroundColor:$('#musicPanelBackground').value, layout: $('#musicPanelLayout').value, frameStyle: $('#musicPanelFrame').value, controlStyle: Number($('#musicPanelControlStyle').value), coverUrl: $('#musicPanelCover').value.trim(), djRoleId:$('#musicPanelDj').value,defaultVolume: Number($('#musicPanelVolume').value) };
         const botId = $('#musicPanelBot').value;
         const name = $('#musicPanelCommand').value.trim();
         const list = await api(`/api/ai/bots/${encodeURIComponent(botId)}/commands?guildId=${encodeURIComponent(guild)}`);
@@ -1652,7 +1653,7 @@ function renderReadyEditor() {
   welcomeSection.insertAdjacentHTML('beforeend', `<label>صورة الترحيب أو GIF (حتى 8 ميجابايت)<input id="readyWelcomeImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label><button class="btn text" id="readyRemoveImage" ${d.features.welcome?.banner ? '' : 'hidden'}>إزالة الصورة الحالية</button><label>موضع صورة العضو<select data-ready-field="features.welcome.avatarPosition"><option value="right" ${!d.features.welcome?.avatarPosition || d.features.welcome.avatarPosition === 'right' ? 'selected' : ''}>يمين</option><option value="left" ${d.features.welcome?.avatarPosition === 'left' ? 'selected' : ''}>يسار</option><option value="top" ${d.features.welcome?.avatarPosition === 'top' ? 'selected' : ''}>أعلى</option></select></label><label>موضع الصورة<select data-ready-field="features.welcome.bannerPosition"><option value="below" ${d.features.welcome?.bannerPosition !== 'above' ? 'selected' : ''}>أسفل البطاقة</option><option value="above" ${d.features.welcome?.bannerPosition === 'above' ? 'selected' : ''}>أعلى البطاقة</option></select></label>`);
   welcomeSection.insertAdjacentHTML('beforeend', `<label class="check-row"><input type="checkbox" data-ready-field="features.welcome.composite" ${d.features.welcome?.composite ? 'checked' : ''}>ضع صورة العضو داخل التصميم المرفوع</label><label>مكان صورة العضو داخل التصميم<select data-ready-field="features.welcome.avatarPosition"><option value="right" ${d.features.welcome?.avatarPosition === 'right' ? 'selected' : ''}>يمين</option><option value="center" ${d.features.welcome?.avatarPosition === 'center' ? 'selected' : ''}>الوسط</option><option value="left" ${d.features.welcome?.avatarPosition === 'left' ? 'selected' : ''}>يسار</option><option value="top" ${d.features.welcome?.avatarPosition === 'top' ? 'selected' : ''}>فوق البطاقة (بدون دمج)</option></select></label><label>تحريك صورة العضو أعلى وأسفل <output id="readyAvatarYValue">${Number(d.features.welcome?.avatarVertical ?? 50)}%</output><input type="range" min="15" max="85" data-ready-field="features.welcome.avatarVertical" value="${Number(d.features.welcome?.avatarVertical ?? 50)}"></label><label>حجم صورة العضو <output id="readyAvatarSizeValue">${Number(d.features.welcome?.avatarRadius ?? 95)}</output><input type="range" min="60" max="160" data-ready-field="features.welcome.avatarRadius" value="${Number(d.features.welcome?.avatarRadius ?? 95)}"></label><p class="form-note">عند الدمج تُستخدم صورة العضو الحقيقية عند انضمامه. معاينة الصورة هنا مثال. التصميم الثابت يُجهّز بمقاس 1200×480 تلقائيًا.</p>`);
   ticketSection.insertAdjacentHTML('beforeend', `<label>لون لوحة الدعم<input type="color" data-ready-field="features.ticket.color" value="${esc(d.features.ticket?.color || '#8d72e8')}"></label><label>نص زر الدعم<input data-ready-field="features.ticket.buttonLabel" maxlength="80" value="${esc(d.features.ticket?.buttonLabel || 'فتح تذكرة دعم')}"></label><label>صورة لوحة الدعم أو GIF (حتى 8 ميجابايت)<input id="readyTicketImage" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label><button class="btn text" id="readyRemoveTicketImage" ${d.features.ticket?.banner ? '' : 'hidden'}>إزالة صورة الدعم</button><label>موضع صورة الدعم<select data-ready-field="features.ticket.bannerPosition"><option value="below" ${d.features.ticket?.bannerPosition !== 'above' ? 'selected' : ''}>أسفل النص</option><option value="above" ${d.features.ticket?.bannerPosition === 'above' ? 'selected' : ''}>فوق النص</option></select></label>`);
-  ticketSection.insertAdjacentHTML('beforeend', `<label>طريقة عرض صورة الدعم<select data-ready-field="features.ticket.imageStyle"><option value="normal" ${!['logo','design'].includes(d.features.ticket?.imageStyle) ? 'selected' : ''}>صورة عادية</option><option value="logo" ${d.features.ticket?.imageStyle === 'logo' ? 'selected' : ''}>شعار صغير داخل البطاقة</option><option value="design" ${d.features.ticket?.imageStyle === 'design' ? 'selected' : ''}>دمج شعار دائري داخل تصميمك</option></select></label><div id="readyTicketDesignControls" class="ready-design-controls" ${d.features.ticket?.imageStyle === 'design' ? '' : 'hidden'}><label>شعار السيرفر داخل التصميم<input id="readyTicketLogo" type="file" accept="image/png,image/jpeg,image/webp"></label><label>تحريك الشعار يمينًا ويسارًا <output id="readyTicketXValue">${Number(d.features.ticket?.logoX ?? 50)}%</output><input id="readyTicketX" type="range" min="10" max="90" value="${Number(d.features.ticket?.logoX ?? 50)}"></label><label>تحريك الشعار أعلى وأسفل <output id="readyTicketYValue">${Number(d.features.ticket?.logoY ?? 50)}%</output><input id="readyTicketY" type="range" min="25" max="75" value="${Number(d.features.ticket?.logoY ?? 50)}"></label><small class="form-note">ارفع تصميمًا ثابتًا وشعارًا، ثم حرّك موضع الشعار. تظهر النتيجة في المعاينة قبل النشر.</small></div>`);
+  ticketSection.insertAdjacentHTML('beforeend', `<label>طريقة عرض صورة الدعم<select data-ready-field="features.ticket.imageStyle"><option value="normal" ${!['logo','design'].includes(d.features.ticket?.imageStyle) ? 'selected' : ''}>صورة عادية</option><option value="logo" ${d.features.ticket?.imageStyle === 'logo' ? 'selected' : ''}>شعار صغير داخل البطاقة</option><option value="design" ${d.features.ticket?.imageStyle === 'design' ? 'selected' : ''}>دمج شعار أصلي داخل تصميمك</option></select></label><div id="readyTicketDesignControls" class="ready-design-controls" ${d.features.ticket?.imageStyle === 'design' ? '' : 'hidden'}><label>شعار السيرفر داخل التصميم<input id="readyTicketLogo" type="file" accept="image/png,image/jpeg,image/webp"></label><label>تحريك الشعار يمينًا ويسارًا <output id="readyTicketXValue">${Number(d.features.ticket?.logoX ?? 50)}%</output><input id="readyTicketX" type="range" min="10" max="90" value="${Number(d.features.ticket?.logoX ?? 50)}"></label><label>تحريك الشعار أعلى وأسفل <output id="readyTicketYValue">${Number(d.features.ticket?.logoY ?? 50)}%</output><input id="readyTicketY" type="range" min="25" max="75" value="${Number(d.features.ticket?.logoY ?? 50)}"></label><small class="form-note">ارفع تصميمًا ثابتًا وشعارًا، ثم حرّك موضع الشعار. تظهر النتيجة في المعاينة قبل النشر.</small></div>`);
   const logs = d.features.logs;
   const logTargets = d.categories.flatMap(group => group.channels).filter(channel => channel.type === 0);
   logsSection.querySelector('[data-ready-field="features.logs.channelKey"]').closest('label').classList.add('ready-log-unified-target');
@@ -1887,9 +1888,8 @@ async function prepareWelcomeBackground(file, logoFile = null, logoX = 16, logoY
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(logoFile.type) || logoFile.size > 25 * 1024 * 1024) throw Error('اختر شعار PNG أو JPG أو WebP حتى 25 ميجابايت.');
     const logo = await createImageBitmap(logoFile);
     const x = 1200 * Number(logoX) / 100, y = 480 * Number(logoY) / 100, radius = 72;
-    context.fillStyle = '#bea0ff'; context.beginPath(); context.arc(x, y, radius + 7, 0, 2 * Math.PI); context.fill();
-    context.save(); context.beginPath(); context.arc(x, y, radius, 0, 2 * Math.PI); context.clip();
-    const logoScale = Math.max(2 * radius / logo.width, 2 * radius / logo.height);
+    context.save();
+    const logoScale = Math.min(2 * radius / logo.width, 2 * radius / logo.height);
     context.drawImage(logo, x - logo.width * logoScale / 2, y - logo.height * logoScale / 2, logo.width * logoScale, logo.height * logoScale);
     context.restore(); logo.close();
   }
@@ -1903,9 +1903,8 @@ async function prepareWelcomeLogoOverlay(logoFile, logoX = 16, logoY = 50) {
   const canvas = document.createElement('canvas'); canvas.width = 1200; canvas.height = 480;
   const context = canvas.getContext('2d');
   const x = 1200 * Number(logoX) / 100, y = 480 * Number(logoY) / 100, radius = 72;
-  context.fillStyle = '#bea0ff'; context.beginPath(); context.arc(x, y, radius + 7, 0, 2 * Math.PI); context.fill();
-  context.save(); context.beginPath(); context.arc(x, y, radius, 0, 2 * Math.PI); context.clip();
-  const scale = Math.max(2 * radius / logo.width, 2 * radius / logo.height);
+  context.save();
+  const scale = Math.min(2 * radius / logo.width, 2 * radius / logo.height);
   context.drawImage(logo, x - logo.width * scale / 2, y - logo.height * scale / 2, logo.width * scale, logo.height * scale);
   context.restore(); logo.close();
   const base64 = canvas.toDataURL('image/png').split(',')[1];
@@ -1917,8 +1916,8 @@ async function prepareCircleLogo(file, shape = 'circle') {
   const bitmap = await createImageBitmap(file);
   const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256;
   const context = canvas.getContext('2d');
-  context.beginPath(); if (shape === 'square') context.rect(0,0,256,256); else if (shape === 'rounded') context.roundRect(0,0,256,256,32); else context.arc(128,128,124,0,2*Math.PI); context.clip();
-  const scale = Math.max(256 / bitmap.width, 256 / bitmap.height);
+  context.beginPath(); if (['original','square'].includes(shape)) context.rect(0,0,256,256); else if (shape === 'rounded') context.roundRect(0,0,256,256,32); else context.arc(128,128,124,0,2*Math.PI); context.clip();
+  const scale = shape === 'original' ? Math.min(256 / bitmap.width, 256 / bitmap.height) : Math.max(256 / bitmap.width, 256 / bitmap.height);
   context.drawImage(bitmap, (256 - bitmap.width * scale) / 2, (256 - bitmap.height * scale) / 2, bitmap.width * scale, bitmap.height * scale);
   bitmap.close();
   const base64 = canvas.toDataURL('image/png').split(',')[1];
@@ -1933,9 +1932,9 @@ async function prepareDesignedCard(backgroundFile, logoFile, logoX = 84, logoY =
   const cover = Math.max(1200 / background.width, 480 / background.height);
   context.drawImage(background, (1200 - background.width * cover) / 2, (480 - background.height * cover) / 2, background.width * cover, background.height * cover);
   const x = 1200 * Number(logoX) / 100, y = 480 * Number(logoY) / 100, radius = 96;
-  context.fillStyle = '#bea0ff'; context.beginPath(); context.arc(x, y, radius + 8, 0, 2 * Math.PI); context.fill();
-  context.save(); context.beginPath(); context.arc(x, y, radius, 0, 2 * Math.PI); context.clip();
-  const scale = Math.max(2 * radius / logo.width, 2 * radius / logo.height);
+
+  context.save();
+  const scale = Math.min(2 * radius / logo.width, 2 * radius / logo.height);
   context.drawImage(logo, x - logo.width * scale / 2, y - logo.height * scale / 2, logo.width * scale, logo.height * scale);
   context.restore(); background.close(); logo.close();
   for (const quality of [0.82, 0.68, 0.5]) {
@@ -1952,7 +1951,7 @@ function bindLogoPlacement(prefix, update) {
   const sync = () => { document.querySelector(`#${prefix}LogoXValue`).textContent = `${x.value}%`; document.querySelector(`#${prefix}LogoYValue`).textContent = `${y.value}%`; update(); };
   x.oninput = sync; y.oninput = sync;
 }
-const imageStyleFields = prefix => `<label>طريقة عرض الصورة<select id="${prefix}Style"><option value="normal">صورة عادية / Original</option><option value="square">صورة مربعة / Square</option><option value="rounded">زوايا مستديرة / Rounded</option><option value="circle">صورة دائرية / Circle</option><option value="logo">شعار دائري صغير داخل البطاقة</option><option value="design">شعار دائري داخل تصميمك</option></select></label><small class="form-note">GIF يبقى متحركًا في العرض العادي؛ دمج الشعار داخل التصميم يحتاج صورة ثابتة.</small><div id="${prefix}Design" hidden><label>صورة الشعار التي ستُدمج داخل التصميم<input id="${prefix}Logo" type="file" accept="image/png,image/jpeg,image/webp"></label>${logoPlacementFields(prefix)}</div>`;
+const imageStyleFields = prefix => `<label>طريقة عرض الصورة<select id="${prefix}Style"><option value="normal">صورة عادية / Original</option><option value="square">صورة مربعة / Square</option><option value="rounded">زوايا مستديرة / Rounded</option><option value="circle">صورة دائرية / Circle</option><option value="logo">شعار أصلي صغير داخل البطاقة</option><option value="design">شعار أصلي داخل تصميمك</option></select></label><small class="form-note">GIF يبقى متحركًا في العرض العادي؛ دمج الشعار داخل التصميم يحتاج صورة ثابتة.</small><div id="${prefix}Design" hidden><label>صورة الشعار التي ستُدمج داخل التصميم<input id="${prefix}Logo" type="file" accept="image/png,image/jpeg,image/webp"></label>${logoPlacementFields(prefix)}</div>`;
 const imageStylePreviewUrls = new WeakMap();
 async function prepareStyledImage(file, prefix) {
   const sceneState=sceneReviewState.get(document.getElementById(prefix));
@@ -1963,7 +1962,8 @@ async function prepareStyledImage(file, prefix) {
     if (style !== 'normal') throw Error('GIF المتحرك يُعرض كصورة عادية. اختر صورة ثابتة لدمج الشعار.');
     return prepareAiMedia(file);
   }
-  if (['logo','circle','square','rounded'].includes(style)) return prepareCircleLogo(file,style === 'logo' ? 'circle' : style);
+  if (style === 'logo') return prepareCircleLogo(file,'original');
+  if (['circle','square','rounded'].includes(style)) return prepareCircleLogo(file,style);
   if (style === 'design') return prepareDesignedCard(file, document.querySelector(`#${prefix}Logo`)?.files[0], document.querySelector(`#${prefix}LogoX`)?.value, document.querySelector(`#${prefix}LogoY`)?.value);
   return prepareAiImage(file);
 }
@@ -1999,8 +1999,8 @@ function updateStyledImagePreview(prefix, preview) {
     const wrapper = document.createElement('div'); wrapper.className = 'ai-card-image-wrap'; preview.before(wrapper); wrapper.append(preview);
   }
   preview.classList.toggle('ai-card-logo-preview', style === 'logo');
-  preview.style.borderRadius = ['logo','circle'].includes(style) ? '50%' : style === 'rounded' ? '12%' : '0';
-  preview.style.aspectRatio = ['logo','circle','square','rounded'].includes(style) ? '1' : '';
+  preview.style.borderRadius = style === 'circle' ? '50%' : style === 'rounded' ? '12%' : '0';
+  preview.style.aspectRatio = ['circle','square','rounded'].includes(style) ? '1' : '';
   preview.style.objectFit = 'cover';
   preview.classList.toggle('ai-card-design-preview', style === 'design');
   let overlay = preview.parentElement?.querySelector('.ai-card-logo-overlay');
