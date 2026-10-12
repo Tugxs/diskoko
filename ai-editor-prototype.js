@@ -42,7 +42,7 @@ export function mountPanelStudio(root) {
   for(const node of [...body.children]){
     if(node===preview || node.id==='dialogError' || node.classList.contains('ai-emoji-picker'))continue;
     const ids=[...node.querySelectorAll('input,select,textarea')].map(input=>input.id).join(' ');
-    const index=/Channel|Role|Confirmed|Confirm|Starts|Duration|Winners|Prize|NativeType|NativeLocation/.test(ids)?2:/Image|Color|Style|Position|Avatar/.test(ids) || node.classList.contains('ai-scene-review')?1:0;
+    const index=/Channel|Category|Role|Confirmed|Confirm|Starts|Duration|Winners|Prize|NativeType|NativeLocation/.test(ids)?2:/Image|Color|Style|Position|Avatar/.test(ids) || node.classList.contains('ai-scene-review')?1:0;
     layout.querySelector(`[data-studio-fields="${index}"]`).append(node);
   }
   layout.querySelector('.editor-stage').append(preview);body.append(layout);

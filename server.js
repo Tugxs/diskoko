@@ -946,7 +946,13 @@ const selectAiRequestBot = async (req, res, next) => { try {
   }
   next();
 } catch (error) { next(error); } };
-app.post(/^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create-scheduled-event|control-channel)$/, requireUser, selectAiRequestBot);
+app.post(/^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create-scheduled-event|control-channel|ticket-panel-action)$/, requireUser, selectAiRequestBot);
+app.get('/api/ai/ticket-panels',requireUser,async(req,res,next)=>{try{
+  if(!await authorizedGuild(req.user,req.query.guildId))return res.status(403).json({error:'السيرفر غير متاح.'});
+  const bot=await botTokenForPublication(pool,req.query.guildId);
+  if(bot){const context=requestContext.getStore();context.aiBotToken=bot.token;context.aiBotId=bot.id;req.publishingBotId=bot.id;}
+  next();
+}catch(error){next(error);}});
 app.get(/^\/api\/ai\/requests\/[^/]+\/published-preview$/, requireUser, selectAiRequestBot);
 mountWorkspace(app, { pool, requireUser, requireWriteAccess, authorizedGuild, discordBotFetch, audit, requirePlanCapacity, entitlementsFor, templates: TEMPLATES, makeTemplatePlan, botStatus: executionBotStatus });
 mountReadyTemplates(app, { pool, requireUser, requireWriteAccess, authorizedGuild, discordBotFetch, audit, requirePlanCapacity, botStatus: getDiscordBotStatus });

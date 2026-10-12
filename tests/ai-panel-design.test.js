@@ -114,6 +114,7 @@ test('a published support design edits the same message and keeps the real ticke
     if(options){mutations.push({path,options});return{ok:true,data:{id:message}};}
     if(path.endsWith('/roles'))return{ok:true,data:[{id:role}]};
     if(path.endsWith('/messages/'+message))return{ok:true,data:{id:message,author:{id:'bot'},embeds:[],attachments:[]}};
+    if(path==='/channels/'+channel)return{ok:true,data:{id:channel,guild_id:'guild',type:0}};
     return{ok:true,data:[{id:channel,guild_id:'guild',type:0}]};
   }});
   await launch({params:{id:'req'},user:{id:'owner'},publishingBotId:'bot',body:{confirmed:true,editExisting:true,channelId:channel,staffRoleId:role,title:'دعم جديد',description:'افتح طلبك',buttonLabel:'احتاج مساعدة',buttonStyle:3,color:'#229944',links:[]}}, {json(value){response=value;return this;},status(){return this;}},error=>{throw error;});
@@ -131,7 +132,7 @@ test('a successful external send followed by a database failure blocks the next 
   const channel='123456789012345678',role='123456789012345679';
   const item={id:'req',guild_id:'guild',proposal:{interactive:{kind:'tickets',title:'الدعم',description:'اطلب المساعدة',referenceOnly:true}}};
   const client={async query(sql){if(sql.startsWith('SELECT id,guild_id'))return{rows:[item]};if(sql.includes("publication_state='publishing'"))item.publication_state='publishing';if(sql.includes("publication_state='review_required'"))item.publication_state='review_required';if(sql.startsWith('INSERT INTO diskoko_ticket_panels'))throw Error('Database unavailable after send');return{rows:[]};},release(){}};
-  mountInteractiveSystems({post(path,...handlers){launch=handlers.at(-1);}}, {pool:{connect:async()=>client},requireUser(){},requireWriteAccess(){},authorizedGuild:async()=>true,requirePlanCapacity:async()=>{},discordBotFetch:async(path,options)=>{if(options){sends++;return{ok:true,data:{id:'sent'}};}return{ok:true,data:path.endsWith('/roles')?[{id:role}]:[{id:channel,guild_id:'guild',type:0}]};}});
+  mountInteractiveSystems({post(path,...handlers){launch=handlers.at(-1);}}, {pool:{connect:async()=>client},requireUser(){},requireWriteAccess(){},authorizedGuild:async()=>true,requirePlanCapacity:async()=>{},discordBotFetch:async(path,options)=>{if(options){sends++;return{ok:true,data:{id:'sent'}};}return{ok:true,data:path.endsWith('/roles')?[{id:role}]:path==='/channels/'+channel?{id:channel,guild_id:'guild',type:0}:[{id:channel,guild_id:'guild',type:0}]};}});
   const req={params:{id:'req'},user:{id:'owner'},body:{confirmed:true,channelId:channel,staffRoleId:role}};
   const res={status(value){code=value;return this;},json(value){response=value;return this;}};
   await launch(req,res,error=>{firstError=error;});

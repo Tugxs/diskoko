@@ -31,7 +31,7 @@ test('experimental editor retains authoritative inputs, separates settings and d
   }finally{Object.assign(globalThis,previous);dom.window.close();}
 });
 test('shared panel inspector preserves original fields and confirmation binding',()=>{
-  const dom=new JSDOM('<dialog open><div id="root"><div class="dialog-body"><label>Title<input id="aiInteractiveTitle" value="Support"></label><label>Channel<select id="aiInteractiveChannel"><option>test</option></select></label><label>Confirm<input id="aiInteractiveConfirmed" type="checkbox"></label><section class="ai-discord-preview"><b id="aiPreviewTitle">Support</b></section></div></div></dialog>',{url:'https://example.test/studio'});
+  const dom=new JSDOM('<dialog open><div id="root"><div class="dialog-body"><label>Title<input id="aiInteractiveTitle" value="Support"></label><label>Channel<select id="aiInteractiveChannel"><option>test</option></select></label><label>Category<select id="aiTicketCategory"><option value="category">Support category</option></select></label><label>Confirm<input id="aiInteractiveConfirmed" type="checkbox"></label><section class="ai-discord-preview"><b id="aiPreviewTitle">Support</b></section></div></div></dialog>',{url:'https://example.test/studio'});
   const previous={document:globalThis.document,location:globalThis.location};Object.assign(globalThis,{document:dom.window.document,location:dom.window.location});
   try{
     const root=document.querySelector('#root'),field=document.querySelector('#aiInteractiveTitle');field.scrollIntoView=()=>{};
@@ -39,5 +39,7 @@ test('shared panel inspector preserves original fields and confirmation binding'
     root.querySelector('[data-studio-tab="2"]').click();assert.equal(field.closest('[data-studio-fields]').hidden,true);
     root.querySelector('#aiPreviewTitle').click();assert.equal(document.activeElement,field);
     assert.equal(root.querySelector('#aiInteractiveConfirmed').closest('[data-studio-fields]').dataset.studioFields,'2');
+    assert.equal(root.querySelector('#aiTicketCategory').closest('[data-studio-fields]').dataset.studioFields,'2');
+    assert.equal(root.querySelector('#aiTicketCategory').value,'category');
   }finally{Object.assign(globalThis,previous);dom.window.close();}
 });
