@@ -288,3 +288,7 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 .code-command-studio .preview .btn { margin:4px; }
 .code-command-studio .notice.danger { color:#ffb9c0;background:#3e162440;border:1px solid #c6536555;padding:12px;border-radius:10px; }
 @media(max-width:800px){.code-editor-layout{grid-template-columns:minmax(0,1fr)}.code-command-studio [data-code-source]{min-height:300px}}
+
+.code-command-studio [data-code-manifest]{font-family:Consolas,monospace;font-size:12px;text-align:left;line-height:1.6}.code-command-studio [data-code-filename]{flex:1;min-width:140px;max-width:260px}.code-command-studio [data-code-logs]{direction:ltr;text-align:left;background:#0b0912;padding:12px;border-radius:8px}.code-command-studio [data-code-logs]:empty{display:none}
+
+.code-preview-card>img{display:block;max-width:100%;max-height:240px;object-fit:contain;border-radius:8px;margin:12px 0}.code-preview-card>.code-preview-thumbnail{float:right;width:64px;height:64px;margin:0 0 8px 12px}.code-preview-card>small{display:block;margin:6px 0}.code-preview-field{padding-top:8px}.code-preview-card:after{content:"";display:block;clear:both}

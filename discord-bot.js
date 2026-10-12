@@ -1,6 +1,7 @@
 import { recordSupportReply } from './lib/support-service-tools.js';
 import crypto from 'node:crypto';
 import { handleCodeInteraction } from './lib/code-commands.js';
+import {startProjectScheduler} from './lib/code-project-scheduler.js';
 import { handleMusicCommand, handleMusicInteraction, musicSlashOptions } from './lib/music-panel.js';
 import { handleYoutubePanelInteraction, youtubePanelMessage } from './lib/youtube-panel.js';
 import { handleMovieClubCommand, handleMovieClubInteraction } from './lib/movie-club.js';
@@ -142,8 +143,8 @@ async function recordCommand(guildId, commandKey, success) {
 
 async function registerGuildCommands(rest, applicationId, guildId, token) {
   try {
-    const panelCommands = databasePool ? (await databasePool.query("SELECT name,description,response_kind FROM customer_bot_commands WHERE guild_id=$1 AND bot_user_id=$2 AND response_kind IN ('music_panel','youtube_panel','movie_club','community_panel','code')", [guildId, applicationId])).rows : [];
-    await rest.put(Routes.applicationGuildCommands(applicationId, guildId), { body: [...COMMAND_JSON, ...panelCommands.filter(command => command.name !== 'diskoko').map(command => ({ name: command.name, description: command.description, type: 1, ...(command.response_kind === 'music_panel' ? { options: musicSlashOptions } : {}) }))] });
+    const panelCommands = databasePool ? (await databasePool.query("SELECT name,description,response_kind,panel_config FROM customer_bot_commands WHERE guild_id=$1 AND bot_user_id=$2 AND response_kind IN ('music_panel','youtube_panel','movie_club','community_panel','code')", [guildId, applicationId])).rows : [];
+    await rest.put(Routes.applicationGuildCommands(applicationId, guildId), { body: [...COMMAND_JSON, ...panelCommands.filter(command => command.name !== 'diskoko').map(command => ({ name: command.name, description: command.description, type: 1, ...(command.response_kind === 'music_panel' ? { options: musicSlashOptions } : command.response_kind === 'code' ? {options:command.panel_config?.options || []} : {}) }))] });
     return true;
   } catch (error) {
     console.error(`Could not register commands for guild ${guildId}`, error);
@@ -166,7 +167,7 @@ export async function stopDiscordBot() {
   retryTimer = null;
   const client = botClient;
   botClient = null;
-  if (client) await client.destroy();
+  if (client) {client.diskokoProjectStop?.();await client.destroy();}
 }
 
 export async function startDiscordBot({ pool } = {}) {
@@ -244,6 +245,7 @@ export async function startDiscordBot({ pool } = {}) {
 
   client.once("ready", async (readyClient) => {
     botClient = readyClient;
+    if(databasePool)startProjectScheduler(readyClient,databasePool);
     retryCount = 0;
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
     state = {
@@ -388,7 +390,7 @@ export async function startDiscordBot({ pool } = {}) {
       if (botClient !== disconnected || disconnected.isReady()) return;
       console.warn('Discord gateway did not recover; reconnecting bot');
       botClient = null;
-      void disconnected.destroy().catch(() => {});
+      disconnected.diskokoProjectStop?.();void disconnected.destroy().catch(() => {});
       void startDiscordBot({ pool: databasePool });
     }, 90_000).unref();
   });
@@ -409,7 +411,7 @@ export async function startDiscordBot({ pool } = {}) {
     console.error("Discord bot login failed", rateLimited
       ? { name: error.name, route: error.route, scope: error.scope, retryAfterMs: error.retryAfter }
       : error);
-    await client.destroy().catch(() => {});
+    client.diskokoProjectStop?.();await client.destroy().catch(() => {});
     if (Number(error.code) === 4014 || /disallowed intents|4014/i.test(error.message || '')) {
       if (messageContentIntentAllowed) messageContentIntentAllowed = false;
       else memberIntentAllowed = false;

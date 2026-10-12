@@ -246,7 +246,9 @@ while (!stopping && process.env.AI_WORKER_TEST !== '1') {
         try {
           const raw=await generate([{role:'system',content:codeJob.contract},{role:'user',content:JSON.stringify({request:codeJob.prompt,currentSource:codeJob.source})}],2200,0.15);
           generated=JSON.parse(raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));
-          if(typeof generated.source!=='string')throw new Error('Missing source');
+          if(generated.project?.format==='diskoko-project@1')generated.source=JSON.stringify(generated.project);
+        if(generated.source && typeof generated.source==='object')generated.source=JSON.stringify(generated.source);
+        if(typeof generated.source!=='string')throw new Error('Missing source');
           const validation=await request(`${site}/api/ai/worker/code-validate`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({source:generated.source})});
           if(!validation.ok)throw new Error(validation.error);
           generated.source=validation.source;
