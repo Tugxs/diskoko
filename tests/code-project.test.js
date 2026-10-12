@@ -95,7 +95,7 @@ test('racing projects cannot create the same guild channel twice',async()=>{
   assert.equal(created,1);assert.equal(results.filter(r=>r.status==='rejected').length,1);
 });
 test('role assignment cannot elevate permissions beyond the actor even below their highest role',async()=>{
-  const guild={id:context.guild.id,ownerId:'another',roles:{fetch:async()=>({id:'444444444444444444',guild:{id:context.guild.id},position:1,managed:false,permissions:{has:()=>false,bitfield:32n}})},members:{fetch:async()=>({roles:{highest:{position:10},add:async()=>assert.fail('must not grant')},permissions:{bitfield:0n}})}};
+  const guild={id:context.guild.id,ownerId:'another',roles:{fetch:async()=>({id:'444444444444444444',guild:{id:context.guild.id},position:1,managed:false,permissions:{has:()=>false,bitfield:32n}})},members:{fetch:async()=>({roles:{highest:{position:10},add:async()=>assert.fail('must not grant')},permissions:{has:()=>false,bitfield:0n}})}};
   const sdk=createProjectApi({project:{permissions:['discord.roles']},command:{id:'own',guild_id:context.guild.id},interaction:{guild,user:context.user,memberPermissions:{has:()=>true}}});
   await assert.rejects(sdk.call('discord.roles.add',{userId:context.user.id,roleId:'444444444444444444'}),/privileged/);
 });
