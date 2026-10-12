@@ -1,6 +1,8 @@
 # Developer commands
 
-Commands -> connected public/private bot -> write source or choose a multi-file project -> preview -> save -> explicitly activate.
+Commands -> connected public/private bot -> write source or choose a multi-file project -> review and approve -> activate. Activation runs a fresh isolated preflight, saves an owned version when needed, then activates that exact revision. Manual draft saving and interactive preview remain optional tools. A failed preflight prevents saving/publishing; source changes during the operation abort publication, and repeated clicks are suppressed.
+
+JavaScript is the available engine. Node.js, Python and Native are visibly marked Coming soon and disabled until dedicated execution engines exist. The programming assistant supports generate/modify/fix/explain modes; explain preserves the original code, including invalid code being diagnosed. Latest editor errors are supplied as diagnostic data. AI suggestions never automatically replace or activate code.
 Every version, secret, storage key, session and operation belongs to one account/guild/bot/command. Source is stored privately in PostgreSQL, with .js/.json upload/download; customer code is never installed in shared bot files.
 
 ## Source and modules

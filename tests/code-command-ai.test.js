@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mountCodeAssistant} from '../lib/code-command-ai.js';
 
-function fixture(){const routes=new Map(),app=Object.fromEntries(['get','post'].map(method=>[method,(path,...handlers)=>routes.set(`${method} ${path}`,handlers)]));const queries=[];mountCodeAssistant(app,{pool:{query:async(sql,p)=>{queries.push({sql,p});return {rows:[]};}},requireUser(){},requireWriteAccess(){},scope:async()=>({guild:{id:'g'},bot:{id:'b'}}),base:'/code',contract:'contract'});return {routes,queries};}
+function fixture(job=null){const routes=new Map(),app=Object.fromEntries(['get','post'].map(method=>[method,(path,...handlers)=>routes.set(`${method} ${path}`,handlers)]));const queries=[];mountCodeAssistant(app,{pool:{query:async(sql,p)=>{queries.push({sql,p});return {rows:sql.startsWith('SELECT prompt,source') && job?[job]:[]};}},requireUser(){},requireWriteAccess(){},scope:async()=>({guild:{id:'g'},bot:{id:'b'}}),base:'/code',contract:'contract'});return {routes,queries};}
 test('AI validation repairs model shorthand but still executes in isolation and rejects broken code',async()=>{
   const {routes}=fixture();let result;
   const handler=routes.get('post /api/ai/worker/code-validate').at(-1);
@@ -12,4 +12,9 @@ test('AI validation repairs model shorthand but still executes in isolation and 
 });
 test('worker code routes deny requests without the worker credential',()=>{
   const {routes}=fixture();let status,called=false;routes.get('post /api/ai/worker/code-validate')[0]({get:()=>''},{status:v=>{status=v;return {json(){}};}},()=>{called=true;});assert.equal(status,401);assert.equal(called,false);
+});
+test('server enforces unchanged source for explanation even if a worker returns replacement code',async()=>{
+  const {routes,queries}=fixture({prompt:'Assistant mode: explain. Explain',source:'broken source for diagnosis'});
+  await routes.get('post /api/ai/worker/code-complete/:id').at(-1)({params:{id:'11111111-1111-4111-8111-111111111111'},body:{source:'function handle(){while(true){}}',explanation:'Syntax issue'}},{json(){}},e=>{throw e;});
+  const update=queries.find(q=>q.sql.startsWith('UPDATE code_command_ai SET status='));assert.equal(update.p[1],'completed');assert.equal(update.p[2].source,'broken source for diagnosis');
 });
