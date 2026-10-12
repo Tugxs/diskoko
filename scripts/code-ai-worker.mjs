@@ -14,6 +14,8 @@ while(!stopping){try{
       const raw=response.choices[0].message.content;
       try{
         result=JSON.parse(raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));
+        if(result.project?.format==='diskoko-project@1')result.source=JSON.stringify(result.project);
+        if(result.source && typeof result.source==='object')result.source=JSON.stringify(result.source);
         if(typeof result.source!=='string')throw new Error('Missing code');
         const validation=await request(`${site}/api/ai/worker/code-validate`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({source:result.source})});
         if(!validation.ok)throw new Error(validation.error);

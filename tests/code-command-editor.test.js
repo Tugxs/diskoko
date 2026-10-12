@@ -21,3 +21,15 @@ test('editor requires preview, saved source and explicit confirmation before act
 test('switching bot clears unsaved code and preview instead of moving it to another bot',async()=>{
   const {dom,q}=editor();await settle();q('new').click();q('source').value='private draft';q('bot').value='private';q('bot').dispatchEvent(new dom.window.Event('change'));await settle();assert.equal(q('editor').hidden,true);q('new').click();assert.notEqual(q('source').value,'private draft');dom.window.close();
 });
+test('project editor saves multiple files as one version and shows why activation is disabled',async()=>{
+  const {dom,q,requests}=editor();await settle();q('new').click();
+  assert.match(q('activation-hint').textContent,/احفظ/);
+  q('project-new').click();assert.equal(q('project-controls').hidden,false);
+  q('filename').value='helpers.js';q('file-add').click();q('source').value='export const color=9138415;';q('source').dispatchEvent(new dom.window.Event('input'));
+  q('files').value='index.js';q('files').dispatchEvent(new dom.window.Event('change'));assert.match(q('source').value,/handle/);
+  q('name').value='project';q('description').value='Developer project';q('test').click();await settle();q('save').click();await settle();
+  const save=JSON.parse(requests.find(r=>r.options.method==='POST' && !r.url.endsWith('/test')).options.body);
+  const project=JSON.parse(save.source);assert.equal(project.format,'diskoko-project@1');assert.equal(project.files['helpers.js'],'export const color=9138415;');
+  q('confirm').checked=true;q('confirm').dispatchEvent(new dom.window.Event('change'));assert.equal(q('activate').disabled,false);
+  q('manifest').value='{';q('manifest').dispatchEvent(new dom.window.Event('input'));assert.equal(q('activate').disabled,true);dom.window.close();
+});
