@@ -18,10 +18,11 @@ async function page(hash = 'overview', response = fixtureResponse, file = 'studi
   const formatSource=fs.readFileSync(new URL('../site-format.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const languageSource=fs.readFileSync(new URL('../ai-ui-language.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const sceneSource=fs.readFileSync(new URL('../ai-design-scene.js',import.meta.url),'utf8').replace(/^export /gm,'');
-  const workspaceSource=source.replace("import { mountCodeEditor } from './code-command-editor.js';",'').replace("import { initializeAiLanguage } from './ai-ui-language.js';",'').replace("import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from './ai-library-catalog.js';",'').replace("import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';",'');
+  const workspaceSource=source.replace("import {analyticsPeriods} from './workspace-policies.js';",'').replace("import { mountCodeEditor } from './code-command-editor.js';",'').replace("import { initializeAiLanguage } from './ai-ui-language.js';",'').replace("import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from './ai-library-catalog.js';",'').replace("import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';",'');
+  const policySource=fs.readFileSync(new URL('../workspace-policies.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const codeEditorSource=fs.readFileSync(new URL('../code-command-editor.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const editorSource=fs.readFileSync(new URL('../ai-editor-prototype.js',import.meta.url),'utf8').replace(/^export /gm,'');
-  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)}; const libraryModuleExtensions=${JSON.stringify(libraryModuleExtensions)}; const libraryFeatures=${libraryFeatures.toString()};\n${codeEditorSource}\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio } from './ai-editor-prototype.js';",'')}` : source)); await settle();
+  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)}; const libraryModuleExtensions=${JSON.stringify(libraryModuleExtensions)}; const libraryFeatures=${libraryFeatures.toString()};\n${policySource}\n${codeEditorSource}\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio } from './ai-editor-prototype.js';",'')}` : source)); await settle();
   return { dom, requests, doc: dom.window.document };
 }
 test('voice recognition resumes after a browser pause and stops only when the user asks', async () => {
@@ -871,6 +872,19 @@ test('native Discord event opens location-aware editor with live preview', async
 });
 test('analytics opt-in is separate from viewing analytics', async () => {
   const { dom, doc, requests } = await page('analytics'); assert.ok(doc.querySelector('#enableAnalytics')); assert.match(doc.body.textContent, /دون تخزين محتوى الرسائل/); assert.equal(requests.filter(req => req.options.method === 'PUT').length, 0); dom.window.close();
+});
+test('scheduled text messages expose monthly recurrence without sending during editing',async()=>{
+  const {dom,doc,requests}=await page('automation');doc.querySelector('#newSchedule').click();
+  assert.ok([...doc.querySelector('#scheduleRepeat').options].some(o=>o.value==='monthly'));
+  assert.equal(requests.filter(r=>r.options.method==='POST').length,0);dom.window.close();
+});
+test('analytics offers the paid reporting window and displays the server-confirmed period',async()=>{
+  const response=url=>url==='/api/account/overview'?{...account,limits:{...account.limits,analyticsDays:365}}:url.includes('/analytics')?{...fixtureResponse(url),days:7}:fixtureResponse(url);
+  const {dom,doc}=await page('analytics',response);
+  assert.deepEqual([...doc.querySelector('#period').options].map(o=>o.value),['7','14','30','90','365']);
+  assert.equal(doc.querySelector('#period').value,'7');assert.match(doc.querySelector('#workspace').textContent,/365/);dom.window.close();
+  const free=url=>url==='/api/account/overview'?{...account,limits:{...account.limits,analyticsDays:7}}:url.includes('/analytics')?{...fixtureResponse(url),days:7}:fixtureResponse(url);
+  const pageFree=await page('analytics',free);assert.deepEqual([...pageFree.doc.querySelector('#period').options].map(o=>o.value),['7']);pageFree.dom.window.close();
 });
 test('hash navigation changes active section without losing guild context', async () => {
   const { dom, doc } = await page(); dom.window.location.hash = 'activity'; await settle(); assert.match(doc.querySelector('h1').textContent, /كل تغيير/); assert.equal(doc.querySelector('#guildSelect').value, guild.id); dom.window.close();

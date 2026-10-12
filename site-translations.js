@@ -1,5 +1,11 @@
 // Interface translations only. Customer content is preserved by site-preferences.js.
 export const uiTranslations = new Map(Object.entries({
+  "عند تفعيله نحتفظ بأعداد الرسائل وأسماء أصحابها حتى 365 يومًا، دون تخزين محتوى الرسائل. فترة عرض التقارير حسب باقتك، ولا نجلب رسائل الماضي.": "When enabled, message counts and author names are retained for up to 365 days, without message content. Your plan determines the reporting window. Past messages are not fetched.",
+  "سيبدأ البوت بتجميع أعداد الرسائل وأسماء المشاركين من الآن. لا يتم حفظ محتوى الرسائل، وتُحفظ الإحصاءات حتى 365 يومًا. فترة عرض التقارير حسب باقتك.": "Collection starts now without message content. Statistics are retained for up to 365 days; your plan determines the reporting window.",
+  "يؤثر التغيير في جمع أحداث الرسائل الجديدة. لا يُحفظ محتوى الرسائل، وتبقى الأعداد السابقة حتى نهاية مدة الاحتفاظ، بحد أقصى 365 يومًا.": "This changes collection of new events. Message content is not stored; existing counts remain until their retention expires, at most 365 days.",
+  "يجمع البوت عدد الرسائل وأسماء المشاركين فقط، دون محتوى الرسائل، حتى 365 يومًا. فترة عرض التقارير حسب باقتك، والإيقاف يمنع جمع أحداث جديدة.": "Only message counts and participant names are collected, without message content, for up to 365 days. Reporting depends on your plan; disabling stops new collection.",
+  "آخر 90 أيام": "Last 90 days",
+  "آخر 365 أيام": "Last 365 days",
   "مساحة البرمجة · خاصة ببوتك": "Programming workspace · private to your bot",
   "جاهز · ملفات ومشاريع": "Ready · files and projects",
   "قريبًا": "Coming soon",
