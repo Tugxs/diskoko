@@ -2455,7 +2455,7 @@ async function assistant() {
         $('#aiSpecialPreviewTitle').dir='auto'; $('#aiSpecialPreviewTitle').innerHTML = emojiPreviewText(previewMemberText(($('#aiSpecialTitle').value || 'العنوان').replaceAll('{member}','عضو جديد')));
         if (plan.kind === 'rules') { $('#aiRulesSingleWrap').hidden = $('#aiRulesStyle').value !== 'single'; $('#aiRulesEntriesWrap').hidden = $('#aiRulesStyle').value === 'single'; }
         const ruleStyle = plan.kind === 'rules' ? $('#aiRulesStyle').value : '';
-        const text = plan.kind === 'poll' ? `${$('#aiSpecialDescription').value}\nاختر إجابة واحدة. يمكنك تغيير صوتك.` : plan.kind === 'rules' && ruleStyle === 'single' ? [$('#aiSpecialDescription').value, $('#aiRulesSingleText').value].filter(Boolean).join('\n\n') : plan.kind === 'rules' ? $('#aiSpecialDescription').value : $('#aiSpecialDescription').value.replaceAll('{member}', '@عضو جديد').replaceAll('{name}', 'عضو جديد');
+        const text = plan.kind === 'rules' && ruleStyle === 'single' ? [$('#aiSpecialDescription').value, $('#aiRulesSingleText').value].filter(Boolean).join('\n\n') : plan.kind === 'event' && $('#aiEventSignup').checked ? `${$('#aiSpecialDescription').value}\n\n👥 المسجلون: **0**` : $('#aiSpecialDescription').value;
         $('#aiSpecialPreviewBody').dir='auto'; $('#aiSpecialPreviewBody').innerHTML = discordMarkdownPreview(previewMemberText(text));
         const previewOptions = $('#aiSpecialPreviewOptions');
         let rulePageSize = 0, rulePageLength = ($('#aiSpecialTitle').value || '').length + ($('#aiSpecialDescription').value || '').length;
@@ -2489,7 +2489,7 @@ async function assistant() {
           if(!authorName){authorName=document.createElement('span');authorName.id='aiWelcomePreviewAuthor';authorName.className='ai-welcome-preview-author-name';avatarPreview.after(authorName);}
           authorName.textContent='عضو جديد';authorName.hidden=composite || position!=='left';
         }
-        $('#aiSpecialPreviewButton').innerHTML = emojiPreviewText(plan.kind === 'poll' ? '📊 تصويت' : plan.kind === 'event' ? $('#aiEventSignup').checked ? `${($('#aiPanelButtonLabel') || $('#aiEventButton')).value || 'سجّل مشاركتك'} · المسجلون ٠` : 'دون زر تسجيل' : 'يُرسل تلقائيًا عند الانضمام');
+        $('#aiSpecialPreviewButton').innerHTML = emojiPreviewText(plan.kind === 'poll' ? '📊 تصويت' : plan.kind === 'event' ? $('#aiEventSignup').checked ? `${($('#aiPanelButtonLabel') || $('#aiEventButton')).value || 'سجّل مشاركتك'}` : 'دون زر تسجيل' : 'يُرسل تلقائيًا عند الانضمام');
         $('#aiSpecialPreviewButton').hidden = plan.kind === 'rules' || plan.kind === 'event' && !$('#aiEventSignup').checked;
         const file = plan.kind === 'poll' ? $('#aiQuestionImage').files[0] : $('#aiSpecialImage').files[0];
         const preview = $('#aiSpecialPreviewImage');
@@ -2661,7 +2661,7 @@ async function assistant() {
       section.querySelectorAll('[data-ticket-edit]').forEach(button=>button.onclick=run(async()=>{selected=button.dataset.ticketConversation;sessionStorage.setItem(storageKey,selected);await loadMessages();thread.querySelector(`[data-ai-interactive="${button.dataset.ticketEdit}"][data-ai-edit="true"]`)?.click();}));
       section.querySelectorAll('[data-ticket-action]').forEach(button=>button.onclick=()=>{
         const cancel=button.dataset.ticketAction==='cancel';
-        dialog(cancel?'إلغاء لوحة الدعم / Cancel support panel':'تعطيل لوحة الدعم / Disable support panel',`<p>${cancel?'ستُزال رسالة اللوحة ويُلغى الطلب، ويمكن إنشاء طلب جديد.':'سيتوقف فتح تذاكر جديدة. يمكنك إعادة التفعيل من تعديل اللوحة.'} تبقى التذاكر القائمة وسجلها محفوظة. لن تُحذف قنوات العملاء.</p><label><input type="checkbox" id="ticketActionConfirmed"> أوافق على هذا الإجراء / Confirm this action</label>`,'<button id="ticketActionCancel" class="btn secondary">رجوع</button><button id="ticketActionApply" class="btn primary" disabled>تأكيد / Confirm</button>');
+        modal(cancel?'إلغاء لوحة الدعم / Cancel support panel':'تعطيل لوحة الدعم / Disable support panel',`<p>${cancel?'ستُزال رسالة اللوحة ويُلغى الطلب، ويمكن إنشاء طلب جديد.':'سيتوقف فتح تذاكر جديدة. يمكنك إعادة التفعيل من تعديل اللوحة.'} تبقى التذاكر القائمة وسجلها محفوظة. لن تُحذف قنوات العملاء.</p><label><input type="checkbox" id="ticketActionConfirmed"> أوافق على هذا الإجراء / Confirm this action</label>`,'<button id="ticketActionCancel" class="btn secondary">رجوع</button><button id="ticketActionApply" class="btn primary" disabled>تأكيد / Confirm</button>');
         $('#ticketActionCancel').onclick=closeDialog;$('#ticketActionConfirmed').onchange=event=>$('#ticketActionApply').disabled=!event.target.checked;
         $('#ticketActionApply').onclick=run(async()=>{$('#ticketActionApply').disabled=true;try{await api(`/api/ai/requests/${button.dataset.ticketId}/ticket-panel-action`,{method:'POST',body:JSON.stringify({action:button.dataset.ticketAction,confirmed:true})});closeDialog();await loadMessages();await refreshTicketPanels();toast(cancel?'أُلغيت لوحة الدعم.':'عُطلت لوحة الدعم.');}catch(error){modalError(error);$('#ticketActionApply').disabled=false;}});
       });
