@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {JSDOM} from 'jsdom';
+import {aiPromptLibrary} from '../ai-library-catalog.js';
+import {mountEditorPrototype,readEditorExtras} from '../ai-editor-prototype.js';
+test('all 30 published library entries expose Edit, Disable and Cancel and open their proper editor',async()=>{
+  const source=fs.readFileSync(new URL('../workspace.js',import.meta.url),'utf8');const body=source.slice(source.indexOf('  const refreshTicketPanels=async()=>{'),source.indexOf('  const loadMessages = async () =>',source.indexOf('  const refreshTicketPanels=async()=>{')));
+  const entries=aiPromptLibrary.map((entry,index)=>({id:'req'+index,conversation_id:'conversation',publication_state:'completed',interactive_kind:entry.moduleKind?'module':entry.kind,interactive_message_id:'message'+index,interactive_channel_id:'channel',title:entry.title,proposal:{interactive:{kind:entry.moduleKind?'module':entry.kind,moduleKind:entry.moduleKind}},...(entry.moduleKind?{module_install_id:'install'+index,module_kind:entry.moduleKind}:{})}));
+  const dom=new JSDOM('<main id="workspace"></main><div id="thread"></div>');const doc=dom.window.document,$=selector=>doc.querySelector(selector),opened=[];
+  for(const entry of entries){const button=doc.createElement('button');button.dataset[entry.interactive_kind==='message'?'aiMessage':'aiInteractive']=entry.id;button.dataset.aiEdit='true';button.onclick=()=>opened.push(entry.id);$('#thread').append(button);}
+  const params=['$','api','active','guild','esc','fmt','modal','run','closeDialog','loadMessages','toast','modalError','sessionStorage','storageKey','thread','showStandaloneModule','messages','publishedReviewOpeners','aiDraftVersions','aiReviewVersions'];
+  const refresh=new Function(...params,'let selected="";'+body+';return refreshTicketPanels;')($,async()=>({panels:entries}),()=>true,'guild',String,String,()=>{},fn=>fn,()=>{},async()=>{},()=>{},error=>{throw error;},{setItem(){}},'key',$('#thread'),async item=>{assert.ok(item.moduleKind);opened.push(item.editInstallId);},entries,{scheduled_event:item=>opened.push(item.id),channel_control:item=>opened.push(item.id)},new Map(),new Map());
+  await refresh();assert.equal(doc.querySelectorAll('[data-ticket-edit]').length,30);assert.equal(doc.querySelectorAll('[data-ticket-action="disable"]').length,30);assert.equal(doc.querySelectorAll('[data-ticket-action="cancel"]').length,30);
+  for(const button of doc.querySelectorAll('[data-ticket-edit]'))await button.onclick();assert.equal(opened.length,30);dom.window.close();
+});
+test('order editor reopens saved products and returns edited catalog without polluting other modules',()=>{
+  const dom=new JSDOM('<dialog open><div id="root"><div class="dialog-body"><fieldset class="ai-module-section"><input id="moduleTitle" value="Orders"><textarea id="moduleDescription">My orders</textarea><input id="moduleButton" value="Order"></fieldset><fieldset class="ai-module-section"><select id="moduleChannel"><option value="channel">Orders</option></select></fieldset><fieldset class="ai-module-section"><label><input id="moduleColor" type="color" value="#123456"></label><select id="moduleButtonStyle"><option value="1">Primary</option></select></fieldset><input id="moduleBanner" type="file"><div id="moduleBannerPreview"></div></div></div></dialog>',{url:'https://example.test'});
+  const previous={document:globalThis.document,location:globalThis.location,MutationObserver:globalThis.MutationObserver};Object.assign(globalThis,{document:dom.window.document,location:dom.window.location,MutationObserver:dom.window.MutationObserver});
+  try{const root=document.querySelector('#root');mountEditorPrototype(root,{english:true,moduleKind:'orders',markdown:String,initial:{products:[{id:'stable',name:'Original',description:'Details'}]}});assert.equal(root.querySelector('[data-product-name]').value,'Original');root.querySelector('[data-product-name]').value='Edited';assert.deepEqual(readEditorExtras(root).products,[{id:'stable',name:'Edited',description:'Details'}]);root.editorStorageDispose?.();}finally{Object.assign(globalThis,previous);dom.window.close();}
+});
