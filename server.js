@@ -938,7 +938,8 @@ app.post("/api/projects/:id/bind-guild", requireUser, requireWriteAccess, async 
 mountAiBotConnections(app, { pool, requireUser, requireWriteAccess, authorizedGuild, requirePlanCapacity, audit });
 mountMovieClubs(app, { pool, requireUser, requireWriteAccess, authorizedGuild, connectedBot, requirePlanCapacity, audit });
 const selectAiRequestBot = async (req, res, next) => { try {
-  const item = (await pool.query('SELECT guild_id,design_bot_id FROM ai_requests WHERE id=$1 AND user_id=$2', [req.path.split('/')[4], req.user.id])).rows[0];
+  let item = (await pool.query('SELECT guild_id,design_bot_id FROM ai_requests WHERE id=$1 AND user_id=$2', [req.path.split('/')[4], req.user.id])).rows[0];
+  if(!item && req.path.endsWith('/panel-action'))item=(await pool.query("SELECT guild_id,CASE WHEN executor='diskoko' THEN 'public' ELSE config->>'executorBotId' END AS design_bot_id FROM standalone_module_installs WHERE id=$1 AND user_id=$2",[req.path.split('/')[4],req.user.id])).rows[0];
   if (item) {
     const bot = await botTokenForPublication(pool, item.guild_id);
     if (item.design_bot_id && item.design_bot_id !== (bot?.id || 'public')) return res.status(409).json({ error: 'تغيّر بوت التنفيذ بعد تجهيز المسودة. اختر البوت المطلوب وجهّز مراجعة جديدة قبل النشر.' });
@@ -946,8 +947,8 @@ const selectAiRequestBot = async (req, res, next) => { try {
   }
   next();
 } catch (error) { next(error); } };
-app.post(/^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create-scheduled-event|control-channel|ticket-panel-action)$/, requireUser, selectAiRequestBot);
-app.get('/api/ai/ticket-panels',requireUser,async(req,res,next)=>{try{
+app.post(/^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create-scheduled-event|control-channel|ticket-panel-action|panel-action)$/, requireUser, selectAiRequestBot);
+app.get(['/api/ai/ticket-panels','/api/ai/panels'],requireUser,async(req,res,next)=>{try{
   if(!await authorizedGuild(req.user,req.query.guildId))return res.status(403).json({error:'السيرفر غير متاح.'});
   const bot=await botTokenForPublication(pool,req.query.guildId);
   if(bot){const context=requestContext.getStore();context.aiBotToken=bot.token;context.aiBotId=bot.id;req.publishingBotId=bot.id;}
