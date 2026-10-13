@@ -22,7 +22,7 @@ async function page(hash = 'overview', response = fixtureResponse, file = 'studi
   const policySource=fs.readFileSync(new URL('../workspace-policies.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const codeEditorSource=fs.readFileSync(new URL('../code-command-editor.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const editorSource=fs.readFileSync(new URL('../ai-editor-prototype.js',import.meta.url),'utf8').replace(/^export /gm,'');
-  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)}; const libraryModuleExtensions=${JSON.stringify(libraryModuleExtensions)}; const libraryFeatures=${libraryFeatures.toString()};\n${policySource}\n${codeEditorSource}\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio, mountIntakeControls } from './ai-editor-prototype.js';",'')}` : source)); await settle();
+  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)}; const libraryModuleExtensions=${JSON.stringify(libraryModuleExtensions)}; const libraryFeatures=${libraryFeatures.toString()};\n${policySource}\n${codeEditorSource}\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio, mountIntakeControls } from './ai-editor-prototype.js?v=optional-intake-20261013';",'')}` : source)); await settle();
   return { dom, requests, doc: dom.window.document };
 }
 test('voice recognition resumes after a browser pause and stops only when the user asks', async () => {
