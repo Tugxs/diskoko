@@ -22,7 +22,7 @@ async function page(hash = 'overview', response = fixtureResponse, file = 'studi
   const policySource=fs.readFileSync(new URL('../workspace-policies.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const codeEditorSource=fs.readFileSync(new URL('../code-command-editor.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const editorSource=fs.readFileSync(new URL('../ai-editor-prototype.js',import.meta.url),'utf8').replace(/^export /gm,'');
-  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)}; const libraryModuleExtensions=${JSON.stringify(libraryModuleExtensions)}; const libraryFeatures=${libraryFeatures.toString()};\n${policySource}\n${codeEditorSource}\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio } from './ai-editor-prototype.js';",'')}` : source)); await settle();
+  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)}; const libraryModuleExtensions=${JSON.stringify(libraryModuleExtensions)}; const libraryFeatures=${libraryFeatures.toString()};\n${policySource}\n${codeEditorSource}\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio, mountIntakeControls } from './ai-editor-prototype.js';",'')}` : source)); await settle();
   return { dom, requests, doc: dom.window.document };
 }
 test('voice recognition resumes after a browser pause and stops only when the user asks', async () => {
@@ -552,7 +552,7 @@ test('completed AI module reply opens its specific editor only after the request
   assert.equal(doc.querySelector('#moduledetailsMaxLength').value,'1000');
   assert.equal(doc.querySelector('#modulesubjectPlaceholder').maxLength,100);
   assert.equal(doc.querySelector('#moduledetailsPlaceholder').maxLength,100);
-  assert.match(doc.querySelector('.editor-action-preview').textContent,/عنوان مهمة الفريق/);
+  assert.equal(doc.querySelector('#intakeDetailsEnabled').checked,false);assert.doesNotMatch(doc.querySelector('.editor-action-preview').textContent,/عنوان مهمة الفريق/);
   const footer=doc.querySelector('#moduleFooter');assert.equal(footer.value,'');footer.value='تذييل اختياري';footer.dispatchEvent(new dom.window.Event('input',{bubbles:true}));assert.equal(doc.querySelector('.editor-footer').textContent,'تذييل اختياري');
   const description=doc.querySelector('#moduleDescription');description.value='نص';description.setSelectionRange(0,2);description.closest('label').querySelector('.editor-tools button').click();assert.equal(description.value,'**نص**');assert.ok(doc.querySelector('.editor-description strong'));
   doc.querySelector('[data-editor-add-link]').click();doc.querySelector('[data-editor-add-link]').click();
