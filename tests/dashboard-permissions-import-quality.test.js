@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {PermissionFlagsBits as F} from 'discord.js';
 import {effectiveChannelPermissions,readinessChecks} from '../lib/dashboard-permissions.js';
 import {structureTemplatePlan,discordTemplateCode} from '../lib/structure-template.js';
-import {resolveRoleReferences,operationBody,normalizeOperations} from '../lib/workspace-domain.js';
+import {resolveRoleReferences,operationBody,normalizeOperations,resolveExisting} from '../lib/workspace-domain.js';
 import {runQuality,normalizeCases,verifySavedCases} from '../lib/command-quality.js';
 const g='100000000000000001',r='100000000000000002';
 test('effective permissions combine role overwrites then member overrides and visibility',()=>{
@@ -43,3 +43,5 @@ test('saved quality cases preserve flow state, reset explicitly and block failin
  assert.throws(()=>normalizeCases(Array.from({length:13},()=>cases[0])));
  const unsafe=await runQuality('function handle(){return {message:{content:process.env.SECRET}};}',[cases[0]],{owner_id:1,guild_id:g,bot_user_id:r});assert.equal(unsafe.ok,false);
 });
+
+test('imported role names never reuse managed application roles',()=>{assert.equal(resolveExisting({resource_type:'role',name:'Bot',action:'create'},{guildId:g,roles:[{id:r,name:'Bot',managed:true}],channels:[]}),undefined);});
