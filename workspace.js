@@ -4,7 +4,7 @@ import { mountCodeEditor } from './code-command-editor.js';
 import { initializeAiLanguage } from './ai-ui-language.js';
 import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';
 import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from './ai-library-catalog.js';
-import { mountEditorPrototype, readEditorExtras, mountPanelStudio, mountIntakeControls } from './ai-editor-prototype.js';
+import { mountEditorPrototype, readEditorExtras, mountPanelStudio, mountIntakeControls } from './ai-editor-prototype.js?v=optional-intake-20261013';
 
 const sceneReviewState=new WeakMap();
 function bindDesignScene(plan,prefix,confirmId,launchId,requestId) {
