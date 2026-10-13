@@ -1,5 +1,7 @@
 import {siteDate} from './site-format.js';
 import {analyticsPeriods} from './workspace-policies.js';
+import {mountDashboardToolsUI} from './dashboard-tools-ui.js';
+import {zonedInputToIso} from './dashboard-time.js';
 import { mountCodeEditor } from './code-command-editor.js';
 import { initializeAiLanguage } from './ai-ui-language.js';
 import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';
@@ -200,7 +202,7 @@ async function api(url, options = {}) {
 function toast(message) { $('#toast').textContent = message; $('#toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => { $('#toast').hidden = true; }, 5000); }
 function run(fn) { return async event => { try { await fn(event); } catch (error) { toast(error.message); } }; }
 function badge(text, tone = 'neutral') { return `<span class="badge ${tone}">${esc(text)}</span>`; }
-const statuses = { installed: ['متصل بالسيرفر', 'good'], install_required: ['يحتاج ربطًا', 'warn'], permissions_insufficient: ['تحقق من الصلاحيات', 'warn'], unavailable: ['تعذر التحقق', 'bad'], draft: ['بانتظار المراجعة', 'purple'], pending: ['لم يُنفذ', 'neutral'], running: ['جارٍ التنفيذ', 'warn'], cancel_requested: ['جارٍ الإيقاف', 'warn'], succeeded: ['مكتمل', 'good'], failed: ['يحتاج مراجعة', 'bad'], scheduled: ['مجدولة', 'purple'], sending: ['جارٍ الإرسال', 'warn'], sent: ['تم الإرسال', 'good'], cancelled: ['أُوقف', 'neutral'] };
+const statuses = { installed: ['متصل بالسيرفر', 'good'], install_required: ['يحتاج ربطًا', 'warn'], permissions_insufficient: ['تحقق من الصلاحيات', 'warn'], unavailable: ['تعذر التحقق', 'bad'], draft: ['بانتظار المراجعة', 'purple'], pending: ['لم يُنفذ', 'neutral'], running: ['جارٍ التنفيذ', 'warn'], cancel_requested: ['جارٍ الإيقاف', 'warn'], succeeded: ['مكتمل', 'good'], failed: ['يحتاج مراجعة', 'bad'], paused: ['متوقفة مؤقتًا','neutral'], review_required: ['نتيجة تحتاج تحققًا','warn'], scheduled: ['مجدولة', 'purple'], sending: ['جارٍ الإرسال', 'warn'], sent: ['تم الإرسال', 'good'], cancelled: ['أُوقف', 'neutral'] };
 function status(value) { return badge(...(statuses[value] || ['لم يتم التحقق', 'neutral'])); }
 function action(label, target, style = 'secondary') { return `<a class="btn ${style}" href="${url(target)}">${label}</a>`; }
 function url(target, guild = state.guild) { return `/studio${guild ? `?guild=${encodeURIComponent(guild)}` : ''}#${target}`; }
@@ -1381,6 +1383,7 @@ async function readyTemplatesPage() {
   renderReadyEditor();
 }
 function readyStart(template, navigate = true) {
+  state.cloudDraftKey=null;state.cloudDraftRevision=0;
   readySaveDraft();
   state.readyKey = template.key;
   let saved = state.readyDraftCache[readyDraftCacheKey(template.key)];
@@ -2818,15 +2821,17 @@ async function automation() {
   $('#workspace').innerHTML = head('رسالتك، في وقتها.', 'جهّز إعلانًا أو تذكيرًا، وراجعه قبل الجدولة.') + '<div class="loading" role="status">جارٍ تحميل الرسائل المجدولة…</div>';
   const { schedules } = await api(`/api/workspace/${encodeURIComponent(guild)}/schedules`);
   if (guild !== state.guild || screen() !== 'automation') return;
-  $('#workspace').innerHTML = head('رسالتك، في وقتها.', 'جهّز إعلانًا أو تذكيرًا، وراجعه قبل الجدولة.', `<button class="btn primary" id="newSchedule" ${!state.data.connection.readable ? 'disabled' : ''}>＋ رسالة مجدولة</button>`) + connectionNotice() + `<div class="notice info"><div><b>إرسال بعد موافقتك على الرسالة والموعد.</b><p>لا تُفعّل إشارات الجميع أو الرتب تلقائيًا. قد يتأخر الإرسال إذا توقفت خدمة الاستضافة.</p></div></div>` + panel('جدول الرسائل', schedules.length ? `<div class="rows">${schedules.map(job => `<div class="row"><span class="row-icon">◷</span><div class="row-main"><b>${esc(job.content.slice(0, 100))}</b><small># ${esc(state.data.channels?.find(channel => channel.id === job.channel_id)?.name || 'قناة غير متاحة')} · ${date(job.run_at)} · ${esc(job.timezone)} · ${{ once: 'مرة واحدة', daily: 'كل 24 ساعة', weekly: 'كل 7 أيام', monthly: 'كل شهر' }[job.repeat]}</small>${job.last_error ? `<small>${esc(job.last_error)}</small>` : ''}</div>${status(job.status)}${['scheduled', 'failed'].includes(job.status) ? `<button class="btn small secondary" data-cancel-job="${job.id}">إلغاء</button>` : ''}</div>`).join('')}</div>` : empty('لا توجد رسائل مجدولة', 'جهّز أول إعلان وحدد القناة والوقت. ستجد حالة إرساله هنا.'));
+  $('#workspace').innerHTML = head('رسالتك، في وقتها.', 'جهّز إعلانًا أو تذكيرًا، وراجعه قبل الجدولة.', `<button class="btn primary" id="newSchedule" ${!state.data.connection.readable ? 'disabled' : ''}>＋ رسالة مجدولة</button>`) + connectionNotice() + `<div class="notice info"><div><b>إرسال بعد موافقتك على الرسالة والموعد.</b><p>لا تُفعّل إشارات الجميع أو الرتب تلقائيًا. قد يتأخر الإرسال إذا توقفت خدمة الاستضافة.</p></div></div>` + panel('جدول الرسائل', schedules.length ? `<div class="rows">${schedules.map(job => `<div class="row"><span class="row-icon">◷</span><div class="row-main"><b>${esc(job.content.slice(0, 100))}</b><small># ${esc(state.data.channels?.find(channel => channel.id === job.channel_id)?.name || 'قناة غير متاحة')} · ${date(job.run_at)} · ${esc(job.timezone)} · ${{ once: 'مرة واحدة', daily: 'كل 24 ساعة', weekly: 'كل 7 أيام', monthly: 'كل شهر' }[job.repeat]}</small>${job.last_error ? `<small>${esc(job.last_error)}</small>` : ''}</div>${status(job.status)}${['scheduled', 'paused', 'failed'].includes(job.status) ? `<button class="btn small secondary" data-cancel-job="${job.id}">إلغاء</button>` : ''}</div>`).join('')}</div>` : empty('لا توجد رسائل مجدولة', 'جهّز أول إعلان وحدد القناة والوقت. ستجد حالة إرساله هنا.'));
   $('#newSchedule').onclick = scheduleForm;
   document.querySelectorAll('[data-cancel-job]').forEach(button => { button.onclick = () => confirmDialog('إلغاء الرسالة المجدولة؟', 'ستبقى في السجل ولن تُرسل في الموعد القادم.', 'إلغاء الجدولة', async () => { await api(`/api/workspace/${encodeURIComponent(guild)}/schedules/${button.dataset.cancelJob}/cancel`, { method: 'POST', body: '{}' }); closeDialog(); await automation(); }); });
 }
-function scheduleForm() {
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+async function scheduleForm() {
+  const guild=state.guild;let timezone=Intl.DateTimeFormat().resolvedOptions().timeZone;
+  try{const saved=await api(`/api/workspace/${encodeURIComponent(guild)}/tools/settings`);if(saved.timezone)timezone=saved.timezone;}catch(error){toast(error.message);return;}
+  if(guild!==state.guild || screen()!=='automation')return;
   modal('جهّز رسالتك', `<form id="scheduleForm" class="form-grid"><label>القناة<select id="scheduleChannel" required>${(state.data.channels || []).filter(channel => [0, 5].includes(channel.type)).map(channel => `<option value="${esc(channel.id)}"># ${esc(channel.name)}</option>`).join('')}</select></label><label>نص الرسالة<textarea id="scheduleText" rows="4" required maxlength="2000" placeholder="ما الذي تريد إخبار مجتمعك به؟"></textarea></label><div class="form-grid two"><label>موعد الإرسال<input id="scheduleTime" type="datetime-local" required></label><label>التكرار<select id="scheduleRepeat"><option value="once">مرة واحدة</option><option value="daily">كل 24 ساعة</option><option value="weekly">كل 7 أيام</option><option value="monthly">كل شهر</option></select></label></div><p class="form-note">الموعد حسب جهازك: ${esc(timezone)}. اليومي والأسبوعي بفواصل ثابتة. الشهري يحافظ على يوم الموعد، ويستخدم آخر يوم في الأشهر الأقصر. لا يُضبط التكرار تلقائيًا مع التوقيت الصيفي.</p><div class="preview"><b>معاينة الرسالة</b><div class="message" id="schedulePreview">ستظهر رسالتك هنا…</div></div><label class="check-row"><input id="scheduleConfirm" type="checkbox" required>أوافق على إرسال هذه الرسالة في القناة والموعد المحددين.</label></form>`, '<button class="btn primary" form="scheduleForm" type="submit">تأكيد الجدولة</button>');
   $('#scheduleText').oninput = event => { $('#schedulePreview').textContent = event.target.value || 'ستظهر رسالتك هنا…'; };
-  $('#scheduleForm').onsubmit = async event => { event.preventDefault(); event.submitter.disabled = true; try { await api(`/api/workspace/${encodeURIComponent(state.guild)}/schedules`, { method: 'POST', body: JSON.stringify({ channel_id: $('#scheduleChannel').value, content: $('#scheduleText').value, run_at: new Date($('#scheduleTime').value).toISOString(), repeat: $('#scheduleRepeat').value, timezone, confirmed: $('#scheduleConfirm').checked }) }); closeDialog(); await automation(); toast('حُفظت الرسالة المجدولة.'); } catch (error) { modalError(error); event.submitter.disabled = false; } };
+  $('#scheduleForm').onsubmit = async event => { event.preventDefault(); event.submitter.disabled = true; try { await api(`/api/workspace/${encodeURIComponent(state.guild)}/schedules`, { method: 'POST', body: JSON.stringify({ channel_id: $('#scheduleChannel').value, content: $('#scheduleText').value, run_at: zonedInputToIso($('#scheduleTime').value,timezone), repeat: $('#scheduleRepeat').value, timezone, confirmed: $('#scheduleConfirm').checked }) }); closeDialog(); await automation(); toast('حُفظت الرسالة المجدولة.'); } catch (error) { modalError(error); event.submitter.disabled = false; } };
 }
 async function analytics() {
   const guild = state.guild; let days = state.days; const d = state.data;
@@ -2937,6 +2942,21 @@ window.addEventListener('popstate', () => {
 window.addEventListener('pagehide', readySaveDraft);
 window.addEventListener('focus', () => { if (state.awaitingInstall) { state.awaitingInstall = false; loadGuild(); } });
 $('#dialog').addEventListener('cancel', event => { if ($('#applyPlan')?.textContent === 'جارٍ التطبيق…') event.preventDefault(); });
+function dashboardEnhancements(){
+  if(typeof document==='undefined' || !document)return;
+  if(!state.data || !state.account || state.loading || state.error || !state.guild)return;
+  const host=$('#workspace'),page=screen();if(!host || !host.isConnected || host.querySelector('.loading'))return;
+  const existing=host.querySelector('[data-dashboard-tools]');if(existing && existing.dataset.context===`${page}:${state.readyKey || ''}`)return;
+  mountDashboardToolsUI({host,page,guild:state.guild,api,esc,state,getDraft:()=>state.readyDraft,applyDraft:definition=>{
+    const key=state.cloudDraftKey,revision=state.cloudDraftRevision;
+    const template={key:'imported-server-template',name:definition.name,description:'مسودة سحابية قابلة للتعديل والمراجعة.',revision:1,definition};
+    state.readyCatalog=(state.readyCatalog || []).filter(t=>t.key!=='imported-server-template');state.readyCatalog.push(template);
+    sessionStorage.setItem(`diskoko:import:${state.account.user.id}:${state.guild}`,JSON.stringify(template));
+    readyStart(template);state.cloudDraftKey=key;state.cloudDraftRevision=revision;toast('استُعيدت المسودة إلى المحرر فقط. راجعها قبل التنفيذ.');
+  },download,refresh:loadGuild,reviewOperations:async operations=>{const guild=state.guild;const result=await api('/api/change-sets',{method:'POST',body:JSON.stringify({guildId:guild,operations})});if(guild!==state.guild)return;await showPlan(result.changeSet.id,true);}});
+  const root=host.querySelector('[data-dashboard-tools]');if(root)root.dataset.context=`${page}:${state.readyKey || ''}`;
+}
+new MutationObserver(dashboardEnhancements).observe($('#workspace'),{childList:true});
 start();
 
 

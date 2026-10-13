@@ -18,11 +18,13 @@ async function page(hash = 'overview', response = fixtureResponse, file = 'studi
   const formatSource=fs.readFileSync(new URL('../site-format.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const languageSource=fs.readFileSync(new URL('../ai-ui-language.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const sceneSource=fs.readFileSync(new URL('../ai-design-scene.js',import.meta.url),'utf8').replace(/^export /gm,'');
-  const workspaceSource=source.replace("import {analyticsPeriods} from './workspace-policies.js';",'').replace("import { mountCodeEditor } from './code-command-editor.js';",'').replace("import { initializeAiLanguage } from './ai-ui-language.js';",'').replace("import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from './ai-library-catalog.js';",'').replace("import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';",'');
+  const workspaceSource=source.replace("import {zonedInputToIso} from './dashboard-time.js';",'').replace("import {mountDashboardToolsUI} from './dashboard-tools-ui.js';",'').replace("import {analyticsPeriods} from './workspace-policies.js';",'').replace("import { mountCodeEditor } from './code-command-editor.js';",'').replace("import { initializeAiLanguage } from './ai-ui-language.js';",'').replace("import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from './ai-library-catalog.js';",'').replace("import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';",'');
   const policySource=fs.readFileSync(new URL('../workspace-policies.js',import.meta.url),'utf8').replace(/^export /gm,'');
+  const dashboardSource=fs.readFileSync(new URL('../dashboard-tools-ui.js',import.meta.url),'utf8').replace(/^export /gm,'').replace("import {formatScheduleTime} from './dashboard-time.js';",'');
+  const timeSource=fs.readFileSync(new URL('../dashboard-time.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const codeEditorSource=fs.readFileSync(new URL('../code-command-editor.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const editorSource=fs.readFileSync(new URL('../ai-editor-prototype.js',import.meta.url),'utf8').replace(/^export /gm,'');
-  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)}; const libraryModuleExtensions=${JSON.stringify(libraryModuleExtensions)}; const libraryFeatures=${libraryFeatures.toString()};\n${policySource}\n${codeEditorSource}\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio, mountIntakeControls } from './ai-editor-prototype.js?v=optional-intake-20261013';",'')}` : source)); await settle();
+  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)}; const libraryModuleExtensions=${JSON.stringify(libraryModuleExtensions)}; const libraryFeatures=${libraryFeatures.toString()};\n${timeSource}\n${dashboardSource}\n${policySource}\n${codeEditorSource}\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio, mountIntakeControls } from './ai-editor-prototype.js?v=optional-intake-20261013';",'')}` : source)); await settle();
   return { dom, requests, doc: dom.window.document };
 }
 test('voice recognition resumes after a browser pause and stops only when the user asks', async () => {
@@ -874,7 +876,7 @@ test('analytics opt-in is separate from viewing analytics', async () => {
   const { dom, doc, requests } = await page('analytics'); assert.ok(doc.querySelector('#enableAnalytics')); assert.match(doc.body.textContent, /دون تخزين محتوى الرسائل/); assert.equal(requests.filter(req => req.options.method === 'PUT').length, 0); dom.window.close();
 });
 test('scheduled text messages expose monthly recurrence without sending during editing',async()=>{
-  const {dom,doc,requests}=await page('automation');doc.querySelector('#newSchedule').click();
+  const {dom,doc,requests}=await page('automation');doc.querySelector('#newSchedule').click();await settle();
   assert.ok([...doc.querySelector('#scheduleRepeat').options].some(o=>o.value==='monthly'));
   assert.equal(requests.filter(r=>r.options.method==='POST').length,0);dom.window.close();
 });

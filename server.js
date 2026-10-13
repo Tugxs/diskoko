@@ -1,3 +1,4 @@
+import {enforceTeamWrite} from './lib/dashboard-team.js';
 import crypto from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import path from "node:path";
@@ -304,7 +305,7 @@ app.use((req, res, next) => {
 app.use(createNotFoundReporter({ allowedOrigins }));
 const standardJson = express.json({ limit: "512kb", verify: (req, _res, buffer) => { if (req.path === "/api/webhooks/billing") req.rawBody = Buffer.from(buffer); } });
 const interactiveMediaJson = express.json({ limit: "29mb" });
-app.use((req, res, next) => req.method === 'POST' && (/^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create-scheduled-event)$/.test(req.path) || req.path === '/api/server-templates/import' || req.path === '/api/ai/requests' || req.path === '/api/change-sets' || /^\/api\/workspace\/\d{17,20}\/(?:ready-templates|standalone-modules)\/review$/.test(req.path)) ? interactiveMediaJson(req, res, next) : standardJson(req, res, next));
+app.use((req, res, next) => req.method==='PUT' && /^\/api\/workspace\/\d{17,20}\/tools\/drafts\/[a-zA-Z0-9_-]+$/.test(req.path) || req.method === 'POST' && (/^\/api\/workspace\/\d{17,20}\/tools\/structure\/review$/.test(req.path) || /^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create-scheduled-event)$/.test(req.path) || req.path === '/api/server-templates/import' || req.path === '/api/ai/requests' || req.path === '/api/change-sets' || /^\/api\/workspace\/\d{17,20}\/(?:ready-templates|standalone-modules)\/review$/.test(req.path)) ? interactiveMediaJson(req, res, next) : standardJson(req, res, next));
 app.use("/api", (req, res, next) => {
   if (["POST", "PUT", "PATCH"].includes(req.method) && req.is("application/json") && (!req.body || typeof req.body !== "object" || Array.isArray(req.body))) return res.status(400).json({ error: "يجب أن تكون بيانات الطلب JSON object صالحًا" });
   next();
@@ -601,11 +602,14 @@ function requireAdmin(req, res, next) {
   requireUser(req, res, () => isAdmin(req.user) ? next() : res.status(403).json({ error: "غير مصرح" }));
 }
 async function audit(actor, action, targetType, targetId, details = {}) {
-  const requestId = requestContext.getStore()?.requestId;
+  const context=requestContext.getStore();
+  const requestId=context?.requestId;
+  if(context?.selectedBotId && !details.bot_id && !details.botId)details={...details,bot_id:context.selectedBotId};
   await pool.query("INSERT INTO audit_logs(actor_user_id,action,target_type,target_id,details) VALUES($1,$2,$3,$4,$5)", [actor || null, action, targetType, targetId ? String(targetId) : null, requestId ? { ...details, requestId } : details]);
 }
 async function requireWriteAccess(req, res, next) {
   try {
+    await enforceTeamWrite(req,pool,authorizedGuild);
     const subscription = (await pool.query("SELECT status,grace_until FROM subscriptions WHERE user_id=$1 ORDER BY updated_at DESC LIMIT 1", [req.user.id])).rows[0];
     const access = subscriptionAccess(subscription || { status: canonicalPlan(req.user.plan) === 'free' ? 'trial' : 'active' });
     if (access.mode !== 'full') return res.status(402).json({ error: 'اشتراكك في وضع القراءة فقط. حدّث وسيلة الدفع لاستئناف التغييرات، وبياناتك محفوظة.', code: 'SUBSCRIPTION_READ_ONLY', access });
@@ -1093,7 +1097,7 @@ app.get("/admin-login", async (req, res, next) => { try { const user = await cur
 app.get("/admin", async (req, res, next) => { try { const user = await currentUser(req); if (!user) return res.redirect("/admin-login"); if (!isAdmin(user)) return res.redirect("/account.html"); res.sendFile(path.join(__dirname, "admin-console.html")); } catch (error) { next(error); } });
 app.get('/admin-console.20260921.js', requireAdmin, (_req, res) => res.sendFile(path.join(__dirname, 'admin-console.20260921.js')));
 app.get("/studio", (req, res, next) => { if (!req.query.guild) return res.redirect(302, "/account.html#servers"); next(); });
-app.use(['/workspace-policies.js','/code-command-editor.js','/ai-design-scene.js','/ai-ui-language.js','/ai-library-english.js','/ai-editor-prototype.js','/site-preferences.js','/site-translations.js','/site-format.js'],(_req,res,next)=>{res.set('Cache-Control','no-store, max-age=0, must-revalidate');next();});
+app.use(['/dashboard-tools-ui.js','/dashboard-time.js','/workspace-policies.js','/code-command-editor.js','/ai-design-scene.js','/ai-ui-language.js','/ai-library-english.js','/ai-editor-prototype.js','/site-preferences.js','/site-translations.js','/site-format.js'],(_req,res,next)=>{res.set('Cache-Control','no-store, max-age=0, must-revalidate');next();});
 const publicStatic = express.static(__dirname, { extensions: ["html"], maxAge: IS_PRODUCTION ? "1h" : 0, dotfiles: "deny" });
 app.use((req, res, next) => isPublicStaticPath(req.path) ? publicStatic(req, res, next) : next());
 app.get("/login", (_req, res) => res.sendFile(path.join(__dirname, "account.html")));
