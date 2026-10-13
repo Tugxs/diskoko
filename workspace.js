@@ -2583,7 +2583,7 @@ async function assistant() {
       }
       if (plan.kind === 'tickets') $('#aiTicketDescription').closest('label').insertAdjacentHTML('afterend', '<label>لون بطاقة الدعم<input id="aiTicketColor" type="color" value="#8b5cf6"></label>');
       if ($('#aiTicketColor') || $('#aiGiveawayColor')) ($('#aiTicketColor') || $('#aiGiveawayColor')).value = /^#[0-9a-f]{6}$/i.test(plan.color || '') ? plan.color : '#8b5cf6';
-      if(plan.kind==='tickets')mountIntakeControls($('#dialogContent'),plan,document.documentElement.lang==='en');
+      if(plan.kind==='tickets')mountIntakeControls($('#dialogContent'),plan,$('#aiInterfaceLanguage')?.value==='en');
       if (item.editExisting) { $('#aiInteractiveChannel').value=item.interactive_channel_id; $('#aiInteractiveChannel').disabled=true; $('#aiInteractiveConfirmed').closest('label').insertAdjacentHTML('beforebegin','<p class="notice info">سيُعدّل شكل اللوحة ورسالتها الحالية دون إعادة نشرها. تبقى المشاركات محفوظة؛ الجائزة والمدة وعدد الفائزين ثابتة.</p>'); if (plan.kind === 'giveaway') for (const id of ['aiPrize','aiDuration','aiWinners']) $('#'+id).disabled=true; if (plan.kind === 'tickets') { $('#aiStaffRole').value=plan.staffRoleId || ''; $('#aiTicketCategory').value=plan.categoryId || ''; } }
       installAiEmojiPickers();
       const descriptionField = plan.kind === 'giveaway' ? $('#aiGiveawayDescription') : plan.kind === 'tickets' ? $('#aiTicketDescription') : null;
