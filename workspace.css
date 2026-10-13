@@ -300,3 +300,22 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 .music-panel-preview .music-card-brand span{border:0;border-radius:0;background-color:transparent;background-size:contain;background-repeat:no-repeat}
 .ai-card-logo-preview,.ai-card-logo-overlay{border:0;background:transparent;border-radius:0!important;object-fit:contain}
 
+
+/* Management tools keep content cards compact and readable, without neon decoration. */
+.dashboard-tools { margin-top:24px; }
+.dashboard-tools details { border:1px solid #8272b333;border-radius:10px;padding:12px;min-width:0; }
+.dashboard-tools summary { cursor:pointer;font-weight:600;padding:4px 0; }
+.dashboard-tools details>*+* { margin-top:12px; }
+.dashboard-tools pre { direction:ltr;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;background:#0b0912;border-radius:8px;padding:12px;font-size:12px; }
+.dashboard-tools .row { flex-wrap:wrap;gap:10px; }
+.dashboard-tools .row-main { min-width:0;overflow-wrap:anywhere; }
+.dashboard-tools [data-tool-status] { white-space:pre-wrap; }
+.dashboard-tools [data-tool-error][hidden] { display:none; }
+.dashboard-tools select[multiple] { min-height:140px; }
+.dashboard-tools .actions input { flex:1;min-width:130px; }
+.dashboard-tools [data-tool-edit] { padding:16px;border:1px solid #8272b355;border-radius:12px; }
+@media(max-width:640px){.dashboard-tools .row>.actions{width:100%}.dashboard-tools .actions{flex-wrap:wrap}.dashboard-tools .btn{white-space:normal}}
+
+.overview-metrics>[hidden]{display:none!important}
+
+.overview-metrics{grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr))}
