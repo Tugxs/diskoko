@@ -6,6 +6,7 @@ import fs from 'node:fs';
 test('every browser module dependency is publicly served', () => {
   const visited = new Set();
   function check(file) {
+    file = new URL(file, 'https://diskoko.test/').pathname.slice(1);
     if (visited.has(file)) return;
     visited.add(file);
     assert.equal(isPublicStaticPath('/' + file), true, file);
