@@ -1,3 +1,4 @@
+import {handleAdminReply,startAdminAnswerPump} from './lib/admin-reply.js';
 import { recordSupportReply } from './lib/support-service-tools.js';
 import crypto from 'node:crypto';
 import { handleCodeInteraction } from './lib/code-commands.js';
@@ -167,7 +168,7 @@ export async function stopDiscordBot() {
   retryTimer = null;
   const client = botClient;
   botClient = null;
-  if (client) {client.diskokoProjectStop?.();await client.destroy();}
+  if (client) {client.diskokoProjectStop?.();client.diskokoAdminStop?.();await client.destroy();}
 }
 
 export async function startDiscordBot({ pool } = {}) {
@@ -233,6 +234,7 @@ export async function startDiscordBot({ pool } = {}) {
 
   // Count events only after an administrator opts in. This handler does not store message content.
   client.on(Events.MessageCreate, async (message) => {
+    void handleAdminReply(message,databasePool).catch(error=>console.error('Admin reply:',error.message));
     void recordSupportReply(message,databasePool).catch(error=>console.error('Support response tracking failed:',error.message));
     if (!databasePool || !message.guildId || message.author.bot) return;
     try {
@@ -245,7 +247,7 @@ export async function startDiscordBot({ pool } = {}) {
 
   client.once("ready", async (readyClient) => {
     botClient = readyClient;
-    if(databasePool)startProjectScheduler(readyClient,databasePool);
+    if(databasePool){startProjectScheduler(readyClient,databasePool);startAdminAnswerPump(readyClient,databasePool);}
     retryCount = 0;
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
     state = {
@@ -296,7 +298,7 @@ export async function startDiscordBot({ pool } = {}) {
   client.on("guildCreate", async (guild) => { state.guilds = client.guilds.cache.size; const rest = new REST({ version: "10" }).setToken(token); if (await registerGuildCommands(rest, client.user.id, guild.id, token)) state.commands.registered += COMMAND_JSON.length; else state.commands.failed += COMMAND_JSON.length; });
   client.on("guildDelete", () => { state.guilds = client.guilds.cache.size; });
   client.on(Events.InteractionCreate, async (interaction) => {
-    if (interaction.customId?.startsWith('diskoko-code:') || (interaction.isChatInputCommand() && interaction.commandName !== 'diskoko')) {
+    if ((interaction.customId?.startsWith('diskoko-code:') || interaction.customId?.startsWith('diskoko-admin:')) || (interaction.isChatInputCommand() && interaction.commandName !== 'diskoko')) {
       try { if(await handleCodeInteraction(interaction,databasePool,client.user.id))return; }
       catch(error) { console.error('Public code command failed',error.message); if(!interaction.replied && !interaction.deferred)await interaction.reply({content:'تعذر تنفيذ الأمر الآن.',ephemeral:true}).catch(()=>{}); return; }
     }
@@ -390,7 +392,7 @@ export async function startDiscordBot({ pool } = {}) {
       if (botClient !== disconnected || disconnected.isReady()) return;
       console.warn('Discord gateway did not recover; reconnecting bot');
       botClient = null;
-      disconnected.diskokoProjectStop?.();void disconnected.destroy().catch(() => {});
+      disconnected.diskokoProjectStop?.();disconnected.diskokoAdminStop?.();void disconnected.destroy().catch(() => {});
       void startDiscordBot({ pool: databasePool });
     }, 90_000).unref();
   });
@@ -411,7 +413,7 @@ export async function startDiscordBot({ pool } = {}) {
     console.error("Discord bot login failed", rateLimited
       ? { name: error.name, route: error.route, scope: error.scope, retryAfterMs: error.retryAfter }
       : error);
-    client.diskokoProjectStop?.();await client.destroy().catch(() => {});
+    client.diskokoProjectStop?.();client.diskokoAdminStop?.();await client.destroy().catch(() => {});
     if (Number(error.code) === 4014 || /disallowed intents|4014/i.test(error.message || '')) {
       if (messageContentIntentAllowed) messageContentIntentAllowed = false;
       else memberIntentAllowed = false;
