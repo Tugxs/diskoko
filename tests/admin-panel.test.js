@@ -38,6 +38,7 @@ function fixture(){
  const bot={id:botId,permissions:new PermissionsBitField([F.ManageChannels,F.ManageRoles]),roles:{highest:{position:8}}};
  const channel={id:channelId,guildId,isTextBased:()=>true,send:async()=>({id:'sent'}),permissionsFor:who=>new PermissionsBitField(typeof who==='string'?[]:[F.ViewChannel,F.SendMessages,F.ReadMessageHistory,F.EmbedLinks,F.ManageChannels])};
  const guild={id:guildId,ownerId:'555555555555555555',client:{user:{id:botId}},members:{fetch:async()=>actor,fetchMe:async()=>bot},channels:{fetch:async()=>channel},roles:{fetch:async()=>null}};
+ guild.fetch=async()=>guild;
  const command={id:'11111111-1111-4111-8111-111111111111',owner_id:1,guild_id:guildId,bot_user_id:botId,enabled:true,active_revision:2,ephemeral:true};
  const interaction={id:'interaction',guild,channelId,user:{id:userId}};
  const pool={query:async()=>({rows:[command]})};const client={user:{id:botId},guilds:{fetch:async()=>guild}};
