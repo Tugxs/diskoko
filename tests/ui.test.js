@@ -18,13 +18,15 @@ async function page(hash = 'overview', response = fixtureResponse, file = 'studi
   const formatSource=fs.readFileSync(new URL('../site-format.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const languageSource=fs.readFileSync(new URL('../ai-ui-language.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const sceneSource=fs.readFileSync(new URL('../ai-design-scene.js',import.meta.url),'utf8').replace(/^export /gm,'');
-  const workspaceSource=source.replace("import {zonedInputToIso} from './dashboard-time.js';",'').replace("import {mountDashboardToolsUI} from './dashboard-tools-ui.js';",'').replace("import {analyticsPeriods} from './workspace-policies.js';",'').replace("import { mountCodeEditor } from './code-command-editor.js';",'').replace("import { initializeAiLanguage } from './ai-ui-language.js';",'').replace("import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from './ai-library-catalog.js';",'').replace("import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';",'');
+  const adminTemplateSource=fs.readFileSync(new URL('../admin-panel-template.js',import.meta.url),'utf8').replace(/^export /gm,'');
+  const adminEditorSource=fs.readFileSync(new URL('../admin-panel-editor.js',import.meta.url),'utf8').replace(/^export /gm,'').replace("import {adminPanelProject,normalizeAdminPanel} from './admin-panel-template.js';",'');
+  const workspaceSource=source.replace("import {openAdminPanelDesigner} from './admin-panel-editor.js';",'').replace("import {zonedInputToIso} from './dashboard-time.js';",'').replace("import {mountDashboardToolsUI} from './dashboard-tools-ui.js';",'').replace("import {analyticsPeriods} from './workspace-policies.js';",'').replace("import { mountCodeEditor } from './code-command-editor.js';",'').replace("import { initializeAiLanguage } from './ai-ui-language.js';",'').replace("import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from './ai-library-catalog.js';",'').replace("import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';",'');
   const policySource=fs.readFileSync(new URL('../workspace-policies.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const dashboardSource=fs.readFileSync(new URL('../dashboard-tools-ui.js',import.meta.url),'utf8').replace(/^export /gm,'').replace("import {formatScheduleTime} from './dashboard-time.js';",'');
   const timeSource=fs.readFileSync(new URL('../dashboard-time.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const codeEditorSource=fs.readFileSync(new URL('../code-command-editor.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const editorSource=fs.readFileSync(new URL('../ai-editor-prototype.js',import.meta.url),'utf8').replace(/^export /gm,'');
-  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)}; const libraryModuleExtensions=${JSON.stringify(libraryModuleExtensions)}; const libraryFeatures=${libraryFeatures.toString()};\n${timeSource}\n${dashboardSource}\n${policySource}\n${codeEditorSource}\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio, mountIntakeControls } from './ai-editor-prototype.js?v=optional-intake-20261013';",'')}` : source)); await settle();
+  dom.window.eval(`${formatSource}\n`+(script === 'workspace.js' ? `const aiPromptLibrary = ${JSON.stringify(aiPromptLibrary)}; const libraryModuleExtensions=${JSON.stringify(libraryModuleExtensions)}; const libraryFeatures=${libraryFeatures.toString()};\n${adminTemplateSource}\n${adminEditorSource}\n${timeSource}\n${dashboardSource}\n${policySource}\n${codeEditorSource}\n${sceneSource}\n${languageSource}\n${editorSource}\n${workspaceSource.replace("import { mountEditorPrototype, readEditorExtras, mountPanelStudio, mountIntakeControls } from './ai-editor-prototype.js?v=optional-intake-20261013';",'')}` : source)); await settle();
   return { dom, requests, doc: dom.window.document };
 }
 test('voice recognition resumes after a browser pause and stops only when the user asks', async () => {
@@ -351,12 +353,15 @@ test('adding a resource stages a guild-specific draft without calling mutation A
   assert.equal(doc.querySelector('#draftBar').hidden, true); assert.match(dom.window.localStorage.getItem(`diskoko:review:1:${guild.id}`), /ترحيب/);
   assert.equal(requests.filter(req => req.options.method && req.options.method !== 'GET').length, 0); dom.window.close();
 });
-test('bot workshop separates connected bots from all supported panel types', async () => {
+test('bot workshop uses one compact selector and separates connected bots from all supported panel types', async () => {
   const { dom, doc } = await page('bots');
   assert.ok(doc.querySelector('#botWorkshopConnect'));
   assert.equal(doc.querySelectorAll('[data-create-bot]').length, 0);
   assert.equal(doc.querySelectorAll('[data-bot-feature]').length, 0);
-  assert.equal(doc.querySelectorAll('.bot-design-card').length, 5);
+  assert.equal(doc.querySelectorAll('.bot-design-card').length, 6);
+  assert.equal(doc.querySelectorAll('#panelBotPicker').length, 1);
+  assert.equal(doc.querySelector('.bot-workshop-fleet'), null);
+  assert.equal(doc.querySelector('#createAdminPanel').disabled, true);
   assert.match(doc.body.textContent, /نادي الأفلام/);
   assert.match(doc.body.textContent, /واجهة المجتمع/);
   assert.match(doc.body.textContent, /اللوحات التفاعلية/);
@@ -387,7 +392,7 @@ test('bot workshop creates a reusable YouTube panel without a setup-time video',
       ? { bots: [{ id: 'bot-1', name: 'بوت السيرفر', label: 'بوت الترحيب', online: true, selected: true, memberJoins: true, messageContent: true }] }
     : fixtureResponse(url);
   const { dom, doc, requests } = await page('bots', response);
-  assert.match(doc.querySelector('.bot-workshop-fleet').textContent, /بوت الترحيب/);
+  assert.match(doc.querySelector('#panelBotPicker').textContent, /بوت الترحيب/);
   doc.querySelector('#createYoutubePanel').click();
   assert.equal(doc.querySelector('#youtubePanelUrl'), null);
   doc.querySelector('#youtubePanelTitle').value = 'قاعة الأفلام';
@@ -1208,4 +1213,26 @@ test('server template file imports supported features into an editable draft wit
   assert.ok(doc.querySelector('[data-ready-field="features.ticket.enabled"]'));
   assert.equal(requests.filter(row=>/\/apply$/.test(row.url)).length,0);
   dom.window.close();
+});
+
+test('admin panel designer saves a bot-scoped code draft with a permanent mode and opens its editor without publishing',async()=>{
+ const botId='222222222222222222',channelId='444444444444444444';
+ const response=url=>url===`/api/ai/bots?guildId=${guild.id}`?{publicBot:{id:botId,name:'ديسكوكو',online:true},bots:[]}:url===`/api/workspace/${guild.id}`?{...workspace,channels:[{id:channelId,name:'الإدارة',type:0}]}:url===`/api/ai/bots/${botId}/code-commands`?{id:'11111111-1111-4111-8111-111111111111'}:fixtureResponse(url);
+ const {dom,doc,requests}=await page('bots',response);
+ doc.querySelector('#createAdminPanel').click();
+ assert.equal(doc.querySelector('#adminPanelBot').value,botId);
+ doc.querySelector('#adminPanelMinutes').value='permanent';doc.querySelector('#adminPanelChannel').value=channelId;doc.querySelector('#adminPanelTitle').value='إدارة مجتمعي';
+ doc.querySelector('#adminPanelForm').dispatchEvent(new dom.window.Event('submit',{cancelable:true,bubbles:true}));
+ await settle();
+ const mutation=requests.find(r=>r.url===`/api/ai/bots/${botId}/code-commands` && r.options.method==='POST');assert.ok(mutation);
+ const body=JSON.parse(mutation.options.body),project=JSON.parse(body.source),design=JSON.parse(project.files['panel.json']);
+ assert.equal(design.replyMinutes,'permanent');assert.equal(design.channelId,channelId);assert.equal(design.title,'إدارة مجتمعي');assert.deepEqual(project.permissions,['admin']);assert.equal(body.ephemeral,true);
+ assert.equal(requests.filter(r=>r.options.method==='PATCH' || r.url.includes('/activate')).length,0);
+ assert.equal(JSON.parse(dom.window.sessionStorage.getItem(`diskoko-code-open:${guild.id}`)).botId,botId);
+ dom.window.close();
+});
+
+test('compact bot identity settings retain the private bot profile and nickname controls',async()=>{
+ const response=url=>url===`/api/ai/bots?guildId=${guild.id}`?{bots:[{id:'bot-1',name:'اسم البوت',label:'بوت الإدارة',online:true}],quota:{used:1,limit:5}}:fixtureResponse(url);
+ const {dom,doc}=await page('bots',response);doc.querySelector('#panelBotSettings').click();assert.ok(doc.querySelector('#workshopBotNickname'));assert.equal(doc.querySelector('#workshopBotLabel').value,'بوت الإدارة');assert.ok(doc.querySelector('#workshopBotIdentityConfirm'));await settle();dom.window.close();
 });
