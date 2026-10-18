@@ -1,4 +1,5 @@
 import pg from 'pg';
+import {migrateAdminPanel} from './lib/admin-panel-api.js';
 import { getDiscordBotStatus, startDiscordBot, stopDiscordBot } from './discord-bot.js';
 import { migrateAiBotConnections, restoreAiBots, stopAllAiBots, syncAiBots } from './lib/ai-bot-connections.js';
 import { migrateMovieClubs } from './lib/movie-club.js';
@@ -97,6 +98,8 @@ await migrateAiBotConnections(pool);
 await migrateMovieClubs(pool);
 await migrateDiscordJobQueue(pool);
 await migrateGuildActivityLogs(pool);
+await migrateAdminPanel(pool);
+await pool.query("ALTER TABLE code_command_sessions ADD COLUMN IF NOT EXISTS state JSONB NOT NULL DEFAULT '{}'::jsonb");
 await pool.query(`CREATE TABLE IF NOT EXISTS customer_role_sync (
   user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

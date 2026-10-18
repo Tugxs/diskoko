@@ -1,13 +1,36 @@
+import {controlCenterFiles} from './control-center-project-files.js';
 const safeUrl=value=>{if(!value)return '';const u=new URL(value);if(u.protocol!=='https:' || u.username || u.password || value.length>500)throw Error('استخدم رابط HTTPS للصورة.');return u.href;};
 export function normalizeAdminPanel(value={}){
  const title=String(value.title || 'لوحة إدارة السيرفر').trim(),description=String(value.description || 'معلومات سيرفرك وإدارته من مكان واحد.').trim(),color=String(value.color || '#9d7bea');
  if(!title || title.length>100 || description.length>600 || !/^#[0-9a-f]{6}$/i.test(color))throw Error('راجع العنوان والوصف ولون اللوحة.');
  const minutes=value.replyMinutes==='permanent'?'permanent':Number(value.replyMinutes || 15);if(![5,15,30,60,'permanent'].includes(minutes))throw Error('اختر مدة المساعد من 5 إلى 60 دقيقة.');
  const channelId=String(value.channelId || '');if(channelId && !/^\d{17,20}$/.test(channelId))throw Error('اختر قناة صالحة.');
- return {channelId,title,description,color,logoUrl:safeUrl(String(value.logoUrl || '')),bannerUrl:safeUrl(String(value.bannerUrl || '')),buttonStyle:[1,2,3,4].includes(Number(value.buttonStyle))?Number(value.buttonStyle):2,replyMinutes:minutes};
+ const imageUrl=safeUrl(String(value.imageUrl || '')),supportUrl=safeUrl(String(value.supportUrl || ''));
+ const commandMode=value.commandMode || 'slash',prefix=String(value.prefix || '!');
+ if(!['slash','prefix','both'].includes(commandMode) || !/^\S{1,5}$/u.test(prefix) || /^[\p{L}\p{N}]/u.test(prefix))throw Error('اختر نوع الأمر وبادئة رمزية صالحة مثل !.');
+ const buttons=Object.create(null);
+ if(value.buttons!==undefined){
+  if(!value.buttons || typeof value.buttons!=='object' || Array.isArray(value.buttons) || Object.keys(value.buttons).length>220)throw Error('راجع إعدادات أزرار اللوحة.');
+  for(const [id,button] of Object.entries(value.buttons)){
+   if(!/^[a-z][a-z0-9_-]{0,31}$/.test(id) || ['constructor','prototype','__proto__'].includes(id) || !button || typeof button!=='object' || Array.isArray(button))throw Error('إعداد زر غير صالح.');
+   const label=String(button.label || '').trim(),emoji=String(button.emoji || '').trim(),style=Number(button.style || value.buttonStyle || 2),order=Number(button.order ?? 100);
+   if(label.length>60 || emoji.length>100 || ![1,2,3,4].includes(style) || !Number.isInteger(order) || order<0 || order>999 || (button.hidden!==undefined && typeof button.hidden!=='boolean'))throw Error('راجع اسم الزر ورمزه ولونه وترتيبه.');
+   buttons[id]={label,emoji,style,order,hidden:button.hidden===true};
+  }
+ }
+ return {channelId,title,description,color,imageUrl,supportUrl,buttons,commandMode,prefix,logoUrl:safeUrl(String(value.logoUrl || '')),bannerUrl:safeUrl(String(value.bannerUrl || '')),buttonStyle:[1,2,3,4].includes(Number(value.buttonStyle))?Number(value.buttonStyle):2,replyMinutes:minutes};
 }
 export function adminPanelProject(value={}){
  const config=normalizeAdminPanel(value);
+ if(value.controlCenter===true)return {format:'diskoko-project@1',entry:'index.js',permissions:['admin'],origins:[],files:{...controlCenterFiles,'panel.json':JSON.stringify(config,null,2),'index.js':`import {admin} from 'diskoko';
+import design from ${JSON.stringify('./panel.json')};
+import {centerRoute} from './control-center-view.js';
+export async function handle(ctx){
+ try{const route=centerRoute(ctx,design);if(route.output)return route.output;
+ if(!ctx.event.action && design.channelId)await admin.publish(design.channelId,design);
+ return await admin.center({operation:route.operation,state:route.state,design});
+ }catch(error){return {state:ctx.state,message:{embeds:[{title:'تعذر إكمال الطلب',description:String(error.message).slice(0,1500),color:0xe35769}],controls:[{type:'button',label:'الرئيسية',action:'home',style:2}]}};}
+}`}};
  return {format:'diskoko-project@1',entry:'index.js',permissions:['admin'],origins:[],files:{'panel.json':JSON.stringify(config,null,2),'index.js':`import {admin} from 'diskoko';
 import design from ${JSON.stringify('./panel.json')};
 const button=(label,action)=>({type:'button',label,action,style:design.buttonStyle});
