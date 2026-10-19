@@ -220,7 +220,7 @@ export async function startDiscordBot({ pool } = {}) {
   const memberJoins = memberIntentAllowed;
   state.memberJoins = memberJoins;
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates, ...(memberJoins ? [GatewayIntentBits.GuildMembers] : []), ...(messageContentIntentAllowed ? [GatewayIntentBits.MessageContent] : [])],
+    intents: [GatewayIntentBits.GuildModeration, GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates, ...(memberJoins ? [GatewayIntentBits.GuildMembers] : []), ...(messageContentIntentAllowed ? [GatewayIntentBits.MessageContent] : [])],
     partials: [Partials.Message, Partials.Channel],
     // A 429 without Retry-After can otherwise be retried immediately by the
     // REST client. Let our bounded reconnect schedule handle it instead.

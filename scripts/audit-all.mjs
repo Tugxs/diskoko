@@ -14,6 +14,7 @@ for (const [name, args] of [
   ['admin panel editor syntax',['--check','admin-panel-editor.js']],
   ['admin panel template syntax',['--check','admin-panel-template.js']],
   ['control center runtime syntax',['--check','lib/control-center-runtime.js']],
+  ['channel protection syntax',['--check','lib/control-center-channel-guard.js']],
   ['control center engine syntax',['--check','lib/control-center-engine.js']],
   ['control center store syntax',['--check','lib/control-center-store.js']],
   ['control center oracle syntax',['--check','lib/control-center-oracle.js']],

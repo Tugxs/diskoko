@@ -5,7 +5,7 @@ const b=(label,action,row,style=2)=>({type:'button',label,action,row,style});
 const foot=()=>[b('◀ العودة للرئيسية','home',4,1),b('🔎 بحث','search',4),b('🕌 أذكار','dhikr_open',4),b('مساعدة','support',4)];
 export function centerCard(design,state,title,description,controls=[],fields=[]){
  if(design.supportUrl)controls=controls.map(c=>c.action==='support'?{type:'link',label:'الدعم',url:design.supportUrl,row:c.row}:c);
- return {state,message:{embeds:[{title,description,color:parseInt(design.color.slice(1),16),author:{name:design.title,...(design.logoUrl?{icon_url:design.logoUrl}:{})},...((design.imageUrl || design.logoUrl)?{thumbnail:design.imageUrl || design.logoUrl}:{}),...(design.bannerUrl?{image:design.bannerUrl}:{}),fields,footer:{text:'ديسكوكو · مركز التحكم بالسيرفر'}}],controls}};}
+ return {state,message:{embeds:[{title,description,color:parseInt(design.color.slice(1),16),author:{name:design.title,...(design.logoUrl?{icon_url:design.logoUrl}:{})},...((design.imageUrl || design.logoUrl)?{thumbnail:design.imageUrl || design.logoUrl}:{}),...(design.bannerUrl?{image:design.bannerUrl}:{}),fields,...(design.footerText?{footer:{text:design.footerText}}:{})}],controls}};}
 export function centerPage(design,state,sectionId,page=0){
  const section=controlSections.find(s=>s.id===sectionId);if(!section)throw Error('القسم غير متاح.');
  const custom=design.buttons || {},entries=(section.pages[page] || section.pages[0]).filter(a=>custom[a.id]?.hidden!==true).sort((a,b)=>(custom[a.id]?.order ?? 100)-(custom[b.id]?.order ?? 100));
