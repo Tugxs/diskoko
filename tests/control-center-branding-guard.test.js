@@ -61,6 +61,11 @@ test('actual PostgreSQL audit counting, attribution, hierarchy, deduplication an
  const writes=[],transport=()=>({delete:async(path)=>writes.push({kind:'delete',path}),post:async(path,args)=>writes.push({kind:'post',path,args})});
  const entry=(n,action=AuditLogEvent.ChannelCreate,who=executor)=>({id:String(100000000000000000n+BigInt(n)),action,executorId:who,targetId:cid,createdTimestamp:Date.now()});
  try{
+  await t.test('old placeholder flags cannot trigger role removals before a new explicit confirmation',async()=>{
+   await store.setSettings({...settings,channelGuard:{count:1,seconds:30,mode:'quarantine'}});
+   await handleCenterAudit(entry(99),guild,db,{transport});assert.equal(writes.length,0);
+   assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM control_center_events')).rows[0].n,0);
+  });
   await t.test('counts exact audit executor and reacts once only when configured threshold is crossed',async()=>{
    await store.setSettings(settings);for(let n=1;n<=3;n++)await handleCenterAudit(entry(n),guild,db,{transport});assert.equal(writes.filter(w=>w.kind==='delete').length,1);assert.match(writes[0].path,new RegExp(executor));
    await handleCenterAudit(entry(3),guild,db,{transport});await handleCenterAudit(entry(4),guild,db,{transport});assert.equal(writes.filter(w=>w.kind==='delete').length,1);
