@@ -18,7 +18,8 @@ export function normalizeAdminPanel(value={}){
    buttons[id]={label,emoji,style,order,hidden:button.hidden===true};
   }
  }
- return {channelId,title,description,color,imageUrl,supportUrl,buttons,commandMode,prefix,logoUrl:safeUrl(String(value.logoUrl || '')),bannerUrl:safeUrl(String(value.bannerUrl || '')),buttonStyle:[1,2,3,4].includes(Number(value.buttonStyle))?Number(value.buttonStyle):2,replyMinutes:minutes};
+ const footerText=String(value.footerText ?? '').trim();if(footerText.length>200)throw Error('النص أسفل البطاقة حتى 200 حرف.');
+ return {footerText,channelId,title,description,color,imageUrl,supportUrl,buttons,commandMode,prefix,logoUrl:safeUrl(String(value.logoUrl || '')),bannerUrl:safeUrl(String(value.bannerUrl || '')),buttonStyle:[1,2,3,4].includes(Number(value.buttonStyle))?Number(value.buttonStyle):2,replyMinutes:minutes};
 }
 export function adminPanelProject(value={}){
  const config=normalizeAdminPanel(value);
