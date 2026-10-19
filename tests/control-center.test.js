@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {PermissionFlagsBits as F,PermissionsBitField} from 'discord.js';
 import {adminPanelProject,normalizeAdminPanel} from '../admin-panel-template.js';
+import {controlForms} from '../control-center-forms.js';
 import {controlSections} from '../control-center-catalog.js';
 import {centerPage,centerRoute} from '../control-center-view.js';
 import {createProjectApi} from '../lib/code-project-api.js';
@@ -55,4 +56,26 @@ test('untrusted inherited operation names and invalid input never become executa
  for(const action of ['__proto__','constructor','toString'])assert.throws(()=>validateCenterInput(action,{}));
  assert.throws(()=>validateCenterInput('timeout',{user:uid,minutes:'50000'}));
  const output=centerRoute({state:{},event:{text:true,action:'op_ban'}},normalizeAdminPanel());assert.equal(output.output.modal,undefined);assert.equal(output.output.message.controls[0].action,'op_ban');
+});
+
+test('every control-center form respects native Discord modal limits',()=>{
+ for(const [name,fields] of Object.entries(controlForms)){
+  if(!fields.length)continue;
+  const result=normalizeCodeOutput({modal:{title:name,action:'form_test',fields}});
+  assert.equal(result.modal.fields.length,fields.length);
+ }
+});
+test('already published dhikr and protection forms remain usable without rewriting customer projects',async()=>{
+ const project=adminPanelProject({controlCenter:true});
+ project.files['control-center-forms.js']=project.files['control-center-forms.js']
+  .replace("f('types','أنواع الأذكار (مفصولة بفاصلة)',true,false,'tasbih,tahmid,takbir,istighfar,salat,hawqala,ayat,dua')","f('types','الأنواع: tasbih,tahmid,takbir,istighfar,salat,hawqala,ayat,dua')")
+  .replace("f('interval','الفترة بالدقائق أو عشوائية',true,false,'1/5/10/30/60 أو random3-8/random5-15/random10-30')","f('interval','دقائق ثابتة: 1/5/10/30/60 أو random3-8/5-15/10-30')");
+ const raw=await runCode(JSON.stringify(project),{event:{type:'button',action:'dhikr_config'},state:{}},'legacy-dhikr');
+ const result=normalizeCodeOutput(raw);
+ assert.equal(result.modal.action,'dhikr_save');
+ assert.deepEqual(result.modal.fields.map(f=>f.id),['channel','types','interval','mention']);
+ assert.match(result.modal.fields[1].placeholder,/tasbih/);
+ assert.match(result.modal.fields[2].placeholder,/random5-15/);
+ for(const action of ['form_aprot','form_dprot'])assert.equal(normalizeCodeOutput({modal:{title:'حماية',action,fields:[{id:'kind',label:'نوع الحماية: spam/link/bots/create/delete/join'}]}}).modal.fields[0].label,'نوع الحماية');
+ assert.throws(()=>normalizeCodeOutput({modal:{title:'Custom',action:'custom',fields:[{id:'value',label:'x'.repeat(46)}]}}),/45/);
 });
