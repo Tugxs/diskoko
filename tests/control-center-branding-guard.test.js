@@ -53,7 +53,7 @@ test('actual PostgreSQL audit counting, attribution, hierarchy, deduplication an
  const gid='111111111111111111',bid='222222222222222222',owner='333333333333333333',executor='666666666666666666',cid='444444444444444444',id='11111111-1111-4111-8111-111111111111';
  await pg.exec('CREATE TABLE code_commands(id UUID PRIMARY KEY,owner_id BIGINT,guild_id TEXT,bot_user_id TEXT,enabled BOOLEAN DEFAULT TRUE);');await migrateControlCenter(db);
  await pg.query('INSERT INTO code_commands(id,owner_id,guild_id,bot_user_id) VALUES($1,7,$2,$3)',[id,gid,bid]);
- const command={id,owner_id:7,guild_id:gid,bot_user_id:bid},store=new CenterStore(db,command),settings={operator:owner,logChannel:cid,protection:{enabled:true,create:true,delete:true},channelGuard:{count:3,seconds:30,mode:'quarantine'}};
+ const command={id,owner_id:7,guild_id:gid,bot_user_id:bid},store=new CenterStore(db,command),settings={operator:owner,logChannel:cid,protection:{enabled:true,create:true,delete:true},channelGuard:{count:3,seconds:30,mode:'quarantine',consentVersion:1}};
  const role={id:'777777777777777777',managed:false,permissions:new PermissionsBitField(F.ManageChannels),comparePositionTo:r=>5-r.position};
  const actor={id:owner,permissions:new PermissionsBitField(F.Administrator)},me={id:bid,permissions:new PermissionsBitField(F.Administrator),roles:{highest:{position:10}}},target={id:executor,roles:{highest:{comparePositionTo:r=>5-r.position},cache:new Collection([[role.id,role]])}};
  const log={id:cid,guildId:gid,permissionsFor:x=>new PermissionsBitField(typeof x==='string'?[]:F.Administrator)},client={user:{id:bid},options:{intents:new IntentsBitField(I.GuildModeration)}};
@@ -71,12 +71,12 @@ test('actual PostgreSQL audit counting, attribution, hierarchy, deduplication an
    await store.setSettings({...settings,trusted:[executor]});await handleCenterAudit(entry(12),guild,db,{transport});await handleCenterAudit(entry(13),{...guild,client:{...client,user:{id:'888888888888888888'}}},db,{transport});assert.equal(writes.length,before);
   });
   await t.test('an operator above the bot hierarchy pauses instead of stripping protected roles',async()=>{
-   await pg.query('DELETE FROM control_center_guard_claims');await store.setSettings({...settings,channelGuard:{count:1,seconds:30,mode:'quarantine'}});target.roles.highest.comparePositionTo=()=>1;
+   await pg.query('DELETE FROM control_center_guard_claims');await store.setSettings({...settings,channelGuard:{count:1,seconds:30,mode:'quarantine',consentVersion:1}});target.roles.highest.comparePositionTo=()=>1;
    const before=writes.length;await handleCenterAudit(entry(20,AuditLogEvent.ChannelDelete),guild,db,{transport});assert.equal(writes.length,before);assert.equal((await store.settings()).automationPaused,true);
    const events=(await pg.query("SELECT status FROM control_center_events WHERE kind='guardReaction' ORDER BY created_at DESC LIMIT 1")).rows;assert.equal(events[0].status,'review_required');
   });
   await t.test('alert-only mode records and notifies without changing roles',async()=>{
-   await pg.query('DELETE FROM control_center_guard_claims');await store.setSettings({...settings,channelGuard:{count:1,seconds:30,mode:'alert'}});const before=writes.filter(w=>w.kind==='delete').length;
+   await pg.query('DELETE FROM control_center_guard_claims');await store.setSettings({...settings,channelGuard:{count:1,seconds:30,mode:'alert',consentVersion:1}});const before=writes.filter(w=>w.kind==='delete').length;
    await handleCenterAudit(entry(30,AuditLogEvent.ChannelDelete),guild,db,{transport});assert.equal(writes.filter(w=>w.kind==='delete').length,before);assert.match(writes.at(-1).args.body.content,/تنبيه فقط/);
   });
  }finally{await pg.close();}
