@@ -12,6 +12,7 @@ export function normalizeAdminPanel(value={}){
  if(value.buttons!==undefined){
   if(!value.buttons || typeof value.buttons!=='object' || Array.isArray(value.buttons) || Object.keys(value.buttons).length>220)throw Error('راجع إعدادات أزرار اللوحة.');
   for(const [id,button] of Object.entries(value.buttons)){
+   if(id==='aivoice')continue;
    if(!/^[a-z][a-z0-9_-]{0,31}$/.test(id) || ['constructor','prototype','__proto__'].includes(id) || !button || typeof button!=='object' || Array.isArray(button))throw Error('إعداد زر غير صالح.');
    const label=String(button.label || '').trim(),emoji=String(button.emoji || '').trim(),style=Number(button.style || value.buttonStyle || 2),order=Number(button.order ?? 100);
    if(label.length>60 || emoji.length>100 || ![1,2,3,4].includes(style) || !Number.isInteger(order) || order<0 || order>999 || (button.hidden!==undefined && typeof button.hidden!=='boolean'))throw Error('راجع اسم الزر ورمزه ولونه وترتيبه.');
