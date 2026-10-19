@@ -17,6 +17,8 @@ for (const [name, args] of [
   ['control center engine syntax',['--check','lib/control-center-engine.js']],
   ['control center store syntax',['--check','lib/control-center-store.js']],
   ['control center oracle syntax',['--check','lib/control-center-oracle.js']],
+  ['control center operations syntax',['--check','lib/control-center-operations.js']],
+  ['dhikr content syntax',['--check','lib/control-center-dhikr-content.js']],
   ['control center assets syntax',['--check','lib/control-center-assets.js']],
   ['bot worker syntax',['--check','bot-worker.js']],
   ['code editor syntax', ['--check', 'code-command-editor.js']],

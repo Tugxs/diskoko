@@ -10,12 +10,20 @@ const source=fs.readFileSync(new URL('../code-command-editor.js',import.meta.url
 
 const settle=()=>new Promise(resolve=>setTimeout(resolve,15));
 
-function editor({failTest=false,slowTest=false}={}){
+test('native multi-select preview preserves defaults and submits all choices only after confirmation',async()=>{
+ const {dom,q,requests}=editor({testOutput:{message:{content:'الأذكار',embeds:[],controls:[{type:'select',action:'types',placeholder:'الأنواع',minValues:1,maxValues:2,options:[{label:'تسبيح',value:'a',default:true},{label:'تحميد',value:'b'},{label:'أدعية',value:'c'}]}]}}});
+ await settle();q('new').click();q('name').value='dhikr';q('description').value='Dhikr';q('test').click();await settle();
+ const box=dom.window.document.querySelector('.code-native-multiselect'),inputs=[...box.querySelectorAll('input')];assert.equal(inputs[0].checked,true);
+ inputs.forEach(input=>input.checked=true);const before=requests.length;box.querySelector('button').click();await settle();assert.equal(requests.length,before);assert.match(q('status').textContent,/إلى 2/);
+ inputs[0].checked=false;box.querySelector('button').click();await settle();const last=requests.filter(r=>r.url.endsWith('/test')).at(-1);assert.deepEqual(JSON.parse(last.options.body).event.values,['b','c']);dom.window.close();
+});
+
+function editor({failTest=false,slowTest=false,testOutput=null}={}){
   const dom=new JSDOM('<main id="workspace"></main>',{url:'https://diskoko.test',runScripts:'outside-only'}),w=dom.window,requests=[];let saved=[];
 
   w.structuredClone=structuredClone;w.eval(source);
 
-  const api=async(url,options={})=>{requests.push({url,options});if(url.endsWith('/test')){if(failTest)throw new Error('Syntax error');if(slowTest)await new Promise(r=>setTimeout(r,50));return {output:{message:{content:'Test OK',embeds:[],controls:[]}}};}if(options.method==='POST'){const body=JSON.parse(options.body);saved=[{...body,id:'draft',revision:1}];return {id:'draft',revision:1};}if(options.method==='PATCH'){const body=JSON.parse(options.body);if(body.action==='save'){saved[0].source=body.source;saved[0].revision++;}if(body.action==='activate')saved[0].enabled=true;return {revision:saved[0].revision};}if(url.includes('/history'))return {versions:[],runs:[]};return {commands:saved,example:'function handle(){return {message:{content:"Hi"}}}'};};
+  const api=async(url,options={})=>{requests.push({url,options});if(url.endsWith('/test')){if(failTest)throw new Error('Syntax error');if(slowTest)await new Promise(r=>setTimeout(r,50));return {output:testOutput || {message:{content:'Test OK',embeds:[],controls:[]}}};}if(options.method==='POST'){const body=JSON.parse(options.body);saved=[{...body,id:'draft',revision:1}];return {id:'draft',revision:1};}if(options.method==='PATCH'){const body=JSON.parse(options.body);if(body.action==='save'){saved[0].source=body.source;saved[0].revision++;}if(body.action==='activate')saved[0].enabled=true;return {revision:saved[0].revision};}if(url.includes('/history'))return {versions:[],runs:[]};return {commands:saved,example:'function handle(){return {message:{content:"Hi"}}}'};};
   w.mountCodeEditor({host:w.document.querySelector('main'),bots:[{id:'public',label:'Diskoko'},{id:'private',label:'My bot'}],guild:'guild',api,esc:value=>String(value).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))});
 
   const q=s=>w.document.querySelector(`[data-code-${s}]`);return {dom,q,requests};

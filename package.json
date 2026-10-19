@@ -33,6 +33,7 @@
     "youtube-dl-exec": "^3.1.15"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
     "jsdom": "^26.1.0"
   }
 }
