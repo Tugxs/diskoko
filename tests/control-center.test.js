@@ -35,7 +35,7 @@ test('component rows reject mixed selects, excess buttons and impossible row ind
 test('custom server emoji becomes a native Discord emoji and pending controls are disabled',()=>{
  const output=normalizeCodeOutput(centerPage(normalizeAdminPanel({buttons:{avatar:{emoji:'<a:server:555555555555555555>'}}}),{},'general'));
  const payload=discordCodePayload(output,command.id),button=payload.components.flatMap(r=>r.components).find(c=>c.custom_id?.endsWith(':op_avatar'));assert.deepEqual(button.emoji,{id:'555555555555555555',name:'server',animated:true});
- const owner=discordCodePayload(normalizeCodeOutput(centerPage(normalizeAdminPanel(),{},'owner',1)),command.id);assert.ok(owner.components.flatMap(r=>r.components).find(c=>c.custom_id?.endsWith(':op_aivoice')).disabled);
+ const owner=discordCodePayload(normalizeCodeOutput(centerPage(normalizeAdminPanel(),{},'owner',1)),command.id);assert.ok(owner.components.flatMap(r=>r.components).find(c=>c.custom_id?.endsWith(':op_setavatar')).disabled);
 });
 test('review lookups and claims always include account, guild, bot and command',async()=>{
  const calls=[],store=new CenterStore({query:async(sql,p)=>{calls.push({sql,p});return {rows:[{id:command.id}]};}},command);
