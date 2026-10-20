@@ -4,6 +4,7 @@ import { readdirSync } from 'node:fs';
 const node = process.execPath;
 for (const [name, args] of [
   ['syntax', ['--check', 'server.js']],
+  ['authentication syntax', ['--check', 'lib/authentication.js']],
   ['workspace syntax', ['--check', 'workspace.js']],
   ['account syntax', ['--check', 'account.js']],
   ['checkout syntax', ['--check', 'checkout.js']],

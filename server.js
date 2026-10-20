@@ -1,3 +1,4 @@
+import {mountAuthentication,migrateAuthentication,isAdminIdentity,requireSiteAdmin,adminSessionFresh,csrfToken,csrfProtection,privateAuthResponses} from './lib/authentication.js';
 import {enforceTeamWrite} from './lib/dashboard-team.js';
 import crypto from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -302,6 +303,7 @@ app.use((req, res, next) => {
   });
   requestContext.run({ requestId: req.requestId }, next);
 });
+app.use(['/api','/auth','/admin','/admin-login'],privateAuthResponses);
 app.use(createNotFoundReporter({ allowedOrigins }));
 const standardJson = express.json({ limit: "512kb", verify: (req, _res, buffer) => { if (req.path === "/api/webhooks/billing") req.rawBody = Buffer.from(buffer); } });
 const interactiveMediaJson = express.json({ limit: "29mb" });
@@ -319,26 +321,8 @@ app.use(session({
   cookie: { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 1000 * 60 * 60 * 24 * 14 },
 }));
 
-function csrfToken(req) {
-  if (!req.session.csrfToken) req.session.csrfToken = crypto.randomBytes(32).toString("hex");
-  return req.session.csrfToken;
-}
-
-function sameOrigin(req) {
-  const origin = req.get("origin");
-  return !origin || allowedOrigins.has(origin);
-}
-
 app.get("/api/csrf-token", (req, res) => res.json({ token: csrfToken(req) }));
-app.use("/api", (req, res, next) => {
-  if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
-  if (req.path === "/webhooks/billing") return next();
-  if (req.path.startsWith("/ai/worker/") && workerAuthorized(req)) return next();
-  if (!sameOrigin(req)) return res.status(403).json({ error: "مصدر الطلب غير مسموح" });
-  const token = req.get("x-csrf-token");
-  if (!token || token !== csrfToken(req)) return res.status(403).json({ error: "رمز حماية الطلب غير صالح أو مفقود" });
-  next();
-});
+app.use("/api", csrfProtection(allowedOrigins,workerAuthorized));
 
 const attempts = new Map();
 function rateLimit(max = 80, windowMs = 60_000) {
@@ -505,15 +489,7 @@ function makeTemplatePlan(templateKey) {
   template.roles.forEach((name, index) => operations.push({ operation_key: `role:${index}:${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, resource_type: "role", name }));
   return { template_key: templateKey, name: template.name, operations };
 }
-function isAdmin(user) {
-  const ids = (process.env.ADMIN_DISCORD_IDS || "").split(",").map((x) => x.trim()).filter(Boolean);
-  const emails = (process.env.ADMIN_EMAILS || "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
-  return !!user && (ids.includes(String(user.discord_id)) || emails.includes(String(user.email || "").toLowerCase()));
-}
-function safeReturnTo(value) {
-  const target = String(value || "");
-  return target.startsWith("/") && !target.startsWith("//") && !target.includes("\\") ? target : null;
-}
+function isAdmin(user) { return isAdminIdentity(user); }
 async function requestCustomerRoleSync(userId, db = pool) {
   if (!customerRoleConfig()) return;
   await db.query(`INSERT INTO customer_role_sync(user_id) VALUES($1)
@@ -598,9 +574,7 @@ function requireUser(req, res, next) {
     req.user = user; next();
   }).catch(next);
 }
-function requireAdmin(req, res, next) {
-  requireUser(req, res, () => isAdmin(req.user) ? next() : res.status(403).json({ error: "غير مصرح" }));
-}
+const requireAdmin = requireSiteAdmin(requireUser);
 async function audit(actor, action, targetType, targetId, details = {}) {
   const context=requestContext.getStore();
   const requestId=context?.requestId;
@@ -664,75 +638,7 @@ app.get("/api/health", async (_req, res) => {
     res.status(503).json({ ok: false, service: "diskoko", database: "unavailable", bot: getDiscordBotStatus(), time: new Date().toISOString() });
   }
 });
-app.get("/auth/discord", rateLimit(12, 60_000), (req, res) => {
-  const state = crypto.randomBytes(24).toString("hex");
-  req.session.oauthState = state;
-  req.session.oauthLinkUserId = req.session.userId || null;
-  req.session.returnTo = safeReturnTo(req.query.returnTo);
-  const params = new URLSearchParams({ client_id: process.env.DISCORD_CLIENT_ID || "", redirect_uri: `${BASE_URL}/auth/discord/callback`, response_type: "code", scope: "identify email guilds", state, prompt: "consent" });
-  res.redirect(`https://discord.com/oauth2/authorize?${params}`);
-});
-app.get("/auth/discord/callback", async (req, res, next) => {
-  try {
-    if (!req.query.code || req.query.state !== req.session.oauthState) return res.status(400).send("طلب تسجيل الدخول غير صالح");
-    delete req.session.oauthState;
-    const tokenResponse = await fetch("https://discord.com/api/oauth2/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: process.env.DISCORD_CLIENT_ID, client_secret: process.env.DISCORD_CLIENT_SECRET, grant_type: "authorization_code", code: String(req.query.code), redirect_uri: `${BASE_URL}/auth/discord/callback` }) });
-    if (!tokenResponse.ok) throw new Error("Discord token exchange failed");
-    const tokens = await tokenResponse.json();
-    const discordResponse = await fetch(`${DISCORD_API}/users/@me`, { headers: { Authorization: `Bearer ${tokens.access_token}` } });
-    if (!discordResponse.ok) throw new Error("Discord profile request failed");
-    const profile = await discordResponse.json();
-    const avatar = profile.avatar ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png?size=128` : null;
-    const expires = new Date(Date.now() + Number(tokens.expires_in || 604800) * 1000);
-    const linkUserId = req.session.oauthLinkUserId; delete req.session.oauthLinkUserId;
-    let rows;
-    if (linkUserId) {
-      const current = (await pool.query('SELECT id,discord_id FROM users WHERE id=$1', [linkUserId])).rows[0];
-      if (!current) return res.status(401).send('انتهت جلسة الحساب. سجّل الدخول مجددًا.');
-      const existing = (await pool.query('SELECT id FROM users WHERE discord_id=$1', [profile.id])).rows[0];
-      if (existing && String(existing.id) !== String(linkUserId)) return res.status(409).send('حساب Discord مرتبط بحساب آخر. تواصل مع الدعم لدمج الحسابين.');
-      if (current.discord_id && current.discord_id !== profile.id) return res.status(409).send('حسابك مرتبط بحساب Discord مختلف. تواصل مع الدعم لتغييره.');
-      ({ rows } = await pool.query(`UPDATE users SET discord_id=$1,access_token=$2,refresh_token=$3,token_expires_at=$4,updated_at=NOW() WHERE id=$5 RETURNING *`,
-        [profile.id, encrypt(tokens.access_token), encrypt(tokens.refresh_token), expires, linkUserId]));
-    } else ({ rows } = await pool.query(`INSERT INTO users(discord_id,username,display_name,avatar,email,access_token,refresh_token,token_expires_at,last_login_at)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,NOW()) ON CONFLICT(discord_id) DO UPDATE SET username=EXCLUDED.username,display_name=EXCLUDED.display_name,avatar=EXCLUDED.avatar,email=EXCLUDED.email,access_token=EXCLUDED.access_token,refresh_token=EXCLUDED.refresh_token,token_expires_at=EXCLUDED.token_expires_at,last_login_at=NOW(),updated_at=NOW() RETURNING *`,
-      [profile.id, profile.username, profile.global_name || profile.username, avatar, profile.email || null, encrypt(tokens.access_token), encrypt(tokens.refresh_token), expires]));
-    req.session.userId = rows[0].id;
-    await requestCustomerRoleSync(rows[0].id);
-    void sendWelcomeEmail(rows[0]).catch((error) => console.error("Welcome email failed", error));
-    await audit(rows[0].id, "login", "user", rows[0].id);
-    const returnTo = safeReturnTo(req.session.returnTo); delete req.session.returnTo;
-    res.redirect(returnTo || (isAdmin(rows[0]) ? "/admin" : "/account.html"));
-  } catch (error) { next(error); }
-});
-app.get("/auth/google", rateLimit(12, 60_000), (req, res) => {
-  if (!process.env.GOOGLE_CLIENT_ID) return res.status(503).send("تسجيل Google غير مفعّل بعد");
-  const state = crypto.randomBytes(24).toString("hex");
-  req.session.googleOauthState = state;
-  req.session.returnTo = safeReturnTo(req.query.returnTo);
-  const params = new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID, redirect_uri: `${BASE_URL}/auth/google/callback`, response_type: "code", scope: "openid email profile", state, prompt: "select_account" });
-  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
-});
-app.get("/auth/google/callback", async (req, res, next) => {
-  try {
-    if (!req.query.code || req.query.state !== req.session.googleOauthState) return res.status(400).send("طلب تسجيل الدخول غير صالح");
-    delete req.session.googleOauthState;
-    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID, client_secret: process.env.GOOGLE_CLIENT_SECRET, grant_type: "authorization_code", code: String(req.query.code), redirect_uri: `${BASE_URL}/auth/google/callback` }) });
-    if (!tokenResponse.ok) throw new Error("Google token exchange failed");
-    const tokens = await tokenResponse.json();
-    const profileResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { Authorization: `Bearer ${tokens.access_token}` } });
-    if (!profileResponse.ok) throw new Error("Google profile request failed");
-    const profile = await profileResponse.json();
-    const username = String(profile.email || profile.name || profile.sub).slice(0, 80);
-    const { rows } = await pool.query(`INSERT INTO users(google_id,username,display_name,avatar,email,last_login_at) VALUES($1,$2,$3,$4,$5,NOW()) ON CONFLICT(google_id) DO UPDATE SET username=EXCLUDED.username,display_name=EXCLUDED.display_name,avatar=EXCLUDED.avatar,email=EXCLUDED.email,last_login_at=NOW(),updated_at=NOW() RETURNING *`, [profile.sub, username, profile.name || username, profile.picture || null, profile.email || null]);
-    req.session.userId = rows[0].id;
-    void sendWelcomeEmail(rows[0]).catch((error) => console.error("Welcome email failed", error));
-    await audit(rows[0].id, "login.google", "user", rows[0].id);
-    const returnTo = safeReturnTo(req.session.returnTo); delete req.session.returnTo;
-    res.redirect(returnTo || (isAdmin(rows[0]) ? "/admin" : "/account.html"));
-  } catch (error) { next(error); }
-});
-app.post("/api/logout", (req, res) => req.session.destroy(() => res.json({ ok: true })));
+mountAuthentication(app,{pool,rateLimit,encrypt,audit,requestCustomerRoleSync,sendWelcomeEmail,baseUrl:BASE_URL,isProduction:IS_PRODUCTION});
 app.get("/api/me", async (req, res, next) => { try { const user = await currentUser(req); res.json({ user: user ? publicUser(user) : null, loginUrl: "/auth/discord" }); } catch (e) { next(e); } });
 app.post("/api/webhooks/billing", async (req, res, next) => {
   if (!process.env.BILLING_WEBHOOK_SECRET) return res.status(503).json({ error: "لم يتم إعداد سر webhook للفوترة" });
@@ -1093,8 +999,8 @@ for (const [oldPath, destination] of Object.entries({
   '/sales.html': '/contact.html',
 })) app.get(oldPath, (_req, res) => res.redirect(301, destination));
 app.get("/admin-login.html", (_req, res) => res.redirect(301, "/admin-login"));
-app.get("/admin-login", async (req, res, next) => { try { const user = await currentUser(req); if (user && isAdmin(user)) return res.redirect("/admin"); res.sendFile(path.join(__dirname, "admin-login.html")); } catch (error) { next(error); } });
-app.get("/admin", async (req, res, next) => { try { const user = await currentUser(req); if (!user) return res.redirect("/admin-login"); if (!isAdmin(user)) return res.redirect("/account.html"); res.sendFile(path.join(__dirname, "admin-console.html")); } catch (error) { next(error); } });
+app.get("/admin-login", async (req, res, next) => { try { const user = await currentUser(req); if (user && isAdmin(user) && adminSessionFresh(req.session,user)) return res.redirect("/admin"); res.sendFile(path.join(__dirname, "admin-login.html")); } catch (error) { next(error); } });
+app.get("/admin", async (req, res, next) => { try { const user = await currentUser(req); if (!user) return res.redirect("/admin-login"); if (!isAdmin(user)) return res.redirect("/account.html"); if (!adminSessionFresh(req.session,user)) return res.redirect("/admin-login"); res.sendFile(path.join(__dirname, "admin-console.html")); } catch (error) { next(error); } });
 app.get('/admin-console.20260921.js', requireAdmin, (_req, res) => res.sendFile(path.join(__dirname, 'admin-console.20260921.js')));
 app.get("/studio", (req, res, next) => { if (!req.query.guild) return res.redirect(302, "/account.html#servers"); next(); });
 app.use(['/control-center-capabilities.js','/control-center-view.js','/control-center-forms.js','/control-center-catalog.js','/control-center-project-files.js','/admin-panel-editor.js','/admin-panel-template.js','/dashboard-tools-ui.js','/dashboard-time.js','/workspace-policies.js','/code-command-editor.js','/ai-design-scene.js','/ai-ui-language.js','/ai-library-english.js','/ai-editor-prototype.js','/site-preferences.js','/site-translations.js','/site-format.js'],(_req,res,next)=>{res.set('Cache-Control','no-store, max-age=0, must-revalidate');next();});
@@ -1105,7 +1011,7 @@ app.get("/dashboard", (_req, res) => res.sendFile(path.join(__dirname, "account.
 app.get("/studio", (_req, res) => res.sendFile(path.join(__dirname, "studio.html")));
 app.use((error, req, res, _next) => { console.error(`[${req.requestId}]`, error); const { status, body } = publicError(error, req.requestId); res.status(status).json(body); });
 
-migrate().then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).then(() => migrateInteractiveSystems(pool)).then(() => migrateAiBotConnections(pool)).then(() => migrateMovieClubs(pool)).then(() => migrateDiscordJobQueue(pool)).then(() => migrateReadyTemplates(pool)).then(() => migrateStandaloneModules(pool)).then(() => {
+migrate().then(() => migrateAuthentication(pool)).then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).then(() => migrateInteractiveSystems(pool)).then(() => migrateAiBotConnections(pool)).then(() => migrateMovieClubs(pool)).then(() => migrateDiscordJobQueue(pool)).then(() => migrateReadyTemplates(pool)).then(() => migrateStandaloneModules(pool)).then(() => {
   if (process.env.DISCORD_REST_MODE === 'worker') void startDiscordJobListener(pool).catch(error => console.error('Discord queue listener failed', error.message));
   app.listen(PORT, "0.0.0.0", () => console.log(`diskoko running on ${PORT}`));
   if (process.env.BOT_GATEWAY_MODE === 'external') {
