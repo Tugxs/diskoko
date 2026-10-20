@@ -14,7 +14,7 @@ test('music background survives normalization and changes the rendered backgroun
 });
 test('music logo keeps rectangular corners without a circular border or crop',async()=>{
   const logo=await sharp({create:{width:100,height:40,channels:4,background:'#ff0000'}}).png().toBuffer();
-  const previous=global.fetch;global.fetch=async()=>({ok:true,headers:new Headers({'content-type':'image/png'}),arrayBuffer:async()=>logo});
+  const previous=global.fetch;global.fetch=async()=>new Response(logo,{headers:{'content-type':'image/png'}});
   try{
     const image=await renderMusicCard(normalizeMusicPanel({logoUrl:'https://cdn.discordapp.com/test-logo-rectangle.png',backgroundColor:'#104080'}),null,null);
     const {data,info}=await sharp(image).raw().toBuffer({resolveWithObject:true});

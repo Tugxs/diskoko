@@ -1,3 +1,6 @@
+import {imageResourceStats} from './lib/image-resource-budget.js';
+import {createResourceProtection,boundedRateLimit,sessionPaths} from './lib/resource-protection.js';
+import {createResourceBudgetStore,migrateResourceBudgets} from './lib/resource-budget-store.js';
 import {mountAuthentication,migrateAuthentication,isAdminIdentity,requireSiteAdmin,adminSessionFresh,csrfToken,csrfProtection,privateAuthResponses} from './lib/authentication.js';
 import {enforceTeamWrite} from './lib/dashboard-team.js';
 import crypto from "node:crypto";
@@ -56,6 +59,7 @@ const allowedOrigins = new Set([BASE_URL, FRONTEND_URL].filter(Boolean));
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  connectionTimeoutMillis: 3000,
   ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
 });
 
@@ -305,38 +309,26 @@ app.use((req, res, next) => {
 });
 app.use(['/api','/auth','/admin','/admin-login'],privateAuthResponses);
 app.use(createNotFoundReporter({ allowedOrigins }));
-const standardJson = express.json({ limit: "512kb", verify: (req, _res, buffer) => { if (req.path === "/api/webhooks/billing") req.rawBody = Buffer.from(buffer); } });
-const interactiveMediaJson = express.json({ limit: "29mb" });
-app.use((req, res, next) => req.method==='PUT' && /^\/api\/workspace\/\d{17,20}\/tools\/drafts\/[a-zA-Z0-9_-]+$/.test(req.path) || req.method === 'POST' && (/^\/api\/workspace\/\d{17,20}\/tools\/structure\/review$/.test(req.path) || /^\/api\/ai\/requests\/[^/]+\/(?:launch-interactive|send-message|create-scheduled-event)$/.test(req.path) || req.path === '/api/server-templates/import' || req.path === '/api/ai/requests' || req.path === '/api/change-sets' || /^\/api\/workspace\/\d{17,20}\/(?:ready-templates|standalone-modules)\/review$/.test(req.path)) ? interactiveMediaJson(req, res, next) : standardJson(req, res, next));
-app.use("/api", (req, res, next) => {
-  if (["POST", "PUT", "PATCH"].includes(req.method) && req.is("application/json") && (!req.body || typeof req.body !== "object" || Array.isArray(req.body))) return res.status(400).json({ error: "يجب أن تكون بيانات الطلب JSON object صالحًا" });
+const resourceStore=createResourceBudgetStore(pool,{dbSoftLimitBytes:Number(process.env.RESOURCE_DB_SOFT_LIMIT_MB || 700)*1024*1024});
+const resourceProtection=createResourceProtection({store:resourceStore,loadUser:currentUser,workerAuthorized});
+app.use(resourceProtection.early);
+const webSession=session({
+  store: new PgStore({ pool, createTableIfMissing: true }),
+  secret: SESSION_SECRET,resave:false,saveUninitialized:false,name:'diskoko.sid',
+  cookie:{httpOnly:true,secure:IS_PRODUCTION,sameSite:'lax',maxAge:1000*60*60*24*14},
+});
+app.use(sessionPaths,(req,res,next)=>req.resourcePolicy?.health?next():webSession(req,res,next));
+app.use('/api',csrfProtection(allowedOrigins,workerAuthorized));
+app.use(resourceProtection.admit);
+app.get('/api/csrf-token',(req,res)=>res.json({token:csrfToken(req)}));
+const standardJson=express.json({limit:512*1024,inflate:false,verify:(req,_res,buffer)=>{if(req.path==='/api/webhooks/billing')req.rawBody=Buffer.from(buffer);}});
+const interactiveMediaJson=express.json({limit:29*1024*1024,inflate:false});
+app.use((req,res,next)=>(req.resourcePolicy?.large?interactiveMediaJson:standardJson)(req,res,next));
+app.use('/api',(req,res,next)=>{
+  if(['POST','PUT','PATCH'].includes(req.method) && req.is('application/json') && (!req.body || typeof req.body!=='object' || Array.isArray(req.body)))return res.status(400).json({error:'يجب أن تكون بيانات الطلب JSON object صالحًا'});
   next();
 });
-app.use(session({
-  store: new PgStore({ pool, createTableIfMissing: true }),
-  secret: SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  name: "diskoko.sid",
-  cookie: { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 1000 * 60 * 60 * 24 * 14 },
-}));
-
-app.get("/api/csrf-token", (req, res) => res.json({ token: csrfToken(req) }));
-app.use("/api", csrfProtection(allowedOrigins,workerAuthorized));
-
-const attempts = new Map();
-function rateLimit(max = 80, windowMs = 60_000) {
-  return (req, res, next) => {
-    const key = `${req.ip}:${req.path}`;
-    const now = Date.now();
-    const item = attempts.get(key) || { count: 0, reset: now + windowMs };
-    if (now > item.reset) Object.assign(item, { count: 0, reset: now + windowMs });
-    item.count += 1; attempts.set(key, item);
-    if (item.count > max) return res.status(429).json({ error: "طلبات كثيرة، حاول بعد قليل" });
-    next();
-  };
-}
-app.use("/api", rateLimit());
+const rateLimit=boundedRateLimit;
 
 function encryptionKey() {
   const raw = process.env.ENCRYPTION_KEY;
@@ -902,6 +894,7 @@ app.put("/api/projects/:id", requireUser, requireWriteAccess, async (req, res, n
   } catch (e) { next(e); }
 });
 
+app.get('/api/admin/resource-pressure',requireAdmin,(_req,res)=>res.json({admission:resourceProtection.stats(),store:resourceStore.stats(),images:imageResourceStats(),memory:process.memoryUsage()}));
 app.get("/api/admin/stats", requireAdmin, async (_req, res, next) => {
   try {
     const { rows } = await pool.query(`SELECT (SELECT COUNT(*) FROM users) users,(SELECT COUNT(*) FROM users WHERE status='active') active,(SELECT COUNT(*) FROM users WHERE plan='starter') starter,(SELECT COUNT(*) FROM users WHERE plan='growth') growth,(SELECT COUNT(*) FROM users WHERE plan IN ('business','complete')) business,(SELECT COUNT(*) FROM users WHERE plan IN ('free','trial')) free,(SELECT COUNT(*) FROM projects WHERE archived_at IS NULL) projects,(SELECT COUNT(*) FROM guild_connections WHERE install_status='installed') connected_servers,(SELECT COUNT(*) FROM bot_guild_settings WHERE enabled=TRUE) active_bots,(SELECT COALESCE(SUM(total),0) FROM bot_command_daily) bot_events,(SELECT COUNT(*) FROM subscriptions WHERE status='active') active_subscriptions,(SELECT COUNT(*) FROM subscriptions WHERE current_period_end BETWEEN NOW() AND NOW()+INTERVAL '7 days') expiring_soon,(SELECT COALESCE(SUM(amount),0) FROM billing_invoices WHERE status='paid') revenue_total,(SELECT COALESCE(SUM(amount),0) FROM billing_invoices WHERE status='paid' AND paid_at>=date_trunc('month',NOW())) revenue_month,(SELECT COUNT(*) FROM billing_invoices WHERE status='paid') paid_invoices,(SELECT COUNT(*) FROM support_reports WHERE status IN ('open','in_progress')) open_reports,(SELECT COUNT(*) FROM discount_coupons WHERE active=TRUE AND (expires_at IS NULL OR expires_at>NOW())) active_coupons`);
@@ -1009,11 +1002,12 @@ app.use((req, res, next) => isPublicStaticPath(req.path) ? publicStatic(req, res
 app.get("/login", (_req, res) => res.sendFile(path.join(__dirname, "account.html")));
 app.get("/dashboard", (_req, res) => res.sendFile(path.join(__dirname, "account.html")));
 app.get("/studio", (_req, res) => res.sendFile(path.join(__dirname, "studio.html")));
-app.use((error, req, res, _next) => { console.error(`[${req.requestId}]`, error); const { status, body } = publicError(error, req.requestId); res.status(status).json(body); });
+app.use((error, req, res, _next) => { if(req.resourceBodyTimedOut)return; if(res.headersSent)return _next(error); console.error(`[${req.requestId}]`, error); const { status, body } = publicError(error, req.requestId); if(body.retryAfter)res.set('Retry-After',String(body.retryAfter)); res.status(status).json(body); });
 
-migrate().then(() => migrateAuthentication(pool)).then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).then(() => migrateInteractiveSystems(pool)).then(() => migrateAiBotConnections(pool)).then(() => migrateMovieClubs(pool)).then(() => migrateDiscordJobQueue(pool)).then(() => migrateReadyTemplates(pool)).then(() => migrateStandaloneModules(pool)).then(() => {
+migrate().then(() => migrateAuthentication(pool)).then(() => migrateResourceBudgets(pool)).then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).then(() => migrateInteractiveSystems(pool)).then(() => migrateAiBotConnections(pool)).then(() => migrateMovieClubs(pool)).then(() => migrateDiscordJobQueue(pool)).then(() => migrateReadyTemplates(pool)).then(() => migrateStandaloneModules(pool)).then(() => {
   if (process.env.DISCORD_REST_MODE === 'worker') void startDiscordJobListener(pool).catch(error => console.error('Discord queue listener failed', error.message));
-  app.listen(PORT, "0.0.0.0", () => console.log(`diskoko running on ${PORT}`));
+  const httpServer=app.listen(PORT, "0.0.0.0", () => console.log(`diskoko running on ${PORT}`));
+  httpServer.headersTimeout=15_000;httpServer.requestTimeout=65_000;httpServer.keepAliveTimeout=5_000;httpServer.maxRequestsPerSocket=100;
   if (process.env.BOT_GATEWAY_MODE === 'external') {
     const refreshBotStatus = async () => {
       try {
