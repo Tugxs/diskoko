@@ -1,7 +1,7 @@
 import {imageResourceStats} from './lib/image-resource-budget.js';
 import {createResourceProtection,boundedRateLimit,sessionPaths} from './lib/resource-protection.js';
-import {createResourceBudgetStore,migrateResourceBudgets} from './lib/resource-budget-store.js';
-import {mountAuthentication,migrateAuthentication,isAdminIdentity,requireSiteAdmin,adminSessionFresh,csrfToken,csrfProtection,privateAuthResponses} from './lib/authentication.js';
+import {createResourceBudgetStore} from './lib/resource-budget-store.js';
+import {mountAuthentication,isAdminIdentity,requireSiteAdmin,adminSessionFresh,csrfToken,csrfProtection,privateAuthResponses} from './lib/authentication.js';
 import {enforceTeamWrite} from './lib/dashboard-team.js';
 import crypto from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -10,16 +10,17 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import pg from "pg";
+import {createDatabasePool,databasePoolStats} from './lib/database.js';
+import {externalMigrations,migrateApplicationSchema,verifyRuntimeDatabase} from './lib/database-schema.js';
 import nodemailer from "nodemailer";
 import { getDiscordBotStatus, setExternalBotStatus, startDiscordBot } from "./discord-bot.js";
-import { mountWorkspace, migrateWorkspace, startScheduleRunner } from "./lib/workspace-api.js";
-import { mountReadyTemplates, migrateReadyTemplates } from "./lib/ready-templates-api.js";
-import { mountStandaloneModules, migrateStandaloneModules } from "./lib/standalone-modules-api.js";
+import { mountWorkspace, startScheduleRunner } from "./lib/workspace-api.js";
+import { mountReadyTemplates } from "./lib/ready-templates-api.js";
+import { mountStandaloneModules } from "./lib/standalone-modules-api.js";
 import { manageable, problem, connectionState } from "./lib/workspace-domain.js";
 import { BOT_COMMANDS, DEFAULT_BOT_COMMAND_KEYS, validBotCommandKeys } from "./lib/bot-catalog.js";
-import { migrateLocalAi, mountLocalAi, workerAuthorized } from "./lib/local-ai.js";
-import { migrateInteractiveSystems, mountInteractiveSystems, startGiveawayRunner } from "./lib/interactive-systems.js";
+import { mountLocalAi, workerAuthorized } from "./lib/local-ai.js";
+import { mountInteractiveSystems, startGiveawayRunner } from "./lib/interactive-systems.js";
 import { startModuleReminderRunner } from './lib/module-event-runner.js';
 import { mountNativeEvents } from "./lib/native-events.js";
 import { mountChannelControl } from "./lib/channel-control.js";
@@ -30,11 +31,10 @@ import { publicError } from "./lib/http-error.js";
 import { createNotFoundReporter } from "./lib/http-not-found.js";
 import { createDiscordRequestGate, discordRetryAfterMs } from "./lib/discord-rate-limit.js";
 import { validateDiscordWrite } from './lib/discord-preflight.js';
-import { enqueueDiscordJob, migrateDiscordJobQueue, startDiscordJobListener } from './lib/discord-job-queue.js';
-import { botTokenForPublication, connectedBot, connectedBotMetadata, migrateAiBotConnections, mountAiBotConnections, restoreAiBots } from "./lib/ai-bot-connections.js";
-import { mountMovieClubs, migrateMovieClubs } from "./lib/movie-club.js";
+import { enqueueDiscordJob, startDiscordJobListener } from './lib/discord-job-queue.js';
+import { botTokenForPublication, connectedBot, connectedBotMetadata, mountAiBotConnections, restoreAiBots } from "./lib/ai-bot-connections.js";
+import { mountMovieClubs } from "./lib/movie-club.js";
 
-const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const requestContext = new AsyncLocalStorage();
@@ -57,240 +57,8 @@ if (missing.length) {
 const SESSION_SECRET = process.env.SESSION_SECRET || "development-only-change-me";
 const allowedOrigins = new Set([BASE_URL, FRONTEND_URL].filter(Boolean));
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  connectionTimeoutMillis: 3000,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
-});
+const pool=createDatabasePool('web');
 
-async function migrate() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id BIGSERIAL PRIMARY KEY,
-      discord_id TEXT UNIQUE,
-      google_id TEXT UNIQUE,
-      username TEXT NOT NULL,
-      display_name TEXT,
-      avatar TEXT,
-      email TEXT,
-      plan TEXT NOT NULL DEFAULT 'trial' CHECK (plan IN ('trial','starter','growth','complete')),
-      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','cancelled')),
-      access_token TEXT,
-      refresh_token TEXT,
-      token_expires_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      last_login_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS projects (
-      id BIGSERIAL PRIMARY KEY,
-      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      name TEXT NOT NULL,
-      guild_id TEXT,
-      design JSONB NOT NULL DEFAULT '{}'::jsonb,
-      deployment_status TEXT NOT NULL DEFAULT 'draft',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS subscriptions (
-      id BIGSERIAL PRIMARY KEY,
-      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      provider TEXT NOT NULL DEFAULT 'manual',
-      provider_ref TEXT,
-      plan TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'active',
-      current_period_end TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS subscription_events (
-      id BIGSERIAL PRIMARY KEY,
-      provider TEXT NOT NULL,
-      event_id TEXT NOT NULL,
-      event_type TEXT NOT NULL,
-      provider_ref TEXT,
-      user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
-      payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-      processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(provider, event_id)
-    );
-    CREATE TABLE IF NOT EXISTS customer_role_sync (
-      user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-      requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      attempts INTEGER NOT NULL DEFAULT 0,
-      last_error TEXT,
-      revision BIGINT NOT NULL DEFAULT 0
-    );
-    ALTER TABLE customer_role_sync ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 0;
-    CREATE TABLE IF NOT EXISTS audit_logs (
-      id BIGSERIAL PRIMARY KEY,
-      actor_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
-      action TEXT NOT NULL,
-      target_type TEXT,
-      target_id TEXT,
-      details JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS guild_connections (
-      id BIGSERIAL PRIMARY KEY,
-      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      project_id BIGINT REFERENCES projects(id) ON DELETE SET NULL,
-      guild_id TEXT NOT NULL,
-      guild_name TEXT,
-      install_status TEXT NOT NULL DEFAULT 'discovered',
-      bot_user_id TEXT,
-      permissions_snapshot TEXT,
-      last_error TEXT,
-      last_verified_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(user_id, guild_id)
-    );
-    CREATE TABLE IF NOT EXISTS change_sets (
-      id BIGSERIAL PRIMARY KEY,
-      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      guild_id TEXT NOT NULL,
-      project_id BIGINT REFERENCES projects(id) ON DELETE SET NULL,
-      template_key TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'draft',
-      plan JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS change_operations (
-      id BIGSERIAL PRIMARY KEY,
-      change_set_id BIGINT NOT NULL REFERENCES change_sets(id) ON DELETE CASCADE,
-      operation_key TEXT NOT NULL,
-      resource_type TEXT NOT NULL,
-      resource_id TEXT,
-      status TEXT NOT NULL DEFAULT 'pending',
-      result JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(change_set_id, operation_key)
-    );
-    CREATE TABLE IF NOT EXISTS usage_events (
-      id BIGSERIAL PRIMARY KEY,
-      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      guild_id TEXT,
-      event_type TEXT NOT NULL,
-      quantity INTEGER NOT NULL DEFAULT 1,
-      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS custom_templates (
-      id BIGSERIAL PRIMARY KEY,
-      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      project_id BIGINT REFERENCES projects(id) ON DELETE SET NULL,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      definition JSONB NOT NULL DEFAULT '{}'::jsonb,
-      status TEXT NOT NULL DEFAULT 'draft',
-      version INTEGER NOT NULL DEFAULT 1,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS custom_bots (
-      id BIGSERIAL PRIMARY KEY,
-      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      project_id BIGINT REFERENCES projects(id) ON DELETE SET NULL,
-      name TEXT NOT NULL,
-      slug TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      definition JSONB NOT NULL DEFAULT '{}'::jsonb,
-      status TEXT NOT NULL DEFAULT 'draft',
-      version INTEGER NOT NULL DEFAULT 1,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(user_id, slug)
-    );
-    CREATE TABLE IF NOT EXISTS bot_guild_settings (
-      id BIGSERIAL PRIMARY KEY,
-      guild_id TEXT NOT NULL UNIQUE,
-      enabled BOOLEAN NOT NULL DEFAULT TRUE,
-      command_keys JSONB NOT NULL DEFAULT '["help","ping","about"]'::jsonb,
-      log_channel_id TEXT,
-      locale TEXT NOT NULL DEFAULT 'ar',
-      welcome_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS bot_command_daily (
-      guild_id TEXT NOT NULL,
-      day DATE NOT NULL,
-      command_key TEXT NOT NULL,
-      total INTEGER NOT NULL DEFAULT 0,
-      failed INTEGER NOT NULL DEFAULT 0,
-      PRIMARY KEY (guild_id, day, command_key)
-    );
-    CREATE TABLE IF NOT EXISTS template_versions (
-      id BIGSERIAL PRIMARY KEY,
-      template_id BIGINT NOT NULL REFERENCES custom_templates(id) ON DELETE CASCADE,
-      version INTEGER NOT NULL,
-      definition JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(template_id, version)
-    );
-    CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
-    CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_subscription_events_user ON subscription_events(user_id, processed_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_guild_connections_user ON guild_connections(user_id);
-    CREATE INDEX IF NOT EXISTS idx_change_sets_user ON change_sets(user_id, updated_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_usage_events_user ON usage_events(user_id, created_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_custom_templates_user ON custom_templates(user_id, updated_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_custom_bots_user ON custom_bots(user_id, updated_at DESC);
-    ALTER TABLE custom_bots ADD COLUMN IF NOT EXISTS guild_id TEXT;
-    CREATE INDEX IF NOT EXISTS idx_custom_bots_guild ON custom_bots(user_id, guild_id, updated_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_bot_guild_settings_updated ON bot_guild_settings(updated_at DESC);
-  `);
-  await pool.query(`
-    ALTER TABLE users ALTER COLUMN discord_id DROP NOT NULL;
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT UNIQUE;
-    ALTER TABLE users ADD COLUMN IF NOT EXISTS welcome_sent_at TIMESTAMPTZ;
-    ALTER TABLE users DROP CONSTRAINT IF EXISTS users_plan_check;
-    UPDATE users SET plan = CASE plan WHEN 'trial' THEN 'free' WHEN 'complete' THEN 'business' WHEN 'pro' THEN 'growth' WHEN 'studio' THEN 'business' ELSE plan END;
-    ALTER TABLE users ALTER COLUMN plan SET DEFAULT 'free';
-    ALTER TABLE users ADD CONSTRAINT users_plan_check CHECK (plan IN ('free','starter','growth','business'));
-    ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_interval TEXT NOT NULL DEFAULT 'monthly';
-    ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS current_period_start TIMESTAMPTZ;
-    ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS grace_until TIMESTAMPTZ;
-    ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE;
-    ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS amount_sar INTEGER;
-    ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'SAR';
-    ALTER TABLE projects ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
-    UPDATE subscriptions SET plan = CASE plan WHEN 'trial' THEN 'free' WHEN 'complete' THEN 'business' WHEN 'pro' THEN 'growth' WHEN 'studio' THEN 'business' ELSE plan END;
-    CREATE TABLE IF NOT EXISTS billing_invoices (
-      id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      provider TEXT NOT NULL, provider_ref TEXT NOT NULL, status TEXT NOT NULL,
-      amount INTEGER NOT NULL DEFAULT 0, currency TEXT NOT NULL DEFAULT 'SAR', invoice_url TEXT,
-      issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), paid_at TIMESTAMPTZ,
-      UNIQUE(provider,provider_ref)
-    );
-    CREATE INDEX IF NOT EXISTS idx_billing_invoices_user ON billing_invoices(user_id,issued_at DESC);
-    CREATE TABLE IF NOT EXISTS billing_upgrade_requests (
-      id BIGSERIAL PRIMARY KEY, user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      plan TEXT NOT NULL, billing_interval TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_billing_upgrade_pending ON billing_upgrade_requests(user_id) WHERE status='pending';
-    ALTER TABLE billing_upgrade_requests ADD COLUMN IF NOT EXISTS coupon_code TEXT;
-    ALTER TABLE billing_upgrade_requests ADD COLUMN IF NOT EXISTS subtotal INTEGER;
-    ALTER TABLE billing_upgrade_requests ADD COLUMN IF NOT EXISTS discount INTEGER NOT NULL DEFAULT 0;
-    ALTER TABLE billing_upgrade_requests ADD COLUMN IF NOT EXISTS total INTEGER;
-    CREATE TABLE IF NOT EXISTS discount_coupons (
-      id BIGSERIAL PRIMARY KEY, code TEXT NOT NULL UNIQUE, discount_type TEXT NOT NULL DEFAULT 'percent',
-      discount_value INTEGER NOT NULL, max_redemptions INTEGER, redeemed_count INTEGER NOT NULL DEFAULT 0,
-      expires_at TIMESTAMPTZ, active BOOLEAN NOT NULL DEFAULT TRUE, created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS support_reports (
-      id BIGSERIAL PRIMARY KEY, user_id BIGINT REFERENCES users(id) ON DELETE SET NULL, subject TEXT NOT NULL,
-      category TEXT NOT NULL DEFAULT 'general', details TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'open',
-      priority TEXT NOT NULL DEFAULT 'normal', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
-}
 
 const PgStore = connectPgSimple(session);
 app.set("trust proxy", 1);
@@ -313,7 +81,7 @@ const resourceStore=createResourceBudgetStore(pool,{dbSoftLimitBytes:Number(proc
 const resourceProtection=createResourceProtection({store:resourceStore,loadUser:currentUser,workerAuthorized});
 app.use(resourceProtection.early);
 const webSession=session({
-  store: new PgStore({ pool, createTableIfMissing: true }),
+  store: new PgStore({ pool, createTableIfMissing: !externalMigrations() }),
   secret: SESSION_SECRET,resave:false,saveUninitialized:false,name:'diskoko.sid',
   cookie:{httpOnly:true,secure:IS_PRODUCTION,sameSite:'lax',maxAge:1000*60*60*24*14},
 });
@@ -894,7 +662,7 @@ app.put("/api/projects/:id", requireUser, requireWriteAccess, async (req, res, n
   } catch (e) { next(e); }
 });
 
-app.get('/api/admin/resource-pressure',requireAdmin,(_req,res)=>res.json({admission:resourceProtection.stats(),store:resourceStore.stats(),images:imageResourceStats(),memory:process.memoryUsage()}));
+app.get('/api/admin/resource-pressure',requireAdmin,(_req,res)=>res.json({admission:resourceProtection.stats(),store:resourceStore.stats(),database:databasePoolStats(pool),images:imageResourceStats(),memory:process.memoryUsage()}));
 app.get("/api/admin/stats", requireAdmin, async (_req, res, next) => {
   try {
     const { rows } = await pool.query(`SELECT (SELECT COUNT(*) FROM users) users,(SELECT COUNT(*) FROM users WHERE status='active') active,(SELECT COUNT(*) FROM users WHERE plan='starter') starter,(SELECT COUNT(*) FROM users WHERE plan='growth') growth,(SELECT COUNT(*) FROM users WHERE plan IN ('business','complete')) business,(SELECT COUNT(*) FROM users WHERE plan IN ('free','trial')) free,(SELECT COUNT(*) FROM projects WHERE archived_at IS NULL) projects,(SELECT COUNT(*) FROM guild_connections WHERE install_status='installed') connected_servers,(SELECT COUNT(*) FROM bot_guild_settings WHERE enabled=TRUE) active_bots,(SELECT COALESCE(SUM(total),0) FROM bot_command_daily) bot_events,(SELECT COUNT(*) FROM subscriptions WHERE status='active') active_subscriptions,(SELECT COUNT(*) FROM subscriptions WHERE current_period_end BETWEEN NOW() AND NOW()+INTERVAL '7 days') expiring_soon,(SELECT COALESCE(SUM(amount),0) FROM billing_invoices WHERE status='paid') revenue_total,(SELECT COALESCE(SUM(amount),0) FROM billing_invoices WHERE status='paid' AND paid_at>=date_trunc('month',NOW())) revenue_month,(SELECT COUNT(*) FROM billing_invoices WHERE status='paid') paid_invoices,(SELECT COUNT(*) FROM support_reports WHERE status IN ('open','in_progress')) open_reports,(SELECT COUNT(*) FROM discount_coupons WHERE active=TRUE AND (expires_at IS NULL OR expires_at>NOW())) active_coupons`);
@@ -1004,7 +772,7 @@ app.get("/dashboard", (_req, res) => res.sendFile(path.join(__dirname, "account.
 app.get("/studio", (_req, res) => res.sendFile(path.join(__dirname, "studio.html")));
 app.use((error, req, res, _next) => { if(req.resourceBodyTimedOut)return; if(res.headersSent)return _next(error); console.error(`[${req.requestId}]`, error); const { status, body } = publicError(error, req.requestId); if(body.retryAfter)res.set('Retry-After',String(body.retryAfter)); res.status(status).json(body); });
 
-migrate().then(() => migrateAuthentication(pool)).then(() => migrateResourceBudgets(pool)).then(() => migrateWorkspace(pool)).then(() => migrateLocalAi(pool)).then(() => migrateInteractiveSystems(pool)).then(() => migrateAiBotConnections(pool)).then(() => migrateMovieClubs(pool)).then(() => migrateDiscordJobQueue(pool)).then(() => migrateReadyTemplates(pool)).then(() => migrateStandaloneModules(pool)).then(() => {
+(externalMigrations()?verifyRuntimeDatabase(pool):migrateApplicationSchema(pool)).then(() => {
   if (process.env.DISCORD_REST_MODE === 'worker') void startDiscordJobListener(pool).catch(error => console.error('Discord queue listener failed', error.message));
   const httpServer=app.listen(PORT, "0.0.0.0", () => console.log(`diskoko running on ${PORT}`));
   httpServer.headersTimeout=15_000;httpServer.requestTimeout=65_000;httpServer.keepAliveTimeout=5_000;httpServer.maxRequestsPerSocket=100;

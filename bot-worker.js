@@ -1,17 +1,15 @@
-import pg from 'pg';
-import {migrateAdminPanel} from './lib/admin-panel-api.js';
+import {createDatabasePool} from './lib/database.js';
+import {externalMigrations,migrateApplicationSchema,verifyRuntimeDatabase} from './lib/database-schema.js';
 import { getDiscordBotStatus, startDiscordBot, stopDiscordBot } from './discord-bot.js';
-import { migrateAiBotConnections, restoreAiBots, stopAllAiBots, syncAiBots } from './lib/ai-bot-connections.js';
-import { migrateMovieClubs } from './lib/movie-club.js';
-import { claimDiscordJob, executeDiscordJob, migrateDiscordJobQueue, recoverDiscordJobQueue } from './lib/discord-job-queue.js';
-import { migrateGuildActivityLogs } from './lib/guild-activity-logs.js';
+import { restoreAiBots, stopAllAiBots, syncAiBots } from './lib/ai-bot-connections.js';
+import { claimDiscordJob, executeDiscordJob, recoverDiscordJobQueue } from './lib/discord-job-queue.js';
 import { customerRoleConfig, syncCustomerRoles } from './lib/customer-roles.js';
 
 const required = ['DATABASE_URL', 'ENCRYPTION_KEY', 'DISCORD_BOT_TOKEN'];
 const missing = required.filter(name => !process.env[name]);
 if (missing.length) throw new Error(`Missing bot worker environment variables: ${missing.join(', ')}`);
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 5, ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false });
+const pool=createDatabasePool('worker');
 let stopping = false;
 let running = false;
 let interval;
@@ -94,17 +92,7 @@ async function shutdown() {
 process.once('SIGTERM', () => void shutdown());
 process.once('SIGINT', () => void shutdown());
 
-await migrateAiBotConnections(pool);
-await migrateMovieClubs(pool);
-await migrateDiscordJobQueue(pool);
-await migrateGuildActivityLogs(pool);
-await migrateAdminPanel(pool);
-await pool.query("ALTER TABLE code_command_sessions ADD COLUMN IF NOT EXISTS state JSONB NOT NULL DEFAULT '{}'::jsonb");
-await pool.query(`CREATE TABLE IF NOT EXISTS customer_role_sync (
-  user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), retry_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT, revision BIGINT NOT NULL DEFAULT 0);
-  ALTER TABLE customer_role_sync ADD COLUMN IF NOT EXISTS revision BIGINT NOT NULL DEFAULT 0`);
+if(externalMigrations())await verifyRuntimeDatabase(pool);else await migrateApplicationSchema(pool);
 await pool.query("UPDATE customer_role_sync SET retry_at=NOW(),attempts=0,last_error=NULL WHERE last_error LIKE 'Expected one assignable Discord role%'");
 await recoverDiscordJobQueue(pool);
 await startDiscordBot({ pool });

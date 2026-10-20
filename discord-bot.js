@@ -189,7 +189,8 @@ export async function startDiscordBot({ pool } = {}) {
   if (databasePool) {
     try {
       if (!cooldownTableReady) {
-        await databasePool.query('CREATE TABLE IF NOT EXISTS bot_gateway_cooldown (id SMALLINT PRIMARY KEY CHECK (id=1), retry_at TIMESTAMPTZ NOT NULL)');
+        // Schema belongs to the reviewed migration, never to a runtime reconnect.
+        await databasePool.query('SELECT id FROM bot_gateway_cooldown LIMIT 0');
         cooldownTableReady = true;
       }
       const { rows } = await databasePool.query('SELECT retry_at FROM bot_gateway_cooldown WHERE id=1');
