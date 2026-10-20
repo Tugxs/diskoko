@@ -45,10 +45,19 @@ services:
         sync: false
       - key: ADMIN_DISCORD_IDS
         sync: false
+      # Keep runtime credentials independent from the managed schema-owner login.
       - key: DATABASE_URL
+        sync: false
+      - key: DB_SCHEMA_MODE
+        value: external
+      - key: DB_TLS_MODE
+        value: pinned
+      - key: DB_TLS_PIN_HOST
         fromDatabase:
           name: dickoko-db
-          property: connectionString
+          property: host
+      - key: DB_TLS_CA
+        sync: false
   - type: worker
     name: diskoko-bot-worker
     runtime: node
@@ -61,10 +70,19 @@ services:
         value: production
       - key: BOT_GATEWAY_MODE
         value: worker
+      # Keep runtime credentials independent from the managed schema-owner login.
       - key: DATABASE_URL
+        sync: false
+      - key: DB_SCHEMA_MODE
+        value: external
+      - key: DB_TLS_MODE
+        value: pinned
+      - key: DB_TLS_PIN_HOST
         fromDatabase:
           name: dickoko-db
-          property: connectionString
+          property: host
+      - key: DB_TLS_CA
+        sync: false
       - key: ENCRYPTION_KEY
         fromService:
           type: web
@@ -83,3 +101,4 @@ services:
 databases:
   - name: dickoko-db
     plan: 0.1c-256mb
+    ipAllowList: []

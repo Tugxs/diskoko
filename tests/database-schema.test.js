@@ -31,6 +31,11 @@ test('runtime startup refuses stale schema and elevated roles',async()=>{
   for(const flag of ['rolsuper','rolcreaterole','rolcreatedb','rolbypassrls','can_create_schema_objects','role_membership','owns_schema_objects','assumed_role'])await assert.rejects(verifyRuntimeDatabase({query:async()=>({rows:[{...safe,[flag]:true}]})}),/excessive privileges/);
   await assert.rejects(verifyRuntimeDatabase({query:async()=>({rows:[{...safe,version:'old'}]})}),/schema is not ready/);
 });
+test('operator migration accepts only an explicit valid schema owner and rolls back an invalid identity',async()=>{
+  const statements=[];
+  await assert.rejects(migrateApplicationSchema({connect:async()=>({query:async sql=>{statements.push(sql);return {rows:[]};},release(){}})},{schemaOwner:'owner; SELECT 1'}),/Invalid schema owner/);
+  assert.ok(statements.includes('ROLLBACK'));assert.ok(!statements.includes('COMMIT'));
+});
 test('real PostgreSQL runtime can use customer data, sessions and notifications but cannot change schema or roles',{timeout:30000},async t=>{
   if(!process.env.RESOURCE_TEST_DATABASE_URL){t.skip('Disposable PostgreSQL required; mandatory in CI');return;}
   const suffix=randomUUID().replaceAll('-','').slice(0,20),database='security_'+suffix,role='runtime_'+suffix;
