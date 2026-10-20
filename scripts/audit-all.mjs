@@ -5,6 +5,9 @@ const node = process.execPath;
 for (const [name, args] of [
   ['syntax', ['--check', 'server.js']],
   ['authentication syntax', ['--check', 'lib/authentication.js']],
+  ['resource admission syntax', ['--check', 'lib/resource-protection.js']],
+  ['shared resource budgets syntax', ['--check', 'lib/resource-budget-store.js']],
+  ['native image budget syntax', ['--check', 'lib/image-resource-budget.js']],
   ['workspace syntax', ['--check', 'workspace.js']],
   ['account syntax', ['--check', 'account.js']],
   ['checkout syntax', ['--check', 'checkout.js']],
