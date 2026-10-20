@@ -1,7 +1,7 @@
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];let data={stats:{},users:[],invoices:[],upgradeRequests:[],coupons:[],reports:[],logs:[],pagination:{page:1,pages:1,total:0},auditPagination:{page:1,pages:1,total:0}},view='overview',userPage=1,userQuery='',searchTimer,auditPage=1,auditQuery='',auditSearchTimer;const names={overview:['نظرة عامة','صورة مباشرة عن الحسابات والمبيعات واستخدام البوت.'],users:['المستخدمون','كل حساب وسيرفراته وبوتاته وحالته.'],subscriptions:['الاشتراكات','الخطط، الحالة، مدة الاشتراك والتعديل اليدوي.'],finance:['المبيعات والفواتير','الإيرادات والفواتير وطلبات الترقية.'],coupons:['الكوبونات','إنشاء العروض ومتابعة الاستخدام والانتهاء.'],reports:['البلاغات','متابعة الدعم والأولوية وحالة المعالجة.'],audit:['سجل الإدارة','تتبع التعديلات والمسؤول عنها ومعرّف الطلب.']};
 const safe=v=>{const n=document.createElement('span');n.textContent=v??'—';return n.innerHTML},date=v=>v?new Date(v).toLocaleDateString('ar-SA'):'—',money=v=>`${(Number(v||0)/100).toLocaleString('ar-SA')} ر.س`;
-async function csrf(){const r=await fetch('/api/csrf-token',{credentials:'include',cache:'no-store'});return(await r.json()).token}async function api(url,options={}){const method=String(options.method||'GET').toUpperCase(),headers={'Content-Type':'application/json',...(options.headers||{})};if(method!=='GET')headers['X-CSRF-Token']=await csrf();const r=await fetch(url,{...options,method,headers,credentials:'include',cache:'no-store'}),body=await r.json();if(!r.ok)throw new Error(body.error||'تعذر إكمال الطلب');return body}
-function toast(t){const n=$('#toast');n.textContent=t;n.classList.remove('hidden');setTimeout(()=>n.classList.add('hidden'),2400)}function error(e){const n=$('#adminError');n.textContent=e.message;n.classList.remove('hidden')}
+async function csrf(){const r=await fetch('/api/csrf-token',{credentials:'include',cache:'no-store'});return(await r.json()).token}async function api(url,options={}){const method=String(options.method||'GET').toUpperCase(),headers={'Content-Type':'application/json',...(options.headers||{})};if(method!=='GET')headers['X-CSRF-Token']=await csrf();const r=await fetch(url,{...options,method,headers,credentials:'include',cache:'no-store'}),body=await r.json();if(!r.ok){if(body.code==='ADMIN_REAUTH_REQUIRED'){const e=new Error(body.error);e.reauthUrl=body.reauthUrl;throw e;}throw new Error(body.error||'تعذر إكمال الطلب');}return body}
+function toast(t){const n=$('#toast');n.textContent=t;n.classList.remove('hidden');setTimeout(()=>n.classList.add('hidden'),2400)}function error(e){const n=$('#adminError');n.textContent=e.message;n.classList.remove('hidden');if(e.reauthUrl){const link=document.createElement('a');link.href=e.reauthUrl.startsWith('/auth/')?e.reauthUrl:'/admin-login';link.textContent=' إعادة تسجيل الدخول';link.className='btn';n.append(link);}}
 async function load(){
   const {user}=await api('/api/me');
   if(!user?.isAdmin)return location.replace('/admin-login');
@@ -25,7 +25,7 @@ async function load(){
   $('#avatar').src=user.avatar||'';
   render();
   const failed=results.filter(result=>result.status==='rejected');
-  if(failed.length)error(new Error('تعذر تحميل بعض بيانات الإدارة. اضغط تحديث لإعادة المحاولة.'));
+  if(failed.length)error(failed.find(r=>r.reason?.reauthUrl)?.reason || new Error('تعذر تحميل بعض بيانات الإدارة. اضغط تحديث لإعادة المحاولة.'));
   else $('#adminError').classList.add('hidden');
 }
 async function reloadUsers(keepFocus=false){
