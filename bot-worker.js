@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {stopProjectLedger} from './lib/code-project-ledger.js';
 import {managedLoop, serviceLoopStatus, safeOperationError, queueConsumer} from './lib/service-lifecycle.js';
 import {createDatabasePool} from './lib/database.js';
 import {externalMigrations,migrateApplicationSchema,verifyRuntimeDatabase} from './lib/database-schema.js';
@@ -63,7 +64,7 @@ async function shutdown() {
     await Promise.all([stopDiscordBot(), stopAllAiBots()]);
     // The old generation must never delete the replacement worker's heartbeat.
     await pool.query("DELETE FROM bot_runtime_state WHERE id='original' AND status->>'runtimeId'=$1",[runtimeId]);
-    await pool.end();clearTimeout(timeout);process.exit(0);
+    await stopProjectLedger(pool);await pool.end();clearTimeout(timeout);process.exit(0);
   } catch (error) { console.error('Bot worker shutdown failed', safeOperationError(error));process.exit(1); }
 }
 process.once('SIGTERM', () => void shutdown());

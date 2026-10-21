@@ -6,6 +6,8 @@ import {createResourceProtection,boundedRateLimit,sessionPaths} from './lib/reso
 import {createResourceBudgetStore} from './lib/resource-budget-store.js';
 import {mountAuthentication,isAdminIdentity,requireSiteAdmin,adminSessionFresh,csrfToken,csrfProtection,privateAuthResponses} from './lib/authentication.js';
 import {enforceTeamWrite} from './lib/dashboard-team.js';
+import {stopBotMutationLocks} from './lib/bot-mutation-lock.js';
+import {stopProjectLedger} from './lib/code-project-ledger.js';
 import crypto from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import path from "node:path";
@@ -798,7 +800,7 @@ app.use((error, req, res, _next) => { if(req.resourceBodyTimedOut)return; if(res
       await Promise.all([closed,...stopServices.map(stop=>stop())]);
       await stopDiscordJobListener();
       await Promise.all([stopDiscordBot(),stopAllAiBots()]);
-      await pool.end();clearTimeout(deadline);console.info('Web service drained');process.exit(0);
+      await stopBotMutationLocks(pool);await stopProjectLedger(pool);await pool.end();clearTimeout(deadline);console.info('Web service drained');process.exit(0);
     }catch(error){console.error('Web shutdown failed',safeOperationError(error));process.exit(1);}
   };
   process.once('SIGTERM',()=>void shutdown());process.once('SIGINT',()=>void shutdown());
