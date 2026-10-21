@@ -84,10 +84,12 @@ test('real PostgreSQL complete encrypted backup restores to an empty isolated da
   await migrateApplicationSchema(source);
   await source.query("INSERT INTO users(id,username,access_token) VALUES(9007199254740997,'restore-fixture','encrypted-token-fixture')");
   await source.query("INSERT INTO projects(user_id,name) VALUES(9007199254740997,'عينة الاسترجاع')");
+  await source.query("SELECT setval('projects_id_seq',5000,true)");
   const c=await source.connect();try{await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');archive=await createBackupFile(c,{password,scope:'full',includeRecoveryKey:true,env:{ENCRYPTION_KEY:'drill-only-key'}});await c.query('COMMIT');}finally{c.release();}
   verified=await inspectBackup(archive.file,password);const result=await restoreToEmptyDatabase(target,verified);assert.ok(result.offline);assert.ok(result.tables>80);
   assert.equal((await target.query('SELECT id,access_token FROM users')).rows[0].id,'9007199254740997');assert.equal((await target.query('SELECT name FROM projects')).rows[0].name,'عينة الاسترجاع');
   assert.equal((await target.query("INSERT INTO users(username) VALUES('next') RETURNING id")).rows[0].id,'9007199254740998');
+  assert.equal((await target.query("INSERT INTO projects(user_id,name) VALUES(9007199254740997,'after deleted IDs') RETURNING id")).rows[0].id,'5001');
   await assert.rejects(target.query("INSERT INTO projects(user_id,name) VALUES(42,'invalid')"),e=>e.code==='23503');
   await assert.rejects(restoreToEmptyDatabase(target,verified),/not empty/);
 });

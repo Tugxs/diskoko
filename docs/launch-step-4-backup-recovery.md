@@ -38,7 +38,7 @@ For an isolated drill, create a **new empty** database called `diskoko_restore_<
 RESTORE_ACK=ISOLATED_EMPTY_DATABASE_NO_WORKERS BACKUP_PASSWORD_FILE=<private file> node scripts/restore-backup.mjs <archive.dkbackup> --restore-isolated
 ```
 
-The tool refuses ordinary database names, existing public tables and other active target connections. It migrates the empty target, loads data atomically, validates original foreign keys, advances serial sequences and compares actual restored row values using bounded per-table multiset checksums and counts. Constraint definitions come from trusted target migrations, never executable SQL in the archive. Failed data loads roll back; the isolated schema can remain for diagnosis. There is no production restore HTTP endpoint.
+The tool refuses ordinary database names, existing public tables and other active target connections. It migrates the empty target, loads data atomically, validates original foreign keys, preserves serial sequence watermarks (including deleted IDs) and compares actual restored row values using bounded per-table multiset checksums and counts. Constraint definitions come from trusted target migrations, never executable SQL in the archive. Failed data loads roll back; the isolated schema can remain for diagnosis. There is no production restore HTTP endpoint.
 
 If the encryption key is needed, use `--extract-recovery-key` with RECOVERY_KEY_OUTPUT pointing to a **new private file**, then install it through trusted environment management. The tool refuses to overwrite an existing file and never prints the key. Do not expose that file or keep it in the repository.
 
@@ -56,7 +56,7 @@ If the encryption key is needed, use `--extract-recovery-key` with RECOVERY_KEY_
 
 ## Retention, recovery objectives and evidence
 
-- Live Render Recovery was checked on 2026-10-21: **3-day PITR window**, native logical exports retained at least 7 days. A native export was requested; its final status must be verified separately.
+- Live Render Recovery was checked on 2026-10-21: **3-day PITR window**, native logical exports retained at least 7 days. The native export `2026-10-21T04:59Z.dir.tar.gz` completed and its download became available; no signed download URL is stored in this runbook.
 - Owner-managed recommendation: encrypted daily download before customer writes/major changes, 7 daily + 4 weekly copies, stored on two controlled devices/locations; monthly isolated drill and after schema/encryption changes. This is a recommended manual routine, **not an implemented automatic offsite schedule**. Review retention against actual privacy obligations and deletion requests.
 - Manual archive RPO equals time since its recorded snapshot. Do not advertise a fixed RPO unless someone actually performs and monitors the routine. Platform PITR availability is not a measured RTO or a guarantee of zero loss.
 - Record drill release, completion time, rows/tables, value verification, key verification, export and total recovery timings. Native new-instance PITR/cutover is a separate exercise and can incur platform cost; this implementation does not claim it has been tested.
