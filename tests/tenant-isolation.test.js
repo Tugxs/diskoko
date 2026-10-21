@@ -17,6 +17,7 @@ import {mountAiBotConnections} from '../lib/ai-bot-connections.js';
 import {readFile} from 'node:fs/promises';
 import {botMutationHandler,stopBotMutationLocks} from '../lib/bot-mutation-lock.js';
 import {stopProjectLedger} from '../lib/code-project-ledger.js';
+import {isolationPreflight} from '../scripts/isolation-preflight.mjs';
 
 const ga='100000000000000001',gb='100000000000000002',b1='200000000000000001',b2='200000000000000002';
 const users={a:{id:1,discord_id:'300000000000000001'},b:{id:2,discord_id:'300000000000000002'},limited:{id:3,discord_id:'300000000000000003'}};
@@ -139,6 +140,7 @@ async function matrix(t,pool,{concurrent=false}={}){
     assert.equal(claims.find(r=>r.status==='rejected').reason.status,403);
   }
   assert.equal(writes,0,'foreign operations and local draft CRUD never mutate Discord');
+  assert.equal((await isolationPreflight(pool)).ok,true);
 }
 
 test('customer isolation matrix executes real SQL through HTTP handlers',{timeout:60000},async t=>{
