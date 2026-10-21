@@ -63,3 +63,9 @@ If the encryption key is needed, use `--extract-recovery-key` with RECOVERY_KEY_
 - Publish only after local audit and CI PostgreSQL recovery test pass. Production same-host drill evidence belongs in the release report and admin history; no customer rows/tokens are included in that report.
 
 Sources checked 2026-10-21: [Render backups](https://render.com/docs/postgresql-backups), [PostgreSQL 18 backup and restore](https://www.postgresql.org/docs/18/backup-dump.html).
+
+## Live drill compatibility correction
+
+The first production-data isolated drill correctly refused to load a fresh schema missing four historical community tables: community_panels, customer_link_panels, diskoko_game_panel and diskoko_game_scores. They are now part of the canonical migration, without calling Discord or altering existing production rows. The schema version stays unchanged because these exact table definitions already exist in production; no new production schema privilege or external-mode startup DDL is required.
+
+Fresh-schema column order can also differ from historical ALTER TABLE order. Recovery compares column names/types independently of physical order, and PostgreSQL canonical JSONB representations verify values without JavaScript integer conversion or sensitivity to JSON formatting. CI includes all four legacy tables, a reordered historical column and formatted JSON with a BIGINT value. Production remains unchanged when a drill fails, and only its new disposable target is removed.

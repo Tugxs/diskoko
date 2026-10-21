@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,randomBytes,createHash,createCipheriv,createDecipheriv} from 'node:crypto';
 import {readFile,writeFile} from 'node:fs/promises';
 import pg from 'pg';
 import {PGlite} from '@electric-sql/pglite';
@@ -82,12 +82,23 @@ test('real PostgreSQL complete encrypted backup restores to an empty isolated da
   t.after(async()=>{if(verified)await verified.cleanup();if(archive)await archive.cleanup();if(source)await source.end();if(target)await target.end();for(const name of [sourceName,targetName])await admin.query('DROP DATABASE IF EXISTS "'+name+'" WITH (FORCE)');await admin.end();});
   for(const name of [sourceName,targetName])await admin.query('CREATE DATABASE "'+name+'"');source=make(sourceName);target=make(targetName);
   await migrateApplicationSchema(source);
-  await source.query("INSERT INTO users(id,username,access_token) VALUES(9007199254740997,'restore-fixture','encrypted-token-fixture')");
+  // Production histories can append this column after the original table creation.
+  await source.query('ALTER TABLE users DROP COLUMN google_id;ALTER TABLE users ADD COLUMN google_id TEXT UNIQUE');
+  const recoveryKey='drill-only-key',key=createHash('sha256').update(recoveryKey).digest(),iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key,iv);
+  const encrypted=Buffer.concat([cipher.update('disposable-no-real-token'),cipher.final()]);
+  const encryptedToken=[iv,cipher.getAuthTag(),encrypted].map(b=>b.toString('base64url')).join('.');
+  await source.query("INSERT INTO users(id,username,access_token) VALUES(9007199254740997,'restore-fixture',$1)",[encryptedToken]);
   await source.query("INSERT INTO projects(user_id,name) VALUES(9007199254740997,'عينة الاسترجاع')");
   await source.query("SELECT setval('projects_id_seq',5000,true)");
-  const c=await source.connect();try{await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');archive=await createBackupFile(c,{password,scope:'full',includeRecoveryKey:true,env:{ENCRYPTION_KEY:'drill-only-key'}});await c.query('COMMIT');}finally{c.release();}
+  await source.query("INSERT INTO community_panels(guild_id,panel_key,channel_id,message_id) VALUES('test-guild','account','test-channel','test-message');INSERT INTO customer_link_panels(guild_id,channel_id,message_id) VALUES('test-guild','test-channel','test-message');INSERT INTO diskoko_game_panel VALUES('test-guild','test-channel','test-message');INSERT INTO diskoko_game_scores VALUES('test-guild','test-user',CURRENT_DATE,7)");
+  await source.query(`INSERT INTO session(sid,sess,expire) VALUES('restore-json','{ "cookie" : { "sameSite" : "lax" }, "id" : 9007199254740997 }',NOW()+INTERVAL '1 hour')`);
+  const c=await source.connect();try{await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');archive=await createBackupFile(c,{password,scope:'full',includeRecoveryKey:true,env:{ENCRYPTION_KEY:recoveryKey}});await c.query('COMMIT');}finally{c.release();}
   verified=await inspectBackup(archive.file,password);const result=await restoreToEmptyDatabase(target,verified);assert.ok(result.offline);assert.ok(result.tables>80);
-  assert.equal((await target.query('SELECT id,access_token FROM users')).rows[0].id,'9007199254740997');assert.equal((await target.query('SELECT name FROM projects')).rows[0].name,'عينة الاسترجاع');
+  const recovered=(await target.query('SELECT id,access_token FROM users')).rows[0];assert.equal(recovered.id,'9007199254740997');assert.equal(recovered.access_token,encryptedToken);
+  const [restoredIv,tag,data]=recovered.access_token.split('.').map(v=>Buffer.from(v,'base64url')),decipher=createDecipheriv('aes-256-gcm',createHash('sha256').update(verified.manifest.recovery.ENCRYPTION_KEY).digest(),restoredIv);decipher.setAuthTag(tag);assert.equal(Buffer.concat([decipher.update(data),decipher.final()]).toString(),'disposable-no-real-token');
+  assert.equal((await target.query('SELECT name FROM projects')).rows[0].name,'عينة الاسترجاع');
+  assert.equal((await target.query('SELECT points FROM diskoko_game_scores')).rows[0].points,7);
+  assert.equal((await target.query("SELECT sess->>'id' AS id FROM session")).rows[0].id,'9007199254740997');
   assert.equal((await target.query("INSERT INTO users(username) VALUES('next') RETURNING id")).rows[0].id,'9007199254740998');
   assert.equal((await target.query("INSERT INTO projects(user_id,name) VALUES(9007199254740997,'after deleted IDs') RETURNING id")).rows[0].id,'5001');
   await assert.rejects(target.query("INSERT INTO projects(user_id,name) VALUES(42,'invalid')"),e=>e.code==='23503');
