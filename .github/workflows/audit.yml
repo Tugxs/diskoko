@@ -41,7 +41,7 @@ jobs:
         if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: node scripts/operations-ci-alert.mjs
         env:
-          OPS_ALERT_EMAILS: ${{ secrets.OPS_ALERT_EMAILS }}
+          OPS_ALERT_EMAILS: support@diskoko.com
           OPS_ALERT_CHANNEL_ID: ${{ secrets.OPS_ALERT_CHANNEL_ID }}
           OPS_ALERT_GUILD_ID: ${{ secrets.OPS_ALERT_GUILD_ID }}
           OPS_DISCORD_WEBHOOK_URL: ${{ secrets.OPS_DISCORD_WEBHOOK_URL }}
