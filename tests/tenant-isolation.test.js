@@ -74,6 +74,7 @@ async function matrix(t,pool,{concurrent=false}={}){
   const base='/api/ai/bots/'+b1+'/code-commands';
   const created=await request('a','POST',base,{guildId:ga,name:'private',description:'test',source:'function handle(){return {message:{content:"a-only"}};}'});assert.equal(created.status,201);
   const id=created.body.id;
+  assert.equal((await request('a','DELETE','/api/ai/bots/'+b1,{guildId:ga})).status,409,'disconnect cannot silently cascade-delete a saved code draft');
   for(const [user,guild,bot] of [['b',ga,b1],['b',gb,b1],['a',ga,b2]]){
     const p='/api/ai/bots/'+bot+'/code-commands/'+id;
     assert.ok([403,404].includes((await request(user,'GET',p+'/history?guildId='+guild)).status));
