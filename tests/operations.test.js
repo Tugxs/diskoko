@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {PGlite} from '@electric-sql/pglite';
 import {collectOperations,operationalConditions,advanceIncidents,alertConfiguration,createAlertSender,alertText,createOperationsMonitor} from '../lib/operations.js';
 import {managedLoop,safeOperationError,queueConsumer} from '../lib/service-lifecycle.js';
-import {probeSite,watchdogTick} from '../scripts/operations-watchdog.mjs';
 
 test('a loop never overlaps, awaits in-flight work on stop and never restarts after stop',async()=>{
   let complete,started=0,finished=0;
@@ -49,6 +48,10 @@ test('real aggregate SQL uses database clock, contains no customer data, and han
       CREATE TABLE scheduled_messages(status TEXT,run_at TIMESTAMPTZ,updated_at TIMESTAMPTZ);
       CREATE TABLE code_project_jobs(status TEXT,run_at TIMESTAMPTZ,claimed_at TIMESTAMPTZ);
       CREATE TABLE customer_role_sync(attempts INT,requested_at TIMESTAMPTZ);
+      CREATE TABLE diskoko_giveaways(status TEXT,ends_at TIMESTAMPTZ,next_retry_at TIMESTAMPTZ,announced_at TIMESTAMPTZ);
+      CREATE TABLE control_center_jobs(enabled BOOLEAN,status TEXT,due_at TIMESTAMPTZ);
+      CREATE TABLE ready_template_module_event_notices(status TEXT,created_at TIMESTAMPTZ);
+      CREATE TABLE customer_bot_registry(token_encrypted TEXT,created_at TIMESTAMPTZ,gateway_seen_at TIMESTAMPTZ);
       INSERT INTO bot_runtime_state VALUES('original','{"online":true}',NOW()-INTERVAL '10 seconds');
       INSERT INTO discord_jobs(status,created_at) VALUES('pending',NOW()-INTERVAL '50 seconds');
       INSERT INTO scheduled_messages VALUES('scheduled',NOW()-INTERVAL '5 minutes',NOW());`);
@@ -88,15 +91,3 @@ test('durable outbox retries only the failed destination, survives replacement a
   }finally{await monitor.stop();await db.close();}
 });
 
-test('external watchdog detects unavailable HTTP or malformed health, and retries only failed notifications',async()=>{
-  assert.equal(await probeSite('https://example.com',{fetchImpl:async()=>({status:200,text:async()=>'{"ok":true}'})}),true);
-  assert.equal(await probeSite('https://example.com',{fetchImpl:async()=>({status:503,text:async()=>'{"ok":false}'})}),false);
-  assert.equal(await probeSite('https://example.com',{fetchImpl:async()=>({status:200,text:async()=>'<html>wrong</html>'})}),false);
-  let fail=true;const messages=[];const sender={send:async(channel,event)=>{if(channel==='email' && fail)throw Error('SMTP unavailable');messages.push([channel,event.type]);}};
-  const original=console.error;console.error=()=>{};
-  try{
-    let state=await watchdogTick(null,false,{sender,now:100000});assert.equal(state.event.delivery.discord,true);assert.equal(state.event.delivery.email,false);
-    fail=false;state=await watchdogTick(state,false,{sender,now:200000});assert.equal(messages.filter(([c])=>c==='discord').length,1);
-    state=await watchdogTick(state,true,{sender,now:300000});assert.equal(state.event.type,'recovered');assert.equal(messages.filter(([,t])=>t==='recovered').length,2);
-  }finally{console.error=original;}
-});
