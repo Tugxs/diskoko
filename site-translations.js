@@ -1,5 +1,7 @@
 // Interface translations only. Customer content is preserved by site-preferences.js.
 export const uiTranslations = new Map(Object.entries({
+  "العملية": "Operation",
+  "الحجم": "Size",
   "تنزيل مشفّر للبيانات ومتابعة عمليات النسخ والتعافي.": "Encrypted data downloads and backup/recovery history.",
   "نسخة آمنة إلى جهازك": "Secure backup to your device",
   "تُنزل البيانات في ملف مشفّر بكلمة مرور تختارها. الموقع لا يحتفظ بالملف بعد التنزيل؛ احفظه في مكان آمن منفصل، واحفظ كلمة مروره في مدير كلمات المرور. فقدانها يمنع فتح النسخة.": "Download data encrypted with your chosen password. The site does not retain the downloaded file. Store it securely and keep its password separately in a password manager. A lost password cannot be recovered.",
