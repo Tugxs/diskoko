@@ -90,4 +90,3 @@ test('durable outbox retries only the failed destination, survives replacement a
     assert.equal(monitor.publicHealth().ok,true);at+=60001;assert.equal(monitor.publicHealth().ok,false);
   }finally{await monitor.stop();await db.close();}
 });
-
