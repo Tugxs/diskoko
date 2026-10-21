@@ -3,6 +3,9 @@ import { readdirSync } from 'node:fs';
 
 const node = process.execPath;
 for (const [name, args] of [
+  ['operations monitoring syntax', ['--check', 'lib/operations.js']],
+  ['service lifecycle syntax', ['--check', 'lib/service-lifecycle.js']],
+  ['external watchdog syntax', ['--check', 'scripts/operations-watchdog.mjs']],
   ['syntax', ['--check', 'server.js']],
   ['authentication syntax', ['--check', 'lib/authentication.js']],
   ['resource admission syntax', ['--check', 'lib/resource-protection.js']],

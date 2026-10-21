@@ -1,3 +1,5 @@
+import {createOperationsMonitor} from './lib/operations.js';
+import {safeOperationError,managedLoop} from './lib/service-lifecycle.js';
 import {mountAdminBackups} from './lib/admin-backups.js';
 import {imageResourceStats} from './lib/image-resource-budget.js';
 import {createResourceProtection,boundedRateLimit,sessionPaths} from './lib/resource-protection.js';
@@ -14,7 +16,7 @@ import connectPgSimple from "connect-pg-simple";
 import {createDatabasePool,databasePoolStats} from './lib/database.js';
 import {externalMigrations,migrateApplicationSchema,verifyRuntimeDatabase} from './lib/database-schema.js';
 import nodemailer from "nodemailer";
-import { getDiscordBotStatus, setExternalBotStatus, startDiscordBot } from "./discord-bot.js";
+import { getDiscordBotStatus, setExternalBotStatus, startDiscordBot, stopDiscordBot } from "./discord-bot.js";
 import { mountWorkspace, startScheduleRunner } from "./lib/workspace-api.js";
 import { mountReadyTemplates } from "./lib/ready-templates-api.js";
 import { mountStandaloneModules } from "./lib/standalone-modules-api.js";
@@ -32,8 +34,8 @@ import { publicError } from "./lib/http-error.js";
 import { createNotFoundReporter } from "./lib/http-not-found.js";
 import { createDiscordRequestGate, discordRetryAfterMs } from "./lib/discord-rate-limit.js";
 import { validateDiscordWrite } from './lib/discord-preflight.js';
-import { enqueueDiscordJob, startDiscordJobListener } from './lib/discord-job-queue.js';
-import { botTokenForPublication, connectedBot, connectedBotMetadata, mountAiBotConnections, restoreAiBots } from "./lib/ai-bot-connections.js";
+import { enqueueDiscordJob, startDiscordJobListener, stopDiscordJobListener } from './lib/discord-job-queue.js';
+import { botTokenForPublication, connectedBot, connectedBotMetadata, mountAiBotConnections, restoreAiBots, stopAllAiBots } from "./lib/ai-bot-connections.js";
 import { mountMovieClubs } from "./lib/movie-club.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -59,6 +61,9 @@ const SESSION_SECRET = process.env.SESSION_SECRET || "development-only-change-me
 const allowedOrigins = new Set([BASE_URL, FRONTEND_URL].filter(Boolean));
 
 const pool=createDatabasePool('web');
+let serviceDraining=false;
+let operations;
+const stopServices=[];
 
 
 const PgStore = connectPgSimple(session);
@@ -78,6 +83,7 @@ app.use((req, res, next) => {
 });
 app.use(['/api','/auth','/admin','/admin-login'],privateAuthResponses);
 app.use(createNotFoundReporter({ allowedOrigins }));
+app.use((req,res,next)=>{if(serviceDraining){res.set('Connection','close');return res.status(503).json({ok:false,code:'SERVICE_DRAINING'});}operations?.metrics(req,res,()=>{});next();});
 const resourceStore=createResourceBudgetStore(pool,{dbSoftLimitBytes:Number(process.env.RESOURCE_DB_SOFT_LIMIT_MB || 700)*1024*1024});
 const resourceProtection=createResourceProtection({store:resourceStore,loadUser:currentUser,workerAuthorized});
 app.use(resourceProtection.early);
@@ -390,13 +396,14 @@ async function sendWelcomeEmail(user) {
   await pool.query("UPDATE users SET welcome_sent_at=NOW() WHERE id=$1", [user.id]);
 }
 
+function publicBotHealth(){const s=getDiscordBotStatus();return {configured:s.configured===true,online:s.online===true,memberJoins:s.memberJoins===true};}
 app.get("/api/health", async (_req, res) => {
   try {
-    await pool.query("SELECT 1");
-    res.json({ ok: true, service: "diskoko", database: "ready", bot: getDiscordBotStatus(), time: new Date().toISOString() });
+    await pool.query({text:"SELECT 1",query_timeout:2000});
+    res.json({ ok: true, service: "diskoko", database: "ready", bot: publicBotHealth(), time: new Date().toISOString() });
   } catch (error) {
-    console.error("Health check failed", error);
-    res.status(503).json({ ok: false, service: "diskoko", database: "unavailable", bot: getDiscordBotStatus(), time: new Date().toISOString() });
+    console.error("Health check failed", safeOperationError(error));
+    res.status(503).json({ ok: false, service: "diskoko", database: "unavailable", bot: publicBotHealth(), time: new Date().toISOString() });
   }
 });
 mountAuthentication(app,{pool,rateLimit,encrypt,audit,requestCustomerRoleSync,sendWelcomeEmail,baseUrl:BASE_URL,isProduction:IS_PRODUCTION});
@@ -664,6 +671,9 @@ app.put("/api/projects/:id", requireUser, requireWriteAccess, async (req, res, n
 });
 
 mountAdminBackups(app,{pool,requireAdmin,audit});
+app.get('/api/operations/health',(_req,res)=>{const status=operations?.publicHealth()||{ok:false,checkedAt:null};res.set('Cache-Control','no-store');res.status(status.ok?200:503).json(status);});
+app.get('/api/admin/operations',requireAdmin,async(_req,res,next)=>{try{res.json(await operations.details());}catch(error){next(error);}});
+app.post('/api/admin/operations/test',requireAdmin,async(req,res,next)=>{try{await audit(req.user.id,'admin.operations.test','operations',null,{});res.json(await operations.test());}catch(error){next(error);}});
 app.get('/api/admin/resource-pressure',requireAdmin,(_req,res)=>res.json({admission:resourceProtection.stats(),store:resourceStore.stats(),database:databasePoolStats(pool),images:imageResourceStats(),memory:process.memoryUsage()}));
 app.get("/api/admin/stats", requireAdmin, async (_req, res, next) => {
   try {
@@ -776,7 +786,22 @@ app.use((error, req, res, _next) => { if(req.resourceBodyTimedOut)return; if(res
 
 (externalMigrations()?verifyRuntimeDatabase(pool):migrateApplicationSchema(pool)).then(() => {
   if (process.env.DISCORD_REST_MODE === 'worker') void startDiscordJobListener(pool).catch(error => console.error('Discord queue listener failed', error.message));
-  const httpServer=app.listen(PORT, "0.0.0.0", () => console.log(`diskoko running on ${PORT}`));
+  const httpServer=app.listen(PORT, "0.0.0.0", () => console.log(`diskoko running on ${httpServer.address().port}`));
+  operations=createOperationsMonitor(pool);stopServices.push(()=>operations.stop());
+  const shutdown=async()=>{
+    if(serviceDraining)return;serviceDraining=true;
+    console.info('Web service draining');
+    const deadline=setTimeout(()=>{console.error('Web drain deadline exceeded');process.exit(1);},85000).unref();
+    try{
+      const closed=new Promise((resolve,reject)=>httpServer.close(error=>error?reject(error):resolve()));
+      httpServer.closeIdleConnections();
+      await Promise.all([closed,...stopServices.map(stop=>stop())]);
+      await stopDiscordJobListener();
+      await Promise.all([stopDiscordBot(),stopAllAiBots()]);
+      await pool.end();clearTimeout(deadline);console.info('Web service drained');process.exit(0);
+    }catch(error){console.error('Web shutdown failed',safeOperationError(error));process.exit(1);}
+  };
+  process.once('SIGTERM',()=>void shutdown());process.once('SIGINT',()=>void shutdown());
   httpServer.headersTimeout=15_000;httpServer.requestTimeout=65_000;httpServer.keepAliveTimeout=5_000;httpServer.maxRequestsPerSocket=100;
   if (process.env.BOT_GATEWAY_MODE === 'external') {
     const refreshBotStatus = async () => {
@@ -785,27 +810,26 @@ app.use((error, req, res, _next) => { if(req.resourceBodyTimedOut)return; if(res
         setExternalBotStatus(row && Date.now() - new Date(row.seen_at).getTime() < 35_000 ? row.status : { configured: Boolean(process.env.DISCORD_BOT_TOKEN), online: false, memberJoins: false, error: 'worker_offline' });
       } catch (error) { console.error('Could not read bot worker status', error.message); }
     };
-    void refreshBotStatus();
-    setInterval(() => void refreshBotStatus(), 10_000).unref();
+    stopServices.push(managedLoop('worker-status',refreshBotStatus,{intervalMs:10000,immediate:true}));
   } else {
     void startDiscordBot({ pool });
     void restoreAiBots(pool).catch(error => console.error('Connected AI bots restore failed', error.message));
   }
-  startScheduleRunner({ pool, authorizedGuild, discordBotFetch: async (pathname, options, job) => {
+  stopServices.push(startScheduleRunner({ pool, authorizedGuild, discordBotFetch: async (pathname, options, job) => {
     const bot = job.bot_user_id ? await connectedBot(pool, job.guild_id, job.bot_user_id) : await botTokenForPublication(pool, job.guild_id);
     if (job.bot_user_id && !bot) return { ok: false, status: 410, data: { message: 'Connected bot removed' } };
     return discordBotFetch(pathname, bot ? { ...options, headers: { ...options.headers, Authorization: `Bot ${bot.token}` } } : options);
-  } });
-  startGiveawayRunner({ pool, discordBotFetch: async (pathname, options, giveaway) => {
+  } }));
+  stopServices.push(startGiveawayRunner({ pool, discordBotFetch: async (pathname, options, giveaway) => {
     if (!giveaway?.publishing_bot_id) return discordBotFetch(pathname, options);
     const bot = await connectedBot(pool, giveaway.guild_id, giveaway.publishing_bot_id);
     if (!bot) return { ok: false, status: 410, data: { message: 'Connected bot removed' } };
     return discordBotFetch(pathname, { ...options, headers: { ...options.headers, Authorization: `Bot ${bot.token}` } });
-  } });
-  startModuleReminderRunner({pool,discordBotFetch:async(pathname,options,panel)=>{
+  } }));
+  stopServices.push(startModuleReminderRunner({pool,discordBotFetch:async(pathname,options,panel)=>{
     const custom=await connectedBot(pool,panel.guild_id,panel.publishing_bot_id);
     if(custom)return discordBotFetch(pathname,{...options,headers:{...options.headers,Authorization:`Bot ${custom.token}`}});
     const self=await discordBotFetch('/users/@me');if(!self.ok || self.data.id!==panel.publishing_bot_id)return {ok:false,status:410};
     return discordBotFetch(pathname,options);
-  }});
+  }}));
 }).catch((error) => { console.error("Database migration failed", error); process.exit(1); });

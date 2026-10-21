@@ -3,9 +3,11 @@ services:
     name: diskoko
     runtime: node
     plan: 0.5c-512mb
-    buildCommand: npm install
+    buildCommand: npm ci
+    autoDeployTrigger: checksPass
     startCommand: npm start
     healthCheckPath: /api/health
+    maxShutdownDelaySeconds: 90
     envVars:
       - key: NODE_ENV
         value: production
@@ -62,9 +64,10 @@ services:
     name: diskoko-bot-worker
     runtime: node
     plan: 0.5c-512mb
-    buildCommand: npm install
+    buildCommand: npm ci
+    autoDeployTrigger: checksPass
     startCommand: npm run bot:worker
-    maxShutdownDelaySeconds: 30
+    maxShutdownDelaySeconds: 90
     envVars:
       - key: NODE_ENV
         value: production
