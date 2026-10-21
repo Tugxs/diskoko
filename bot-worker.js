@@ -48,7 +48,7 @@ async function sweepCustomerRoles() {
 }
 
 async function heartbeat() {
-  await pool.query("INSERT INTO bot_runtime_state(id,status,seen_at) VALUES('original',$1,NOW()) ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,seen_at=NOW()", [{...getDiscordBotStatus(),runtimeId,draining:stopping,loops:serviceLoopStatus(),activeJobs:consumer?.size||0,rssBytes:process.memoryUsage().rss,release:process.env.RENDER_GIT_COMMIT||null}]);
+  await pool.query("INSERT INTO bot_runtime_state(id,status,seen_at) VALUES('original',$1,NOW()) ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,seen_at=NOW()", [{...getDiscordBotStatus(),runtimeId,draining:stopping,loops:serviceLoopStatus(),activeJobs:consumer?.size||0,rssBytes:process.memoryUsage().rss,uptimeSeconds:Math.floor(process.uptime()),release:process.env.RENDER_GIT_COMMIT||null}]);
 }
 
 async function shutdown() {

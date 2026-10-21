@@ -40,6 +40,8 @@ test('worker, queue, memory and scheduler failures are distinct and use bounded 
   assert.equal(operationalConditions({...s,queue:{oldestPendingSeconds:46}}).queue,true);
   assert.equal(operationalConditions({...s,schedules:{overdueSeconds:181}}).schedules,true);
   assert.equal(operationalConditions({...s,worker:{ageSeconds:5,online:true,loops:{poll:{failures:3}}}}).loops,true);
+  assert.equal(operationalConditions({...s,worker:{ageSeconds:5,online:true,uptimeSeconds:30},connections:{total:6,stale:6}}).connections,false);
+  assert.equal(operationalConditions({...s,worker:{ageSeconds:5,online:true,uptimeSeconds:500},connections:{total:6,stale:6}}).connections,true);
 });
 test('real aggregate SQL uses database clock, contains no customer data, and handles an empty queue',async()=>{
   const db=new PGlite();try{
