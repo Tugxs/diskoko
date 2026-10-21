@@ -3,9 +3,15 @@ on:
   push:
     branches: [main]
   pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:18
@@ -31,3 +37,16 @@ jobs:
       - run: npm ci
       - run: npm run audit:all
       - run: npm audit --omit=dev --audit-level=high
+      - name: Notify operations of failed main audit
+        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: node scripts/operations-ci-alert.mjs
+        env:
+          OPS_ALERT_EMAILS: ${{ secrets.OPS_ALERT_EMAILS }}
+          OPS_ALERT_CHANNEL_ID: ${{ secrets.OPS_ALERT_CHANNEL_ID }}
+          OPS_ALERT_GUILD_ID: ${{ secrets.OPS_ALERT_GUILD_ID }}
+          OPS_DISCORD_WEBHOOK_URL: ${{ secrets.OPS_DISCORD_WEBHOOK_URL }}
+          SMTP_HOST: ${{ secrets.OPS_SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.OPS_SMTP_PORT }}
+          SMTP_USER: ${{ secrets.OPS_SMTP_USER }}
+          SMTP_PASS: ${{ secrets.OPS_SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.OPS_SMTP_FROM }}

@@ -1,5 +1,6 @@
 // Interface translations only. Customer content is preserved by site-preferences.js.
 export const uiTranslations = new Map(Object.entries({
+  "مراقبة التشغيل": "Operations monitoring",
   "العملية": "Operation",
   "الحجم": "Size",
   "تنزيل مشفّر للبيانات ومتابعة عمليات النسخ والتعافي.": "Encrypted data downloads and backup/recovery history.",
