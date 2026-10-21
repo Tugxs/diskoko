@@ -39,6 +39,12 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
+      - key: OPS_ALERT_EMAILS
+        sync: false
+      - key: OPS_ALERT_GUILD_ID
+        sync: false
+      - key: OPS_ALERT_CHANNEL_ID
+        sync: false
       - key: DISCORD_CLIENT_ID
         sync: false
       - key: DISCORD_CLIENT_SECRET

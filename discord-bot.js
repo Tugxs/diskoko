@@ -169,7 +169,7 @@ export async function stopDiscordBot() {
   retryTimer = null;
   const client = botClient;
   botClient = null;
-  if (client) {client.diskokoProjectStop?.();client.diskokoAdminStop?.();client.diskokoCenterStop?.();await client.destroy();}
+  if (client) {await Promise.all([client.diskokoProjectStop?.(),client.diskokoAdminStop?.(),client.diskokoCenterStop?.()]);await client.destroy();}
 }
 
 export async function startDiscordBot({ pool } = {}) {
