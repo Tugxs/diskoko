@@ -11,7 +11,7 @@ test('real web process readiness, protected monitoring, SIGTERM drain and deploy
   const admin=new pg.Pool({connectionString:process.env.RESOURCE_TEST_DATABASE_URL});
   const name='operations_'+randomUUID().replaceAll('-','');let child,pool;
   await admin.query('CREATE DATABASE "'+name+'"');const url=new URL(process.env.RESOURCE_TEST_DATABASE_URL);url.pathname='/'+name;
-  t.after(async()=>{if(child && child.exitCode===null){child.kill('SIGKILL');await once(child,'exit');}if(pool)await pool.end();await admin.query('DROP DATABASE IF EXISTS "'+name+'" WITH (FORCE)');await admin.end();});
+  t.after(async()=>{if(child && child.exitCode===null){child.kill('SIGKILL');await once(child,'exit');}if(pool)await pool.end();await admin.query('DROP DATABASE IF EXISTS "'+name+'"');await admin.end();});
   const env={...process.env,NODE_ENV:'test',DATABASE_URL:url.toString(),DB_SCHEMA_MODE:'startup',DB_TLS_MODE:'local',
     PORT:'0',BASE_URL:'http://localhost',FRONTEND_URL:'http://localhost',BOT_GATEWAY_MODE:'external',DISCORD_REST_MODE:'worker',
     SESSION_SECRET:randomUUID(),ENCRYPTION_KEY:randomUUID(),DISCORD_CLIENT_ID:randomUUID(),DISCORD_CLIENT_SECRET:randomUUID(),DISCORD_BOT_TOKEN:randomUUID(),

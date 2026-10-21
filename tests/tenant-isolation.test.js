@@ -16,6 +16,7 @@ import {runProjectJob} from '../lib/code-project-scheduler.js';
 import {mountAiBotConnections} from '../lib/ai-bot-connections.js';
 import {readFile} from 'node:fs/promises';
 import {botMutationHandler,stopBotMutationLocks} from '../lib/bot-mutation-lock.js';
+import {stopProjectLedger} from '../lib/code-project-ledger.js';
 
 const ga='100000000000000001',gb='100000000000000002',b1='200000000000000001',b2='200000000000000002';
 const users={a:{id:1,discord_id:'300000000000000001'},b:{id:2,discord_id:'300000000000000002'},limited:{id:3,discord_id:'300000000000000003'}};
@@ -116,10 +117,13 @@ async function matrix(t,pool,{concurrent=false}={}){
   await pool.query('INSERT INTO code_command_versions(command_id,revision,source) VALUES($1,1,$2)',[replayCommand,source]);
   await pool.query("INSERT INTO code_project_jobs(id,command_id,revision,user_id,channel_id,event,run_at,status,claimed_at) VALUES($1,$2,1,'actor','channel','{}',NOW(),'running',NOW())",[replayJob,replayCommand]);
   const target={id:'channel',guildId:ga,isTextBased:()=>true,send(){},permissionsFor:()=>({has:()=>true})};
-  const guild={id:ga,name:'fixture',members:{fetch:async()=>({id:'actor',user:{id:'actor',username:'actor'},permissions:{has:()=>true}})},channels:{fetch:async()=>target}};
+  let actorId=users.limited.discord_id;
+  const guild={id:ga,name:'fixture',members:{fetch:async()=>({id:actorId,user:{id:actorId,username:'actor'},permissions:{has:()=>true}})},channels:{fetch:async()=>target}};
   let accepted=0;const transport={post:async()=>{accepted++;throw Error('Provider accepted but receipt lost');}};
   const actorBot={user:{id:b1},guilds:{fetch:async()=>guild}};
   const job={id:replayJob,command_id:replayCommand,revision:1,user_id:'actor',channel_id:'channel',event:{type:'schedule'}};
+  await runProjectJob(actorBot,pool,job,transport);assert.equal(accepted,0,'revoked team command permission prevents a queued send');
+  actorId=users.a.discord_id;
   await runProjectJob(actorBot,pool,job,transport);await runProjectJob(actorBot,pool,job,transport);
   assert.equal(accepted,1);
   assert.equal((await pool.query('SELECT status FROM code_project_effects WHERE command_id=$1 AND event_key=$2',[replayCommand,replayJob+':result'])).rows[0].status,'started');
@@ -147,7 +151,7 @@ test('customer isolation matrix executes real SQL through HTTP handlers',{timeou
 test('PostgreSQL isolation matrix and simultaneous writes preserve ownership and revisions',{timeout:60000},async t=>{
   if(!process.env.RESOURCE_TEST_DATABASE_URL){t.skip('Disposable PostgreSQL required; mandatory in CI');return;}
   const admin=new pg.Pool({connectionString:process.env.RESOURCE_TEST_DATABASE_URL}),name='tenant_'+randomUUID().replaceAll('-','');
-  let pool;t.after(async()=>{if(pool)await pool.end();await admin.query('DROP DATABASE IF EXISTS "'+name+'" WITH (FORCE)');await admin.end();});
+  let pool;t.after(async()=>{if(pool){await stopBotMutationLocks(pool);await stopProjectLedger(pool);await pool.end();}await admin.query('DROP DATABASE IF EXISTS "'+name+'"');await admin.end();});
   await admin.query('CREATE DATABASE "'+name+'"');const url=new URL(process.env.RESOURCE_TEST_DATABASE_URL);url.pathname='/'+name;pool=new pg.Pool({connectionString:url.toString()});
   await matrix(t,pool,{concurrent:true});
 });
