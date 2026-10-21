@@ -10,6 +10,7 @@ import {inspectBackup,restoreToEmptyDatabase} from '../lib/backup-restore.js';
 import {validateBackupPassword} from '../lib/backup-format.js';
 import {migrateApplicationSchema} from '../lib/database-schema.js';
 import {resourcePolicy} from '../lib/resource-protection.js';
+import express from 'express';
 
 const password='disposable-test-passphrase-only';
 test('selected backups include dependency closure and reject arbitrary scopes',()=>{
@@ -39,9 +40,23 @@ test('encrypted archive round trip preserves BIGINT, JSON, bytea and recovery ma
   }finally{if(verified)await verified.cleanup();if(archive)await archive.cleanup();await db.close();}
 });
 
-test('backup routes always require admin middleware and a rejected download cannot clear another local lock',async()=>{
-  const routes=[];mountAdminBackups({get:(...r)=>routes.push(r),post:(...r)=>routes.push(r)},{pool:{},requireAdmin(){},audit:async()=>{}});
-  assert.equal(routes.length,2);assert.equal(routes[0][1],routes[1][1]);assert.equal(routes[1][0],'/api/admin/backups/download');
+test('backup HTTP rejects non-admins and repeated downloads, retains the active lock, and keeps secrets out of audit records',async()=>{
+  const db=new PGlite(),app=express(),events=[];app.use(express.json());let allow,started;
+  const gate=new Promise(r=>allow=r),entered=new Promise(r=>started=r);
+  const client={query:async(sql,params)=>sql.includes('pg_try_advisory_lock')?{rows:[{locked:true}]}:sql.includes('pg_advisory_unlock')?{rows:[]}:!params && sql.includes(';')?db.exec(sql):db.query(sql,params),release(){}};
+  mountAdminBackups(app,{pool:{connect:async()=>client},requireAdmin(req,res,next){if(req.get('x-test-admin')!=='yes')return res.status(403).json({error:'denied'});req.user={id:1};next();},audit:async(...event)=>{events.push(event);if(event[1]==='admin.backup.started'){started();await gate;}},env:{ENCRYPTION_KEY:'private-test-key'}});
+  app.use((e,_req,res,_next)=>res.status(e.status||500).json({error:e.message}));
+  const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));const url=`http://127.0.0.1:${server.address().port}/api/admin/backups/download`;
+  const options={method:'POST',headers:{'Content-Type':'application/json','x-test-admin':'yes'},body:JSON.stringify({password,confirmPassword:password,scope:'full',acknowledge:true,includeRecoveryKey:true})};
+  try{
+    await db.query('CREATE TABLE fixture(id INT)');
+    assert.equal((await fetch(url,{...options,headers:{'Content-Type':'application/json'}})).status,403);
+    const first=fetch(url,options);await entered;
+    assert.equal((await fetch(url,options)).status,409);assert.equal((await fetch(url,options)).status,409);
+    allow();const response=await first;assert.equal(response.status,200);assert.match(response.headers.get('cache-control'),/no-store/);assert.match(response.headers.get('content-disposition'),/\.dkbackup/);assert.ok((await response.arrayBuffer()).byteLength>52);
+    const audit=JSON.stringify(events);assert.ok(!audit.includes(password));assert.ok(!audit.includes('private-test-key'));
+    assert.ok(events.some(e=>e[1]==='admin.backup.prepared'));
+  }finally{allow();await new Promise(r=>server.close(r));await db.close();}
 });
 
 test('admin backup UI presents scope, encryption and explicit non-durable storage, without a production restore button',async()=>{
