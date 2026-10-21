@@ -351,6 +351,7 @@ export const uiTranslations = new Map(Object.entries({
   "الكوبونات": "Coupons",
   "البلاغات": "Complaints",
   "سجل الإدارة": "Admin Log",
+  "النسخ الاحتياطية": "Backups",
   "الموقع": "Website",
   "صورة مباشرة عن المنصة.": "Direct image from the platform.",
   "الأدمن": "Admin",

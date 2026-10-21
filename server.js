@@ -1,3 +1,4 @@
+import {mountAdminBackups} from './lib/admin-backups.js';
 import {imageResourceStats} from './lib/image-resource-budget.js';
 import {createResourceProtection,boundedRateLimit,sessionPaths} from './lib/resource-protection.js';
 import {createResourceBudgetStore} from './lib/resource-budget-store.js';
@@ -662,6 +663,7 @@ app.put("/api/projects/:id", requireUser, requireWriteAccess, async (req, res, n
   } catch (e) { next(e); }
 });
 
+mountAdminBackups(app,{pool,requireAdmin,audit});
 app.get('/api/admin/resource-pressure',requireAdmin,(_req,res)=>res.json({admission:resourceProtection.stats(),store:resourceStore.stats(),database:databasePoolStats(pool),images:imageResourceStats(),memory:process.memoryUsage()}));
 app.get("/api/admin/stats", requireAdmin, async (_req, res, next) => {
   try {
