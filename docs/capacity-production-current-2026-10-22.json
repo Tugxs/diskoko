@@ -1,0 +1,90 @@
+{
+  "measuredAt": "2026-10-22",
+  "window": {
+    "start": "2026-10-21T16:00:00Z",
+    "end": "2026-10-22T16:55:00Z",
+    "resolutionSeconds": 300
+  },
+  "note": "Five-minute per-instance samples under observed light traffic. Not a production load test or instantaneous peaks.",
+  "resources": [
+    {
+      "role": "web",
+      "cpuLimit": 0.5,
+      "memoryLimitMiB": 512,
+      "summary": [
+        {
+          "type": "cpu_usage",
+          "unit": "cpu",
+          "n": 295,
+          "p50": 0.00090280664,
+          "p95": 0.0013824267,
+          "max": 0.00281666
+        },
+        {
+          "type": "memory_usage",
+          "unit": "bytes",
+          "n": 301,
+          "p50": 103387140,
+          "p95": 116396030,
+          "max": 125157380
+        }
+      ]
+    },
+    {
+      "role": "worker",
+      "cpuLimit": 0.5,
+      "memoryLimitMiB": 512,
+      "summary": [
+        {
+          "type": "cpu_usage",
+          "unit": "cpu",
+          "n": 296,
+          "p50": 0.0035783034,
+          "p95": 0.0040782467,
+          "max": 0.0053248066
+        },
+        {
+          "type": "memory_usage",
+          "unit": "bytes",
+          "n": 300,
+          "p50": 124784640,
+          "p95": 151760900,
+          "max": 153903100
+        }
+      ]
+    },
+    {
+      "role": "postgres",
+      "cpuLimit": 0.1,
+      "memoryLimitMiB": 256,
+      "diskGB": 1,
+      "summary": [
+        {
+          "type": "cpu_usage",
+          "unit": "cpu",
+          "n": 300,
+          "p50": 0.0140461,
+          "p95": 0.015448524,
+          "max": 0.017773803
+        },
+        {
+          "type": "memory_usage",
+          "unit": "bytes",
+          "n": 300,
+          "p50": 114409470,
+          "p95": 124321790,
+          "max": 133980160
+        },
+        {
+          "type": "active_connections",
+          "unit": "unitless",
+          "n": 300,
+          "p50": 5,
+          "p95": 8,
+          "max": 13
+        }
+      ]
+    }
+  ],
+  "databaseSql": "Hosted connector cannot reach the externally isolated database; external access was not enabled."
+}

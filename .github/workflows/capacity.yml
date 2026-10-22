@@ -1,0 +1,49 @@
+name: Capacity benchmark
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/capacity-bench.mjs
+      - lib/music-capacity.js
+      - .github/workflows/capacity.yml
+permissions:
+  contents: read
+concurrency:
+  group: capacity-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: capacity_test
+          POSTGRES_PASSWORD: disposable-capacity-only
+          POSTGRES_DB: capacity_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U capacity_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      RESOURCE_TEST_DATABASE_URL: postgresql://capacity_test:disposable-capacity-only@localhost:5432/capacity_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Match current service CPU and memory envelopes
+        run: docker update --cpus=0.1 --memory=256m --memory-swap=256m "${{ job.services.postgres.id }}"
+      - name: Benchmark isolated half-core service
+        run: >-
+          docker run --rm --network host --cpus=0.5 --memory=512m --memory-swap=512m
+          --mount type=bind,source="$GITHUB_WORKSPACE",target=/work --workdir /work
+          -e RESOURCE_TEST_DATABASE_URL -e NODE_ENV=test
+          node:24-bookworm-slim node scripts/capacity-bench.mjs --output=capacity-ci.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capacity-measurements
+          path: capacity-ci.json
