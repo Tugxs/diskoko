@@ -20,12 +20,13 @@ test('checkout reviews an authenticated upgrade and records a request without ch
   dom.window.eval(fs.readFileSync(new URL('../checkout.js', import.meta.url), 'utf8'));
   await settle();
   const doc = dom.window.document;
-  assert.match(doc.body.textContent, /لن يُخصم منك شيء/);
+  assert.match(doc.body.textContent, /تبقى الباقة الحالية/);
+  assert.doesNotMatch(doc.body.textContent,/Apple Pay|تمارا|مدى والبطاقات/);
   assert.match(doc.querySelector('#total').textContent, /١٬٢٩٠|1,290/);
   assert.equal(doc.querySelector('#confirmUpgrade').disabled, false);
   assert.equal(doc.querySelectorAll('input[type="password"],input[autocomplete="cc-number"]').length, 0);
   doc.querySelector('#confirmUpgrade').click(); await settle();
   assert.equal(calls.filter(call => call.url === '/api/billing/upgrade-requests').length, 1);
-  assert.match(doc.body.textContent, /لم تُجرَ عملية دفع/);
+  assert.match(doc.body.textContent, /باقتك لم تتغير/);
   dom.window.close();
 });

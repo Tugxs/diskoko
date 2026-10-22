@@ -4822,3 +4822,39 @@ export const uiPatterns = [
     "Your Account Balance: {1} of {2} private bots · Choose an Execution Bot or Add Other Bots"
   ]
 ];
+
+for(const [ar,en] of Object.entries({
+  "جرّب مجانًا، ثم اختر السعة المناسبة. تغيير الباقة يُسجل كطلب للمراجعة، وتبقى باقتك الحالية حتى الاعتماد.": "Start free and choose your capacity. Plan change requests do not change your current plan until approved.",
+  "10 وحدات تغيير شهريًا": "10 change units per month",
+  "رسالة مجدولة واحدة وسجل تغييرات 20 يومًا": "One active schedule and 20 days of audit history",
+  "300 وحدة تغيير شهريًا و20 قالبًا مخصصًا": "300 monthly change units and 20 custom templates",
+  "3,000 وحدة تغيير و200 رسالة مجدولة": "3,000 change units and 200 active schedules",
+  "15,000 وحدة تغيير و1,000 رسالة مجدولة": "15,000 change units and 1,000 active schedules",
+  "وحدات التغيير شهريًا": "Monthly change units",
+  "20 يومًا": "20 days",
+  "بلاغات ودعم": "Reports and support",
+  "القوالب الجاهزة قابلة للتعديل قبل التطبيق. ويمكنك اختيار بوت ديسكوكو أو ربط بوتك الخاص لكل سيرفر. حد البوتات الخاصة يعني روابط البوتات بالسيرفرات المسجلة للحساب. الأوامر البرمجية واللوحات والقوالب متاحة ضمن حدود التشغيل، والمحركات الخارجية تتطلب اتصالًا فعليًا.": "Edit ready templates before applying them. Choose Diskoko or your own bot per server. Private bot limits count registered bot-to-server links. Code commands, panels and templates have runtime limits; external engines require an actual connection.",
+  "راجع السعة وسجّل طلبك؛ تبقى باقتك الحالية حتى اعتماده.": "Review capacity and submit your request. Your current plan stays in place until approval.",
+  "طلب تغيير الباقة لا يعدّل اشتراكك حتى الاعتماد. تخفيض السعة لا يحذف بياناتك المحفوظة.": "Plan changes require approval. A lower capacity does not delete your saved data.",
+  "حدود الباقة مشتركة بين سيرفرات الحساب. أعضاء الفريق محسوبون لكل سيرفر، والعمليات المنفذة فقط تستهلك وحدات التغيير.": "Plan capacity is shared across your account servers. Team seats apply per server. Only executed changes consume change units.",
+  "كل أدوات مجتمعك في باقة واحدة؛ اختر السعة المناسبة وتابع استهلاك حسابك.": "Your community tools in one plan. Choose capacity and track account usage.",
+  "إدارة الاشتراك": "Manage subscription",
+  "إلغاء طلب تغيير الباقة": "Cancel plan change request",
+  "إيقاف تجديد الاشتراك": "Stop subscription renewal",
+  "دعم الاشتراك": "Subscription support",
+  "الإلغاء لا يحذف محتوى السيرفر أو القوالب والأوامر. يستمر الوصول حتى نهاية الفترة المحددة، ثم تصبح أدوات التعديل في وضع القراءة فقط. الاشتراك دون تاريخ نهاية يتوقف فور تأكيد الإلغاء.": "Cancellation preserves server content, templates and commands. Access continues until the period ends, then editing becomes read-only. An indefinite subscription ends immediately when cancellation is confirmed.",
+  "إيقاف التجديد مع الاحتفاظ بالبيانات؟ ينتهي الوصول عند نهاية الفترة، أو فورًا إذا لم توجد فترة محددة.": "Stop renewal and keep your data? Access ends at the period boundary, or immediately if no period is set.",
+  "بياناتك محفوظة. راجع الاشتراك لاستئناف التغييرات.": "Your data is preserved. Review your subscription to resume changes.",
+  "فترة سماح للاشتراك": "Subscription grace period",
+  "يحتاج مراجعة": "Needs review",
+  "تبقى باقتك الحالية حتى اعتماد الطلب.": "Your current plan remains until the request is approved.",
+  "أدخل الرمز قبل اختيار الباقة. سنعرض خصمًا تقديريًا، ويُعاد التحقق منه عند اعتماد الطلب.": "Enter your code before choosing a plan. The estimated discount is checked again at approval.",
+  "ستظهر مستندات اشتراكك المسجلة هنا عند توفرها.": "Recorded subscription documents appear here when available.",
+  "راجع الباقة والسعة والفترة قبل إرسال الطلب. تبقى الباقة الحالية كما هي حتى الاعتماد.": "Review plan capacity and duration before submitting. Your current plan remains until approval.",
+  "تغيير الباقة بأمان": "Safe plan changes",
+  "طلبك لا يغيّر الاشتراك مباشرة. عند التخفيض لا نحذف القوالب أو الأوامر أو بيانات السيرفر؛ قد يتوقف إنشاء عناصر جديدة حتى يصبح الاستخدام ضمن السعة.": "Your request does not immediately change the subscription. Downgrading preserves templates, commands and server data; adding new items may stop until usage is within capacity.",
+  "استفسار عن الاشتراك": "Ask about your subscription",
+  "هذا ملخص تقديري للطلب، وليس تغييرًا فوريًا للاشتراك.": "This is an estimated request summary, not an immediate subscription change.",
+  "باقتك لم تتغير. يمكنك متابعة الطلب من صفحة الاشتراك أو التواصل مع الدعم.": "Your plan has not changed. Follow the request on your subscription page or contact support."
+})) uiTranslations.set(ar,en);
+uiPatterns.push(["{1} عضو فريق لكل سيرفر","{1} team seats per server"],["سجل تغييرات {1} يومًا","{1} days of audit history"],["الخدمة تعمل حتى {1}. راجع الاشتراك قبلها لتجنب وضع القراءة فقط.","Service remains available until {1}. Review your subscription before it becomes read-only."]);

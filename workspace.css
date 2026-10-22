@@ -327,3 +327,7 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 .code-admin-panel .code-editor-layout{grid-template-columns:minmax(0,1fr)}.code-admin-panel [data-code-preview]{width:100%;max-width:760px}.code-admin-panel .code-preview-card{padding:18px}.code-admin-panel .code-preview-native-row{width:100%}@media(max-width:560px){.code-preview-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
 .code-native-multiselect{width:100%;border:1px solid #4e5058;border-radius:5px;padding:8px;background:#313338}.code-native-multiselect summary{cursor:pointer}.code-native-multiselect label{display:flex;gap:8px;padding:5px;font-size:13px}.code-native-multiselect button{margin-top:6px}
+
+.service-catalog .service-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px;margin-block:16px}.service-catalog article{border:1px solid var(--border,#353047);border-radius:12px;padding:16px}.service-catalog p{line-height:1.9;color:var(--muted,#b4afc5)}
+
+.service-catalog,.subscription-management{padding:20px}.subscription-management p{line-height:1.9;margin-block:12px}
