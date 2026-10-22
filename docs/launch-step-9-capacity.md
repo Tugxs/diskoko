@@ -2,7 +2,7 @@
 
 ## What the numbers mean
 
-The production baseline in `capacity-production-current-2026-10-22.json` is telemetry under light observed traffic, not saturation testing. Component results run on a Windows workstation and GitHub's Linux runner, not a Render-equivalent CPU quota. No customer database, Discord API, YouTube or real voice channel receives benchmark traffic. Synthetic API authentication bypasses OAuth/session loading; real schedule SQL, owner scoping and resource admission are included. This is a conservative launch envelope, not a certified subscriber maximum.
+The production baseline in `capacity-production-current-2026-10-22.json` is telemetry under light observed traffic, not saturation testing. Local component results run on a Windows workstation. CI additionally runs Node in a 0.5-CPU/512-MiB Docker envelope and PostgreSQL in a separate 0.1-CPU/256-MiB envelope, matching current nominal allocations. Matching quotas does not reproduce Render hardware, networking or managed-database configuration. No customer database, Discord API, YouTube or real voice channel receives benchmark traffic. Synthetic API authentication bypasses OAuth/session loading; real schedule SQL, owner scoping and resource admission are included. This is a conservative launch envelope, not a certified subscriber maximum.
 
 Reproduce with `node scripts/capacity-bench.mjs --output=capacity-results.json`. The HTTP component requires `RESOURCE_TEST_DATABASE_URL` pointing to disposable loopback PostgreSQL and refuses a non-loopback URL or production mode. It creates/drops its own randomly named schema only. `scripts/capacity-cache-bench.mjs` seeds idle discord.js caches without connecting; it is a lower bound, not the cost of an online bot. The Capacity benchmark workflow stores the full JSON artifact separately from functional CI.
 
@@ -36,7 +36,7 @@ The previous scheduled-message poll interval was 30 seconds, approximately 10 cl
 
 ## Initial admission recommendation (planning, not benchmark-proven capacity)
 
-Start with **25 light-use customer accounts**, assuming roughly one small/medium server per customer, at most **10 distinct private bots**, no more than **10 simultaneously active dashboard users** averaging one API read every five seconds, no more than **2 simultaneous music sessions normally** (third slot is headroom), and predominantly short code commands. This is an operating policy, not a newly enforced registration cap. More server members are not automatically more paying customers, and idle accounts do not consume the same capacity as active media users.
+Start with **25 light-use customer accounts**, assuming roughly one small/medium server per customer, at most **5 distinct private bots**, no more than **10 simultaneously active dashboard users** averaging one API read every five seconds, no more than **2 simultaneous music sessions normally** (third slot is headroom), and predominantly short code commands. This is an operating policy, not a newly enforced registration cap. More server members are not automatically more paying customers, and idle accounts do not consume the same capacity as active media users.
 
 Review at **20 accounts** and before accepting **50**. Do not promise unlimited simultaneous music or code. If all 25 customers require music at once, the current envelope is already insufficient regardless of idle memory. A shared public bot avoids a gateway per customer but shares Discord rate limits; private bots add gateways/caches and background schedulers.
 
@@ -45,7 +45,7 @@ Review at **20 accounts** and before accepting **50**. Do not promise unlimited 
 Recommended sustained triggers: CPU above 70% of the allocated CPU for 10 minutes, memory above 70% for 10 minutes or peak above 80%, p95 API latency above 1 second for 5 minutes, 5xx above 1%, normal-workload admission rejections above 1%, DB connection/pool waiting, growing queue age, or repeated voice/code starvation. A load-test overload rejection is expected; a normal customer rejection is a capacity signal. Current operations warnings already cover 440 MiB RSS, queue age >45 seconds and stalled execution; these are emergency warnings, later than the proposed upgrade thresholds.
 
 1. Database: move to `0.5c-1g` when DB CPU/latency is limiting, and increase disk independently before 70% disk use. Keep the 700 MiB application soft limit aligned with actual disk capacity; don't disable it to hide storage pressure. Establish actual growth and retention before estimating customers per GB.
-2. Worker: `1c-2g` before materially expanding private bots/media or when these signals appear. Keep one gateway owner; adding identical worker replicas is not a safe substitute for bot ownership partitioning and shared music admission.
+2. Worker: `1c-2g` before expanding to 10 private bots or materially expanding media, or when these signals appear earlier. Five and ten bots are conservative review thresholds, not measured connected-gateway maxima. Keep one gateway owner; adding identical worker replicas is not a safe substitute for bot ownership partitioning and shared music admission.
 3. Music: use a separately measured audio service (the existing Lavalink integration is available) before offering more than three concurrent sessions broadly. Increasing MUSIC_MAX_SESSIONS alone is not a capacity upgrade. Benchmark the audio server's CPU, streams, bandwidth and reconnect behavior separately.
 4. Web: `1c-2g` if authenticated API p95/CPU/memory calls for it. Add stateless replicas only after checking aggregate DB pools, shared limits, job ownership and render workload. Keep infrastructure changes separate from a subscriber price or quota change.
 5. Codes: isolate additional execution workers with per-owner fairness and shared quotas before raising the two-process limit. Worst-case 700 ms CPU commands or 20-second SDK waits have radically lower throughput than the short example.
@@ -54,9 +54,9 @@ These are recommendations only: this release does not purchase or change Render 
 
 ## Evidence and remaining acceptance
 
-- Functional tests cover reservation races, duplicate joins, failed source lookups, pipeline cleanup and bounded nonoverlapping schedule batches.
+- Functional tests cover reservation races, duplicate joins, failed source lookups, owned decoder subprocess cleanup and bounded nonoverlapping schedule batches. Native decoding now has explicit process ownership so stopping/replacing playback also releases its FFmpeg work rather than relying only on final stream disposal.
 - Code benchmark measures fresh processes, busy rejection and timeout recovery.
-- Media benchmark measures actual Sharp and FFmpeg/volume/Opus packets, including 3 streams mixed with code and cards; it excludes voice encryption/UDP/Discord/YouTube and child CPU/RSS from the reported parent statistics.
+- Media benchmark measures actual Sharp and FFmpeg/volume/Opus packets, including 3 streams mixed with code and cards; it excludes voice encryption/UDP/Discord/YouTube. Parent statistics exclude child processes; CI cgroup CPU and memory additionally include native decoders and code children within the tested service container.
 - API benchmark seeds 120 synthetic owners and 60,000 schedules, offers 5/10/20/40/80 RPS and a 60-second recovery period, and reports status distribution, p50/p95/p99, lag and parent RSS. Its database and authentication are fixtures, so do not extrapolate runner RPS directly to Render.
 - A production-equivalent isolated Render staging run, authenticated login/session traffic, sustained multi-hour soak and real Discord voice acceptance remain necessary before certifying a higher customer limit. They are explicitly not represented as completed by these artifacts.
 

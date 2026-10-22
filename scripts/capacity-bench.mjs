@@ -81,5 +81,5 @@ async function httpBench(){
   });}
  }finally{if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}store?.close();await pool.end();await admin.query('DROP SCHEMA '+schema+' CASCADE');await admin.end();}
 }
-try{if(['all','code'].includes(component))await codeBench();if(['all','media'].includes(component))await mediaBench();if(['all','http'].includes(component))await httpBench();await fs.writeFile(output,JSON.stringify(report,null,2));console.log('Wrote '+output);}
+try{if(['all','code'].includes(component))await codeBench();if(['all','media'].includes(component))await mediaBench();if(['all','http'].includes(component))await httpBench();await pause(200);const children=process._getActiveHandles().filter(handle=>handle.constructor?.name==='ChildProcess' && handle.exitCode===null && handle.signalCode===null);report.remainingChildProcesses=children.length;if(children.length){children.forEach(child=>child.kill('SIGKILL'));process.exitCode=1;}await fs.writeFile(output,JSON.stringify(report,null,2));console.log('Wrote '+output);}
 catch(error){console.error(error.message);process.exitCode=1;}
