@@ -12,7 +12,8 @@
     "check:secrets": "node scripts/check-secrets.mjs",
     "assets:sync": "node scripts/sync-assets.mjs",
     "audit:all": "node scripts/audit-all.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "check:launch": "node scripts/launch-check.mjs"
   },
   "engines": {
     "node": ">=24.17"

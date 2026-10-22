@@ -1302,3 +1302,82 @@ test('compact bot identity settings retain the private bot profile and nickname 
  const response=url=>url===`/api/ai/bots?guildId=${guild.id}`?{bots:[{id:'bot-1',name:'اسم البوت',label:'بوت الإدارة',online:true}],quota:{used:1,limit:5}}:fixtureResponse(url);
  const {dom,doc}=await page('bots',response);doc.querySelector('#panelBotSettings').click();assert.ok(doc.querySelector('#workshopBotNickname'));assert.equal(doc.querySelector('#workshopBotLabel').value,'بوت الإدارة');assert.ok(doc.querySelector('#workshopBotIdentityConfirm'));await settle();dom.window.close();
 });
+
+test('launch journey visits every customer tool in one session without publishing or losing the server',async()=>{
+ const response=url=>url==='/api/ready-templates'?{templates:READY_TEMPLATES}:fixtureResponse(url);
+ const {dom,doc,requests}=await page('overview',response);
+ try{
+  const links=[...doc.querySelectorAll('#navigation a.nav-link')].map(link=>({hash:new URL(link.href).hash,label:link.textContent.trim()}));
+  assert.equal(links.length,13);
+  for(const link of links){
+   dom.window.location.hash=link.hash;await settle();await settle();
+   assert.equal(doc.querySelector('#guildSelect').value,guild.id,link.hash);
+   assert.ok(doc.querySelector('#workspace h1'),link.hash+' has a page heading');
+   assert.equal(doc.querySelector('#retrySection'),null,link.hash+' must render instead of its error fallback');
+   assert.equal(doc.querySelector('#retry'),null,link.hash+' must retain the loaded server');
+   assert.equal(doc.querySelectorAll('#navigation [aria-current="page"]').length,1,link.hash);
+  }
+  assert.deepEqual(requests.filter(r=>r.options.method && r.options.method!=='GET').map(r=>r.url),[],'visiting tools must never publish or change settings');
+ }finally{dom.window.close();}
+});
+
+test('launch journey account sections remain navigable with no implicit mutation',async()=>{
+ const {dom,doc,requests}=await page('servers',fixtureResponse,'account.html','account.js');
+ try{
+  for(const hash of ['servers','create','projects','subscription','servers']){
+   dom.window.location.hash=hash;await settle();await settle();
+   assert.ok(doc.querySelector('#workspace').textContent.trim(),hash);
+   assert.doesNotMatch(doc.querySelector('#workspace').textContent,/undefined|\[object Object\]/,hash);
+  }
+  assert.equal(doc.querySelectorAll('.server-card a.btn.primary').length,2);
+  assert.equal(requests.filter(r=>r.options.method && r.options.method!=='GET').length,0);
+ }finally{dom.window.close();}
+});
+
+test('launch journey retries a failed server read without duplicating mutations',async()=>{
+ let unavailable=true;
+ const {dom,doc,requests}=await page('builder',url=>url===`/api/workspace/${guild.id}` && unavailable?{error:'Temporary Discord connection failure'}:fixtureResponse(url));
+ try{
+  assert.ok(doc.querySelector('#retry'));assert.equal(doc.querySelector('#newResource'),null);
+  unavailable=false;doc.querySelector('#retry').click();await settle();await settle();
+  assert.equal(doc.querySelector('#retry'),null);assert.ok(doc.querySelector('#newResource'));
+  assert.equal(requests.filter(r=>r.options.method && r.options.method!=='GET').length,0);
+ }finally{dom.window.close();}
+});
+
+test('launch journey preserves pending structure edits while visiting other tools',async()=>{
+ const {dom,doc,requests}=await page('builder');
+ try{
+  stageChannelReview(dom,doc);doc.querySelector('#laterPlan').click();
+  const key=`diskoko:review:${account.user.id}:${guild.id}`,before=dom.window.localStorage.getItem(key);
+  assert.ok(JSON.parse(before).length);
+  dom.window.location.hash='activity';await settle();dom.window.location.hash='builder';await settle();
+  assert.equal(dom.window.localStorage.getItem(key),before);
+  assert.equal(requests.filter(r=>r.options.method && r.options.method!=='GET').length,0);
+ }finally{dom.window.close();}
+});
+
+test('expired account session cannot restore cached account data by changing tabs',async()=>{
+ const {dom,doc}=await page('servers',fixtureResponse,'account.html','account.js');
+ try{
+  assert.equal(doc.querySelectorAll('.server-card').length,2);
+  dom.window.fetch=async()=>({ok:false,status:401,json:async()=>({error:'Session expired'})});
+  doc.querySelector('#refresh').click();await settle();
+  assert.ok(doc.querySelector('a[href^="/auth/discord"]'));
+  dom.window.location.hash='subscription';await settle();
+  assert.ok(doc.querySelector('a[href^="/auth/discord"]'),'login must remain visible after navigation');
+  assert.equal(doc.querySelectorAll('.billing-plan').length,0);
+ }finally{dom.window.close();}
+});
+
+test('a stale account refresh cannot overwrite a newer expired-session result',async()=>{
+ const {dom,doc}=await page('servers',fixtureResponse,'account.html','account.js');const pending=[];
+ try{
+  dom.window.fetch=()=>new Promise(resolve=>pending.push(resolve));
+  doc.querySelector('#refresh').click();doc.querySelector('#refresh').click();assert.equal(pending.length,2);
+  pending[1]({ok:false,status:401,json:async()=>({error:'Session expired'})});await settle();
+  pending[0]({ok:true,status:200,json:async()=>structuredClone(account)});await settle();
+  assert.equal(doc.querySelectorAll('.server-card').length,0);
+  assert.ok(doc.querySelector('#workspace a[href^="/auth/discord"]'));
+ }finally{dom.window.close();}
+});
