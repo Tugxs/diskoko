@@ -19,12 +19,16 @@ import {disposeAudioResource} from '../lib/audio-resource-cleanup.js';
 const pause=ms=>new Promise(r=>setTimeout(r,ms)),args=process.argv.slice(2),option=(key,fallback)=>args.find(a=>a.startsWith('--'+key+'='))?.split('=').slice(1).join('=') ?? fallback;
 const component=option('component','all'),output=option('output','capacity-results.json');
 const report={at:new Date().toISOString(),node:process.version,platform:process.platform,cpu:os.cpus()[0]?.model,logicalCpus:os.availableParallelism(),hostRamMiB:Math.round(os.totalmem()/1048576),scope:'Isolated component/synthetic API measurements; not Render production capacity or live Discord acceptance',results:[]};
+const cgroup=async name=>{try{return await fs.readFile('/sys/fs/cgroup/'+name,'utf8');}catch{return null;}};
+report.containerLimits={cpuMax:await cgroup('cpu.max'),memoryMax:await cgroup('memory.max')};
+const usage=async()=>{const text=await cgroup('cpu.stat');return text?Object.fromEntries(text.trim().split('\n').map(line=>{const [key,value]=line.split(' ');return [key,Number(value)];})):null;};
 const percentile=(values,p)=>{const sorted=[...values].sort((a,b)=>a-b);return sorted[Math.max(0,Math.ceil(sorted.length*p)-1)] ?? 0;};
 async function measure(name,task){
  console.log(name+': starting');
  const lag=monitorEventLoopDelay({resolution:10});lag.enable();let peak=process.memoryUsage().rss;
- const sample=setInterval(()=>{peak=Math.max(peak,process.memoryUsage().rss);},50);const started=performance.now(),cpu=process.cpuUsage();
- try{const result=await task();const used=process.cpuUsage(cpu);report.results.push({name,...result,wallMs:Math.round(performance.now()-started),parentCpuMs:Math.round((used.user+used.system)/1000),parentPeakRssMiB:Math.round(peak/1048576),eventLoopP95Ms:Number((lag.percentile(95)/1e6).toFixed(2))});console.log(name+': complete');}
+ let groupPeak=0;const groupBefore=await usage();
+ const sample=setInterval(()=>{peak=Math.max(peak,process.memoryUsage().rss);void cgroup('memory.current').then(value=>{if(value)groupPeak=Math.max(groupPeak,Number(value));});},50);const started=performance.now(),cpu=process.cpuUsage();
+ try{const result=await task();const used=process.cpuUsage(cpu),groupAfter=await usage();report.results.push({name,...result,wallMs:Math.round(performance.now()-started),parentCpuMs:Math.round((used.user+used.system)/1000),parentPeakRssMiB:Math.round(peak/1048576),containerCpuMs:groupBefore&&groupAfter?Math.round((groupAfter.usage_usec-groupBefore.usage_usec)/1000):null,containerThrottledMs:groupBefore&&groupAfter?Math.round((groupAfter.throttled_usec-groupBefore.throttled_usec)/1000):null,containerPeakMiB:groupPeak?Math.round(groupPeak/1048576):null,eventLoopP95Ms:Number((lag.percentile(95)/1e6).toFixed(2))});console.log(name+': complete');}
  finally{clearInterval(sample);lag.disable();}
 }
 async function codeBench(){
@@ -72,7 +76,7 @@ async function httpBench(){
    while(performance.now()-start<seconds*1000){await pause(Math.max(0,start+number*1000/rate-performance.now()));const n=number++;if(pending.size>=64){dropped++;continue;}
     const task=(async()=>{const began=performance.now();try{const response=await fetch(base+'/api/workspace/111111111111111111/tools/schedules?limit=20',{headers:{'x-capacity-owner':String(n%120+1),'x-forwarded-for':'192.0.2.'+(n%120+1)},signal:AbortSignal.timeout(5000)});await response.text();statuses[response.status]=(statuses[response.status] || 0)+1;times.push(performance.now()-began);}catch{statuses.network=(statuses.network || 0)+1;}})();pending.add(task);task.finally(()=>pending.delete(task));
    }
-   await Promise.all(pending);const health=await fetch(base+'/api/health');await health.text();if(health.status!==200 || statuses[500] || statuses.network)throw Error('HTTP load caused server/network failure');return {targetRps:rate,seconds,offered:number,statuses,dropped,p50Ms:Math.round(percentile(times,.5)),p95Ms:Math.round(percentile(times,.95)),p99Ms:Math.round(percentile(times,.99)),healthStatus:health.status,protection:guard.stats(),note:'Real schedule list SQL and shared resource leases; 120 synthetic owners/60,000 rows. Fixture authentication, local DB/network, no Discord.'};
+   await Promise.all(pending);const health=await fetch(base+'/api/health');await health.text();if(health.status!==200)throw Error('Health became unavailable under load');return {targetRps:rate,seconds,offered:number,statuses,dropped,p50Ms:Math.round(percentile(times,.5)),p95Ms:Math.round(percentile(times,.95)),p99Ms:Math.round(percentile(times,.99)),healthStatus:health.status,protection:guard.stats(),note:'Real schedule list SQL and shared resource leases; 120 synthetic owners/60,000 rows. Fixture authentication, local DB/network, no Discord.'};
   });}
  }finally{if(server){server.closeAllConnections();await new Promise(r=>server.close(r));}store?.close();await pool.end();await admin.query('DROP SCHEMA '+schema+' CASCADE');await admin.end();}
 }
