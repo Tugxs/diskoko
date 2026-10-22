@@ -10,6 +10,10 @@ const source=fs.readFileSync(new URL('../code-command-editor.js',import.meta.url
 
 const settle=()=>new Promise(resolve=>setTimeout(resolve,15));
 
+test('changing bots requires explicit discard and never transfers unsaved source or calls the new bot early',async()=>{
+ const {dom,q,requests}=editor();try{await settle();q('new').click();q('source').value='private customer source';q('source').dispatchEvent(new dom.window.Event('input',{bubbles:true}));const before=requests.length;q('bot').value='private';q('bot').dispatchEvent(new dom.window.Event('change'));assert.equal(q('bot').value,'public');assert.equal(q('source').value,'private customer source');assert.equal(requests.length,before);q('keep').click();assert.equal(q('leave-notice'),null);q('bot').value='private';q('bot').dispatchEvent(new dom.window.Event('change'));q('leave').click();await settle();assert.equal(q('bot').value,'private');assert.equal(q('editor').hidden,true);q('new').click();assert.notEqual(q('source').value,'private customer source');assert.ok(!requests.some(r=>r.options.method==='POST' || r.options.method==='PATCH'));}finally{dom.window.close();}
+});
+
 test('native multi-select preview preserves defaults and submits all choices only after confirmation',async()=>{
  const {dom,q,requests}=editor({testOutput:{message:{content:'الأذكار',embeds:[],controls:[{type:'select',action:'types',placeholder:'الأنواع',minValues:1,maxValues:2,options:[{label:'تسبيح',value:'a',default:true},{label:'تحميد',value:'b'},{label:'أدعية',value:'c'}]}]}}});
  await settle();q('new').click();q('name').value='dhikr';q('description').value='Dhikr';q('test').click();await settle();

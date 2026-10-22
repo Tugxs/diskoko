@@ -331,3 +331,23 @@ dialog:has(.resource-editor){width:min(900px,calc(100vw - 30px))}
 .service-catalog .service-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px;margin-block:16px}.service-catalog article{border:1px solid var(--border,#353047);border-radius:12px;padding:16px}.service-catalog p{line-height:1.9;color:var(--muted,#b4afc5)}
 
 .service-catalog,.subscription-management{padding:20px}.subscription-management p{line-height:1.9;margin-block:12px}
+
+/* Customer journey: calm defaults, readable editors, mobile navigation. */
+.customer-journey{border:1px solid var(--line,#393047);border-radius:14px;padding:16px 20px;margin-block:16px;background:var(--panel,#171424)}
+.customer-journey summary,.advanced-tools>summary{cursor:pointer;font-weight:600;line-height:1.7}
+.customer-journey ol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px;padding-inline-start:24px;margin-block:18px}.customer-journey li{padding-inline-start:4px;line-height:1.9}.customer-journey li b,.customer-journey li span{display:block}.customer-journey li span{font-size:12px;color:var(--muted,#b4afc5)}
+.nav-search{display:block;margin-block:8px 14px}.nav-search input{width:100%;min-width:0;padding:10px 12px;font:inherit;font-size:12px;border:1px solid var(--line,#393047);border-radius:10px;background:var(--panel,#171424);color:inherit}.nav-link[hidden]{display:none!important}
+.dashboard-tools>.advanced-tools{padding:0;border:0}.advanced-tools>summary{padding:16px 20px}.unsaved-notice{margin:12px 16px}.unsaved-notice .actions{margin-top:12px}
+.navigation-backdrop{position:fixed;inset:0;z-index:19;border:0;border-radius:0;background:#05030ba8;backdrop-filter:blur(3px)}.navigation-backdrop[hidden]{display:none}
+:where(button,a,input,select,textarea,summary):focus-visible{outline:2px solid var(--purple,#b294ff);outline-offset:3px}
+@media(max-width:760px){
+ body[data-nav-open="true"]{overflow:hidden}.sidebar{height:100dvh;max-height:100dvh;overflow-y:auto;overscroll-behavior:contain}.sidebar[inert]{visibility:hidden}.sidebar.open{visibility:visible}
+ [dir="ltr"] .sidebar{left:0;right:auto;transform:translateX(-100%)}[dir="ltr"] .sidebar.open{transform:translateX(0)}
+ .main-shell,#workspace,.panel,.form-grid,.row-main,.code-editor-layout,.code-command-studio{min-width:0;max-width:100%}#workspace{padding:18px 14px}.page-head{gap:12px;flex-wrap:wrap}.page-head .actions{width:100%;flex-wrap:wrap}.topbar{gap:8px;flex-wrap:wrap;padding:12px 14px}.topbar-start,.topbar-end{min-width:0;gap:8px}.breadcrumb{overflow-wrap:anywhere}
+ .customer-journey{padding:14px}.customer-journey ol{grid-template-columns:1fr;gap:14px}.actions{flex-wrap:wrap}.actions .btn{max-width:100%;white-space:normal}.form-grid label{min-width:0}input,select,textarea{max-width:100%;font-size:16px}
+ dialog{width:calc(100vw - 20px);max-width:calc(100vw - 20px);max-height:calc(100dvh - 20px);margin:auto}.dialog-head{gap:10px}.dialog-head h2{overflow-wrap:anywhere;font-size:18px}.dialog-body{max-height:calc(100dvh - 190px);overflow:auto;overscroll-behavior:contain;padding:16px}.dialog-foot{flex-wrap:wrap;gap:8px;padding:12px 16px}.dialog-foot .btn{flex:1;min-width:120px;white-space:normal}
+ .table-wrap{max-width:100%;overflow-x:auto}.code-editor-layout{grid-template-columns:minmax(0,1fr)}.code-command-studio textarea{font-size:16px;min-width:0}.code-command-studio .actions{gap:8px}button,.btn,summary,select{min-height:44px}.customer-journey summary,.advanced-tools>summary{display:list-item}
+}
+@media(prefers-reduced-motion:reduce){.sidebar,.navigation-backdrop{transition:none!important;backdrop-filter:none}}
+.schedule-filters{display:flex;gap:12px;flex-wrap:wrap;align-items:end;padding:18px}.schedule-filters label{flex:1 1 160px;min-width:0}.schedule-filters input,.schedule-filters select{width:100%}.schedule-row{align-items:start}.schedule-actions{max-width:300px;flex-wrap:wrap}.schedule-calendar{padding:14px;border:1px solid var(--border,#343044);border-radius:12px}.schedule-calendar p{margin:8px 0}.schedule-row .notice{margin-top:10px}.schedule-row .row-main{overflow-wrap:anywhere}.schedule-row details p{font-size:.85rem}.schedule-row small{white-space:normal}
+@media(max-width:760px){.schedule-row{flex-wrap:wrap}.schedule-row .row-main{flex:1 1 200px}.schedule-actions{max-width:100%;width:100%}.schedule-actions .btn{flex:1 1 120px}.schedule-filters{padding:12px}.schedule-filters .btn{flex:1 1 auto}}

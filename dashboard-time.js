@@ -9,4 +9,17 @@ export function zonedInputToIso(value,timeZone){
  for(const delta of [-3600000,3600000,-1800000,1800000])if(epoch(partsAt(candidate+delta,timeZone))===target)throw Error('هذا الموعد يتكرر بسبب تغيير التوقيت الصيفي. اختر موعدًا خارج فترة الانتقال أو استخدم UTC.');
  return new Date(candidate).toISOString();
 }
-export function formatScheduleTime(value,timeZone='UTC',locale='ar'){return new Intl.DateTimeFormat(locale,{timeZone,dateStyle:'medium',timeStyle:'short'}).format(new Date(value))+' · '+timeZone;}
+export function formatScheduleTime(value,timeZone='UTC',locale='ar'){const date=new Date(value);if(value==null || !Number.isFinite(date.getTime()))return '—';return new Intl.DateTimeFormat(locale,{calendar:'gregory',timeZone,dateStyle:'medium',timeStyle:'short'}).format(date)+' · '+timeZone;}
+formatScheduleTime.toIso=zonedInputToIso;
+// Recurrence follows the sender's fixed UTC intervals, including its monthly anchor.
+formatScheduleTime.upcoming=(value,repeat='once',count=3)=>{
+ let next=new Date(value);if(!Number.isFinite(next.getTime()))return [];
+ const anchor=next.getUTCDate(),dates=[];
+ for(let i=0;i<Math.min(5,count);i++){
+  dates.push(next.toISOString());if(repeat==='once')break;
+  if(repeat==='monthly'){const last=new Date(Date.UTC(next.getUTCFullYear(),next.getUTCMonth()+2,0)).getUTCDate();next=new Date(Date.UTC(next.getUTCFullYear(),next.getUTCMonth()+1,Math.min(anchor,last),next.getUTCHours(),next.getUTCMinutes(),next.getUTCSeconds()));}
+  else if(['daily','weekly'].includes(repeat))next=new Date(next.getTime()+(repeat==='weekly'?7:1)*86400000);else break;
+ }
+ return dates;
+};
+formatScheduleTime.inputValue=(value,timeZone='UTC')=>{const date=new Date(value);if(!Number.isFinite(date.getTime()))return '';const p=partsAt(date,timeZone),pad=n=>String(n).padStart(2,'0');return `${p.year}-${pad(p.month)}-${pad(p.day)}T${pad(p.hour)}:${pad(p.minute)}`;};
