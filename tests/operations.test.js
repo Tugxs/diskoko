@@ -53,7 +53,9 @@ test('real aggregate SQL uses database clock, contains no customer data, and han
       CREATE TABLE diskoko_giveaways(status TEXT,ends_at TIMESTAMPTZ,next_retry_at TIMESTAMPTZ,announced_at TIMESTAMPTZ);
       CREATE TABLE control_center_jobs(enabled BOOLEAN,status TEXT,due_at TIMESTAMPTZ);
       CREATE TABLE ready_template_module_event_notices(status TEXT,created_at TIMESTAMPTZ);
-      CREATE TABLE customer_bot_registry(token_encrypted TEXT,created_at TIMESTAMPTZ,gateway_seen_at TIMESTAMPTZ);
+      CREATE TABLE users(id BIGINT,status TEXT);
+      CREATE TABLE subscriptions(id BIGINT,user_id BIGINT,status TEXT,current_period_end TIMESTAMPTZ,grace_until TIMESTAMPTZ,updated_at TIMESTAMPTZ DEFAULT NOW());
+      CREATE TABLE customer_bot_registry(owner_id BIGINT,token_encrypted TEXT,created_at TIMESTAMPTZ,gateway_seen_at TIMESTAMPTZ);
       INSERT INTO bot_runtime_state VALUES('original','{"online":true}',NOW()-INTERVAL '10 seconds');
       INSERT INTO discord_jobs(status,created_at) VALUES('pending',NOW()-INTERVAL '50 seconds');
       INSERT INTO scheduled_messages VALUES('scheduled',NOW()-INTERVAL '5 minutes',NOW());`);
@@ -61,6 +63,10 @@ test('real aggregate SQL uses database clock, contains no customer data, and han
     let s=await collectOperations(pool,{now:0});assert.equal(s.worker.online,true);assert.ok(s.worker.ageSeconds>=10);assert.equal(s.queue.pending,1);assert.ok(s.schedules.overdueSeconds>=300);
     assert.equal(operationalConditions(s).queue,true);assert.equal(JSON.stringify(s).includes('authorization'),false);
     await db.exec('DELETE FROM discord_jobs');s=await collectOperations(pool);assert.equal(s.queue.oldestPendingSeconds,null);assert.equal(s.queue.pending,0);
+    await db.exec(`INSERT INTO users VALUES(1,'active'),(2,'active'),(3,'suspended'),(4,'active');
+      INSERT INTO customer_bot_registry SELECT id,'fixture',NOW()-INTERVAL '1 hour',NULL FROM users;
+      INSERT INTO subscriptions(id,user_id,status,current_period_end,grace_until) VALUES(2,2,'active',NOW()-INTERVAL '1 hour',NULL),(4,4,'grace',NOW()-INTERVAL '1 hour',NOW()+INTERVAL '1 day');`);
+    s=await collectOperations(pool);assert.deepEqual(s.connections,{total:2,stale:2},'expected subscription/account stops must not raise bot outage alerts');
   }finally{await db.close();}
 });
 test('alert delivery rejects wrong guild, disables mentions, and uses deterministic duplicate suppression',async()=>{

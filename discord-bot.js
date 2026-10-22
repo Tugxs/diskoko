@@ -11,7 +11,7 @@ import { communityPanelMessage, handleCommunityPanelInteraction } from './lib/co
 import { setTimeout as delay } from 'node:timers/promises';
 import { ActivityType, Client, Events, GatewayIntentBits, Partials, PermissionFlagsBits, REST, Routes, SlashCommandBuilder } from "discord.js";
 import { BOT_COMMANDS, DEFAULT_BOT_COMMAND_KEYS, validBotCommandKeys } from './lib/bot-catalog.js';
-import { canonicalPlan, subscriptionAccess } from './lib/billing.js';
+import { canonicalPlan, subscriptionAccess,requireBotServiceExecution } from './lib/billing.js';
 import { claimSupportTicket, handleInteractiveButton, reopenSupportTicket, repairLegacyTicketControls, sendWelcomeCard } from './lib/interactive-systems.js';
 import { handleReadyModuleInteraction } from './lib/ready-template-modules.js';
 import { waitForGatewayLoginSlot } from './lib/gateway-login-gate.js';
@@ -94,8 +94,8 @@ async function answerAiInteraction(interaction) {
   const plan = canonicalPlan(user.plan);
   const limit = AI_LIMITS[plan] || 0;
   if (!limit) return interaction.editReply('AI ديسكوكو متاح من باقة Starter. طوّر باقتك من الموقع أولًا.');
-  const subscription = (await databasePool.query('SELECT status,grace_until FROM subscriptions WHERE user_id=$1 ORDER BY updated_at DESC LIMIT 1', [user.id])).rows[0];
-  if (subscriptionAccess(subscription || { status: 'active' }).mode !== 'full') return interaction.editReply('اشتراكك في وضع القراءة فقط. حدّث وسيلة الدفع من الموقع لاستئناف AI ديسكوكو.');
+  const subscription = (await databasePool.query('SELECT status,current_period_end,grace_until FROM subscriptions WHERE user_id=$1 ORDER BY updated_at DESC LIMIT 1', [user.id])).rows[0];
+  if (subscriptionAccess(subscription || { status: 'active' }).mode !== 'full') return interaction.editReply('اشتراكك في وضع القراءة فقط. راجع الاشتراك من الموقع لاستئناف الخدمة.');
   const online = (await databasePool.query("SELECT last_seen_at FROM ai_worker_state WHERE id=1 AND last_seen_at > NOW()-INTERVAL '1 minute'")).rows[0];
   if (!online) return interaction.editReply('جهاز AI ديسكوكو غير متصل حاليًا. حاول لاحقًا.');
   const prompt = interaction.options.getString('prompt', true).trim();
@@ -300,6 +300,13 @@ export async function startDiscordBot({ pool } = {}) {
   client.on("guildCreate", async (guild) => { state.guilds = client.guilds.cache.size; const rest = new REST({ version: "10" }).setToken(token); if (await registerGuildCommands(rest, client.user.id, guild.id, token)) state.commands.registered += COMMAND_JSON.length; else state.commands.failed += COMMAND_JSON.length; });
   client.on("guildDelete", () => { state.guilds = client.guilds.cache.size; });
   client.on(Events.InteractionCreate, async (interaction) => {
+    // Account linking and subscription controls must remain usable after expiry.
+    if(databasePool && interaction.guildId && !/^(diskoko-account:|diskoko-control:|diskoko-customer)/.test(interaction.customId || '')) {
+      try{await requireBotServiceExecution(databasePool,interaction.guildId,client.user.id);}catch(error){
+        if(!interaction.replied && !interaction.deferred)await interaction.reply({content:'خدمة هذا البوت متوقفة لحين مراجعة اشتراك مالكها من الموقع.',ephemeral:true}).catch(()=>{});
+        return;
+      }
+    }
     if ((interaction.customId?.startsWith('diskoko-code:') || interaction.customId?.startsWith('diskoko-admin:')) || (interaction.isChatInputCommand() && interaction.commandName !== 'diskoko')) {
       try { if(await handleCodeInteraction(interaction,databasePool,client.user.id))return; }
       catch(error) { console.error('Public code command failed',error.message); if(!interaction.replied && !interaction.deferred)await interaction.reply({content:'تعذر تنفيذ الأمر الآن.',ephemeral:true}).catch(()=>{}); return; }
