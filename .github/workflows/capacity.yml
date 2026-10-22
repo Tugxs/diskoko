@@ -8,6 +8,9 @@ on:
       - .github/workflows/capacity.yml
 permissions:
   contents: read
+concurrency:
+  group: capacity-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   isolated:
     runs-on: ubuntu-latest

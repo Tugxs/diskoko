@@ -15,6 +15,7 @@ import {createResourceProtection} from '../lib/resource-protection.js';
 import {createResourceBudgetStore,migrateResourceBudgets} from '../lib/resource-budget-store.js';
 import {mountDashboardTools} from '../lib/dashboard-tools.js';
 import {disposeAudioResource} from '../lib/audio-resource-cleanup.js';
+import {createAudioDecoder} from '../lib/audio-decoder.js';
 
 const pause=ms=>new Promise(r=>setTimeout(r,ms)),args=process.argv.slice(2),option=(key,fallback)=>args.find(a=>a.startsWith('--'+key+'='))?.split('=').slice(1).join('=') ?? fallback;
 const component=option('component','all'),output=option('output','capacity-results.json');
@@ -44,12 +45,12 @@ async function mediaBench(){
  await measure('cards-serial',async()=>{const times=[];for(let i=0;i<20;i++){const start=performance.now();await renderMusicCard({title:'Capacity fixture '+i,color:'#8659e6'},null,{volume:.8});times.push(performance.now()-start);}return {cards:20,p50Ms:Math.round(percentile(times,.5)),p95Ms:Math.round(percentile(times,.95)),note:'Real Sharp render without external artwork downloads.'};});
  const sample=spawnSync(ffmpeg,['-hide_banner','-loglevel','error','-f','lavfi','-i','sine=frequency=440:sample_rate=48000','-t','65','-ac','2','-f','mp3','pipe:1'],{maxBuffer:5*1024*1024,windowsHide:true});if(sample.status!==0)throw Error('Fixture audio generation failed');
  for(const scenario of [{streams:1,mixed:false},{streams:3,mixed:false},{streams:3,mixed:true}]){const {streams,mixed}=scenario;await measure('audio-'+streams+(mixed?'-mixed':''),async()=>{
-  const inputs=Array.from({length:streams},()=>Readable.from(sample.stdout)),resources=inputs.map(input=>createAudioResource(input,{inputType:StreamType.Arbitrary,inlineVolume:true}));const packets=resources.map(()=>0),late=[],errors=[];resources.forEach(r=>r.playStream.on('error',e=>errors.push(e.message)));
+  const inputs=Array.from({length:streams},()=>Readable.from(sample.stdout)),decoders=inputs.map(input=>createAudioDecoder(input)),resources=decoders.map(decoder=>createAudioResource(decoder.stream,{inputType:StreamType.Raw,inlineVolume:true}));const packets=resources.map(()=>0),late=[],errors=[];resources.forEach(r=>r.playStream.on('error',e=>errors.push(e.message)));
   const start=performance.now(),background=new Set(),work={code:0,cards:0,errors:0};let ticks=0,codeTimer,cardTimer;
   const backgroundTask=task=>{const p=task.catch(()=>work.errors++);background.add(p);p.finally(()=>background.delete(p));};
   if(mixed){codeTimer=setInterval(()=>backgroundTask(runCode('function handle(){let n=0;for(let i=0;i<10000;i++)n+=i;return {message:{content:String(n)}}}',{},'mixed-'+ticks).then(()=>work.code++)),1000);cardTimer=setInterval(()=>backgroundTask(renderMusicCard({title:'Mixed fixture'},null,{volume:.8}).then(()=>work.cards++)),5000);}
   try{while(performance.now()-start<(mixed?60000:30000)){ticks++;await pause(Math.max(0,start+ticks*20-performance.now()));late.push(Math.max(0,performance.now()-(start+ticks*20)));for(let i=0;i<resources.length;i++)if(resources[i].playStream.read())packets[i]++;}}
-  finally{clearInterval(codeTimer);clearInterval(cardTimer);inputs.forEach(input=>input.destroy());resources.forEach(disposeAudioResource);await Promise.all(background);}
+  finally{clearInterval(codeTimer);clearInterval(cardTimer);decoders.forEach(decoder=>decoder.stop());resources.forEach(disposeAudioResource);await Promise.all([...background,...decoders.map(decoder=>decoder.done)]);}
   if(errors.length)throw Error('Audio path failed');
   return {streams,mixed,background:work,ticks,packets,packetAvailability:packets.map(n=>Number((n/ticks).toFixed(4))),timerP95LateMs:Number(percentile(late,.95).toFixed(2)),errors,note:'Real FFmpeg/volume/Opus path at 50 packets/s. No Discord UDP, encryption, voice connection or YouTube. Parent CPU/RSS exclude FFmpeg/QuickJS children.'};
  });}
