@@ -7,6 +7,30 @@ import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from '../ai
 import { libraryDraftProposal } from '../lib/ai-library-draft.js';
 import { READY_TEMPLATES } from '../lib/ready-templates.js';
 const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(resolve => setTimeout(resolve, 5)); };
+
+test('edited channel dialog preserves input until the customer explicitly discards it',async()=>{
+ const {dom,doc}=await page('builder');
+ try{doc.querySelector('[data-edit="c2"]').click();const input=doc.querySelector('#dialog input:not([type="checkbox"]):not([type="radio"])');assert.ok(input);input.value='Unsaved channel';input.dispatchEvent(new dom.window.Event('input',{bubbles:true}));doc.querySelector('#closeDialog').click();assert.equal(doc.querySelector('#dialog').open,true);assert.equal(input.value,'Unsaved channel');assert.ok(doc.querySelector('[data-unsaved-notice]'));doc.querySelector('[data-keep-editing]').click();assert.equal(doc.querySelector('[data-unsaved-notice]'),null);doc.querySelector('#closeDialog').click();doc.querySelector('[data-discard-editor]').click();assert.equal(doc.querySelector('#dialog').open,false);}finally{dom.window.close();}
+});
+
+test('tool search understands English queries without hiding the server context',async()=>{
+ const {dom,doc}=await page('overview');
+ try{const search=doc.querySelector('#toolSearch');search.value='roles';search.dispatchEvent(new dom.window.Event('input'));const links=[...doc.querySelectorAll('#navigation a.nav-link')].filter(link=>!link.hidden);assert.equal(links.length,1);assert.match(links[0].href,/#builder$/);assert.ok(doc.querySelector('#guildSelect'));assert.equal(doc.querySelector('.advanced-tools').open,false);search.value='does-not-exist';search.dispatchEvent(new dom.window.Event('input'));assert.equal(doc.querySelector('#toolSearchEmpty').hidden,false);}finally{dom.window.close();}
+});
+
+test('a late template response cannot replace a newer visit to the same section',async()=>{
+ const {dom,doc}=await page('overview');const pending=[];const original=dom.window.fetch;
+ try{
+  dom.window.fetch=(url,options)=>url==='/api/ready-templates'?new Promise(resolve=>pending.push(resolve)):original(url,options);
+  dom.window.location.hash='ready-templates';await settle();dom.window.location.hash='overview';await settle();dom.window.location.hash='ready-templates';await settle();assert.equal(pending.length,2);
+  pending[1]({ok:true,json:async()=>({templates:[{...READY_TEMPLATES[0],name:'Current template response'}]})});await settle();assert.match(doc.querySelector('#workspace').textContent,/Current template response/);
+  pending[0]({ok:true,json:async()=>({templates:[{...READY_TEMPLATES[0],name:'Outdated template response'}]})});await settle();assert.match(doc.querySelector('#workspace').textContent,/Current template response/);assert.doesNotMatch(doc.querySelector('#workspace').textContent,/Outdated template response/);
+ }finally{dom.window.close();}
+});
+
+test('skip to content focuses the current view without navigating away from the customer tool',async()=>{
+ const {dom,doc}=await page('builder');try{const before=dom.window.location.hash;doc.querySelector('.skip-link').click();await settle();assert.equal(dom.window.location.hash,before);assert.equal(doc.activeElement,doc.querySelector('#workspace'));assert.ok(doc.querySelector('[data-edit="c2"]'));}finally{dom.window.close();}
+});
 async function page(hash = 'overview', response = fixtureResponse, file = 'studio.html', script = 'workspace.js', setup = () => {}) {
   const dom = new JSDOM(fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'), { url: `https://diskoko.test/studio?guild=${guild.id}#${hash}`, runScripts: 'outside-only', pretendToBeVisual: true });
   const requests = [];
@@ -22,7 +46,7 @@ async function page(hash = 'overview', response = fixtureResponse, file = 'studi
   const centerCatalogSource=fs.readFileSync(new URL('../control-center-catalog.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const adminTemplateSource=fs.readFileSync(new URL('../admin-panel-template.js',import.meta.url),'utf8').replace(/^export /gm,'').replace("import {controlCenterFiles} from './control-center-project-files.js';",'');
   const adminEditorSource=fs.readFileSync(new URL('../admin-panel-editor.js',import.meta.url),'utf8').replace(/^export /gm,'').replace("import {adminPanelProject,normalizeAdminPanel} from './admin-panel-template.js';",'').replace("import {controlSections} from './control-center-catalog.js';",'');
-  const workspaceSource=source.replace("import {openAdminPanelDesigner} from './admin-panel-editor.js';",'').replace("import {zonedInputToIso} from './dashboard-time.js';",'').replace("import {mountDashboardToolsUI} from './dashboard-tools-ui.js';",'').replace("import {analyticsPeriods} from './workspace-policies.js';",'').replace("import { mountCodeEditor } from './code-command-editor.js';",'').replace("import { initializeAiLanguage } from './ai-ui-language.js';",'').replace("import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from './ai-library-catalog.js';",'').replace("import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';",'');
+  const workspaceSource=source.replace("import {openAdminPanelDesigner} from './admin-panel-editor.js';",'').replace("import {zonedInputToIso,formatScheduleTime} from './dashboard-time.js';",'').replace("import {mountDashboardToolsUI} from './dashboard-tools-ui.js';",'').replace("import {analyticsPeriods} from './workspace-policies.js';",'').replace("import { mountCodeEditor } from './code-command-editor.js';",'').replace("import { initializeAiLanguage } from './ai-ui-language.js';",'').replace("import { aiPromptLibrary, libraryModuleExtensions, libraryFeatures } from './ai-library-catalog.js';",'').replace("import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';",'');
   const policySource=fs.readFileSync(new URL('../workspace-policies.js',import.meta.url),'utf8').replace(/^export /gm,'');
   const dashboardSource=fs.readFileSync(new URL('../dashboard-tools-ui.js',import.meta.url),'utf8').replace(/^export /gm,'').replace("import {formatScheduleTime} from './dashboard-time.js';",'');
   const timeSource=fs.readFileSync(new URL('../dashboard-time.js',import.meta.url),'utf8').replace(/^export /gm,'');
@@ -888,6 +912,33 @@ test('scheduled text messages expose monthly recurrence without sending during e
   const {dom,doc,requests}=await page('automation');doc.querySelector('#newSchedule').click();await settle();
   assert.ok([...doc.querySelector('#scheduleRepeat').options].some(o=>o.value==='monthly'));
   assert.equal(requests.filter(r=>r.options.method==='POST').length,0);dom.window.close();
+});
+
+test('schedule composer previews the chosen zone and resets approval after content changes',async()=>{
+ const {dom,doc,requests}=await page('automation',url=>url.endsWith('/tools/settings')?{timezone:'Asia/Riyadh'}:fixtureResponse(url));
+ try{
+  doc.querySelector('#newSchedule').click();await settle();assert.equal(doc.querySelector('#scheduleZone').value,'Asia/Riyadh');
+  const time=doc.querySelector('#scheduleTime'),repeat=doc.querySelector('#scheduleRepeat');time.value='2099-01-31T12:00';repeat.value='monthly';repeat.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+  assert.equal(doc.querySelectorAll('#scheduleCalendar p').length,3);assert.match(doc.querySelector('#scheduleCalendar').textContent,/Asia\/Riyadh/);
+  doc.querySelector('#scheduleConfirm').checked=true;const text=doc.querySelector('#scheduleText');text.value='<@everyone> test';text.dispatchEvent(new dom.window.Event('input',{bubbles:true}));assert.equal(doc.querySelector('#scheduleConfirm').checked,false);assert.equal(doc.querySelector('#schedulePreview').textContent,'<@everyone> test');assert.equal(doc.querySelector('#schedulePreview').children.length,0);assert.equal(requests.filter(r=>r.options.method==='POST').length,0);
+ }finally{dom.window.close();}
+});
+
+test('schedule list filters on the server and does not offer edits during delivery',async()=>{
+ const job={id:'3',content:'Delivery in progress',content_kind:'text',channel_id:'c2',timezone:'UTC',repeat:'once',run_at:'2099-01-01T10:00:00Z',status:'sending'};
+ const {dom,doc,requests}=await page('automation',url=>url.includes('/tools/schedules?')?{items:[job],more:false}:fixtureResponse(url));
+ try{
+  assert.equal(doc.querySelector('[data-job-action="edit"]'),null);assert.equal(doc.querySelector('[data-job-action="pause"]'),null);assert.equal(doc.querySelector('[data-job-action="cancel"]'),null);assert.ok(doc.querySelector('[data-job-action="history"]'));assert.equal(doc.querySelector('[data-dashboard-tools]'),null);
+  doc.querySelector('#scheduleSearch').value='test';doc.querySelector('#scheduleStatus').value='sending';doc.querySelector('#scheduleFilters').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));await settle();assert.ok(requests.some(r=>r.url.includes('q=test&status=sending')));
+ }finally{dom.window.close();}
+});
+
+test('double submission of a schedule form sends one request while it is pending',async()=>{
+ const {dom,doc,requests}=await page('automation');try{
+  doc.querySelector('#newSchedule').click();await settle();doc.querySelector('#scheduleText').value='Hello';doc.querySelector('#scheduleConfirm').checked=true;
+  const original=dom.window.fetch;let release;dom.window.fetch=(url,options)=>url.endsWith('/schedules')&&options?.method==='POST'?new Promise(resolve=>{requests.push({url,options});release=()=>resolve({ok:true,json:async()=>({})});}):original(url,options);
+  const form=doc.querySelector('#scheduleForm'),button=doc.querySelector('[form="scheduleForm"]');const submit=()=>form.dispatchEvent(new dom.window.SubmitEvent('submit',{bubbles:true,cancelable:true,submitter:button}));submit();submit();await settle();assert.equal(requests.filter(r=>r.options.method==='POST'&&r.url.endsWith('/schedules')).length,1);release();await settle();
+ }finally{dom.window.close();}
 });
 test('analytics offers the paid reporting window and displays the server-confirmed period',async()=>{
   const response=url=>url==='/api/account/overview'?{...account,limits:{...account.limits,analyticsDays:365}}:url.includes('/analytics')?{...fixtureResponse(url),days:7}:fixtureResponse(url);

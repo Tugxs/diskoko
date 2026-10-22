@@ -2,7 +2,7 @@ import {openAdminPanelDesigner} from './admin-panel-editor.js';
 import {siteDate} from './site-format.js';
 import {analyticsPeriods} from './workspace-policies.js';
 import {mountDashboardToolsUI} from './dashboard-tools-ui.js';
-import {zonedInputToIso} from './dashboard-time.js';
+import {zonedInputToIso,formatScheduleTime} from './dashboard-time.js';
 import { mountCodeEditor } from './code-command-editor.js';
 import { initializeAiLanguage } from './ai-ui-language.js';
 import { normalizeDesignScene, renderDesignScene } from './ai-design-scene.js';
@@ -195,13 +195,13 @@ async function api(url, options = {}) {
     csrfPromise ||= fetch('/api/csrf-token', { credentials: 'include', cache: 'no-store' }).then(async response => { if (!response.ok) throw Error('تعذر التحقق من الجلسة.'); return (await response.json()).token; }).catch(error => { csrfPromise = null; throw error; });
     headers['X-CSRF-Token'] = await csrfPromise;
   }
-  const response = await fetch(url, { ...options, method, headers, credentials: 'include', cache: 'no-store' });
+  const response = await fetch(url, { ...(method==='GET' && AbortSignal.timeout?{signal:AbortSignal.timeout(20000)}:{}), ...options, method, headers, credentials: 'include', cache: 'no-store' }).catch(error=>{error.message=siteDate.errorMessage(error);throw error;});
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(body.error || 'تعذر إكمال الطلب. أعد المحاولة.'), { status: response.status, inviteUrl: body.inviteUrl });
+  if (!response.ok) throw Object.assign(new Error(body.error || 'تعذر إكمال الطلب. أعد المحاولة.'), { status: response.status, inviteUrl: body.inviteUrl, code:body.code, requestId:body.requestId });
   return body;
 }
 function toast(message) { $('#toast').textContent = message; $('#toast').hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => { $('#toast').hidden = true; }, 5000); }
-function run(fn) { return async event => { try { await fn(event); } catch (error) { toast(error.message); } }; }
+function run(fn) { return async event => { try { await fn(event); } catch (error) { toast(siteDate.errorMessage(error)); } }; }
 function badge(text, tone = 'neutral') { return `<span class="badge ${tone}">${esc(text)}</span>`; }
 const statuses = { installed: ['متصل بالسيرفر', 'good'], install_required: ['يحتاج ربطًا', 'warn'], permissions_insufficient: ['تحقق من الصلاحيات', 'warn'], unavailable: ['تعذر التحقق', 'bad'], draft: ['بانتظار المراجعة', 'purple'], pending: ['لم يُنفذ', 'neutral'], running: ['جارٍ التنفيذ', 'warn'], cancel_requested: ['جارٍ الإيقاف', 'warn'], succeeded: ['مكتمل', 'good'], failed: ['يحتاج مراجعة', 'bad'], paused: ['متوقفة مؤقتًا','neutral'], review_required: ['نتيجة تحتاج تحققًا','warn'], scheduled: ['مجدولة', 'purple'], sending: ['جارٍ الإرسال', 'warn'], sent: ['تم الإرسال', 'good'], cancelled: ['أُوقف', 'neutral'] };
 function status(value) { return badge(...(statuses[value] || ['لم يتم التحقق', 'neutral'])); }
@@ -265,20 +265,38 @@ function modal(title, body, footer = '') {
   const dialog = $('#dialog'); $('#dialogContent').dataset.editorScope=state.account?.user.id && state.guild?JSON.stringify([state.account.user.id,state.guild,state.aiEditorBotScope || 'diskoko',title]):''; $('#dialogContent').innerHTML = `<div class="dialog-head"><h2 id="dialogTitle">${title}</h2><button class="icon-btn" id="closeDialog" aria-label="إغلاق">×</button></div><div class="dialog-body"><div class="dialog-error" id="dialogError" role="alert" hidden></div>${body}</div>${footer ? `<div class="dialog-foot">${footer}</div>` : ''}`;
   $('#dialogContent').querySelectorAll('.ai-discord-bot-name').forEach(node => { node.innerHTML = `◈ ${esc(state.aiBotName || 'ديسكوكو')} <small>BOT</small>`; });
   if (state.aiBotName) $('#dialogContent').querySelectorAll('.form-note').forEach(node => { node.textContent = node.textContent.replace('بواسطة بوت ديسكوكو', `بواسطة بوت ${state.aiBotName}`); });
-  $('#closeDialog').onclick = closeDialog;
+  dialog.dataset.unsaved='false';
+  $('#closeDialog').onclick = requestDialogClose;
   installAiEmojiPickers();
   if (!dialog.open) dialog.showModal();
   const content=$('#dialogContent'),generation=Symbol();content.editorGeneration=generation;
   queueMicrotask(()=>{if(content.editorGeneration===generation && dialog.open)mountPanelStudio(content);});
 }
 function closeDialog() { $('#dialog').querySelectorAll('input[type="password"]').forEach(input => { input.value = ''; }); $('#dialog').close(); }
-function modalError(error) { $('#dialogError').hidden = false; $('#dialogError').textContent = error.message; }
+function requestDialogClose(){
+  if($('#closeDialog')?.disabled)return;
+  const dialog=$('#dialog');
+  if(dialog.dataset.unsaved!=='true'){closeDialog();return;}
+  if(dialog.querySelector('[data-unsaved-notice]'))return;
+  const notice=document.createElement('div');notice.className='notice unsaved-notice';notice.dataset.unsavedNotice='';notice.setAttribute('role','alert');
+  notice.innerHTML='<div><b>لديك تعديلات لم تحفظها</b><p>ارجع للتحرير لحفظها، أو أغلق هذه النافذة دون حفظ التعديلات.</p><div class="actions"><button class="btn secondary" data-keep-editing>العودة للتحرير</button><button class="btn secondary" data-discard-editor>إغلاق دون حفظ</button></div></div>';
+  dialog.querySelector('.dialog-head').after(notice);
+  notice.querySelector('[data-keep-editing]').onclick=()=>{notice.remove();dialog.querySelector('textarea,input:not([type="hidden"])')?.focus();};
+  notice.querySelector('[data-discard-editor]').onclick=closeDialog;notice.querySelector('button').focus();
+}
+function modalError(error) { $('#dialogError').hidden = false; $('#dialogError').textContent = siteDate.errorMessage(error)+(error.requestId?' · '+error.requestId:''); }
 function confirmDialog(title, description, label, callback) { modal(title, `<p>${esc(description)}</p>`, `<button class="btn secondary" id="cancelConfirm">إلغاء</button><button class="btn primary" id="confirmAction">${label}</button>`); $('#cancelConfirm').onclick = closeDialog; $('#confirmAction').onclick = async event => { event.currentTarget.disabled = true; try { await callback(); } catch (error) { modalError(error); $('#confirmAction').disabled = false; } }; }
 function shell() {
   $('#navigation').innerHTML = `<div class="nav-label">إدارة مجتمعك</div>${sections.map(([key, icon, label]) => `<a class="nav-link ${screen() === key ? 'active' : ''}" href="${url(key)}" ${screen() === key ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true">${icon}</span>${label}${key === 'alerts' && state.data?.alerts?.length ? `<span class="badge bad">${fmt(state.data.alerts.length)}</span>` : ''}</a>`).join('')}`;
   const servers = state.account?.servers || [];
   $('#guildSelect').innerHTML = `<option value="">اختر سيرفرًا</option>${servers.map(guild => `<option data-i18n-preserve value="${esc(guild.id)}" ${guild.id === state.guild ? 'selected' : ''}>${esc(guild.name)}</option>`).join('')}`;
   $('#guildSelect').disabled = !servers.length;
+  const nav=$('#navigation');
+  nav.insertAdjacentHTML('afterbegin','<label class="nav-search"><span class="sr-only">ابحث عن أداة</span><input type="search" id="toolSearch" placeholder="ابحث عن أداة" autocomplete="off" aria-controls="navigation"></label>');
+  nav.insertAdjacentHTML('beforeend','<p class="form-note" id="toolSearchEmpty" hidden>لا توجد أداة بهذا الاسم</p>');
+  const input=$('#toolSearch');input.value=state.navQuery || '';
+  const terms={builder:'channels roles القنوات الرتب',bots:'interactive panels لوحات تفاعلية',automation:'scheduled messages جدولة رسائل',activity:'history audit changes سجل تغييرات',assistant:'AI مساعد',safety:'security permissions أمان صلاحيات','ready-templates':'templates قوالب','server-import':'import استيراد',overview:'overview نظرة عامة',settings:'settings إعدادات',analytics:'analytics activity تحليلات نشاط',alerts:'alerts تنبيهات',commands:'commands code أوامر كود'};
+  const filter=()=>{state.navQuery=input.value;let visible=0;nav.querySelectorAll('a.nav-link').forEach(link=>{const key=new URL(link.href,location.href).hash.slice(1);link.hidden=!(link.textContent+' '+(terms[key] || '')).toLowerCase().includes(input.value.trim().toLowerCase());if(!link.hidden)visible++;});$('#toolSearchEmpty').hidden=visible>0;};input.oninput=filter;filter();
   $('#breadcrumb').textContent = sections.find(([key]) => key === screen())?.[2] || 'سيرفراتي';
   $('#connectionStatus').outerHTML = `<span id="connectionStatus" class="badge ${state.loading ? 'neutral' : statuses[state.data?.connection.status]?.[1] || 'neutral'}">${state.loading ? 'جارٍ التحقق' : statuses[state.data?.connection.status]?.[0] || 'اختر سيرفرًا'}</span>`;
   $('#lastSync').textContent = state.data ? `آخر تحقق: ${date(state.data.connection.checked_at)}` : '';
@@ -297,15 +315,16 @@ async function loadGuild() {
   if (epoch === state.epoch) { state.loading = false; render(); }
 }
 function render() {
+  const viewEpoch=state.viewEpoch=(state.viewEpoch || 0)+1;
   const executionError = $('#executionError');
   if (executionError && executionError.dataset.guild !== state.guild) executionError.remove();
   shell(); draftBar(); const area = $('#workspace');
   if (state.loading) { area.innerHTML = '<div class="loading" role="status">نحمّل بيانات سيرفرك…</div>'; return; }
-  if (state.error) { area.innerHTML = head('تعذر فتح مساحة العمل', 'لم نغيّر حالة الربط أو بيانات سيرفرك.') + `<div class="panel">${empty('نحتاج خطوة للمتابعة', esc(state.error.message), `<div class="actions"><button class="btn primary" id="retry">إعادة المحاولة</button><a class="btn secondary" href="/account.html#servers">اختيار سيرفر آخر</a>${state.error.status === 401 ? `<a class="btn secondary" href="/auth/discord?returnTo=${encodeURIComponent(location.pathname + location.search + location.hash)}">إعادة ربط الحساب</a>` : ''}</div>`)}</div>`; $('#retry').onclick = run(() => state.account ? loadGuild() : start()); return; }
+  if (state.error) { area.innerHTML = head('تعذر فتح مساحة العمل', 'لم نغيّر حالة الربط أو بيانات سيرفرك.') + `<div class="panel">${empty('نحتاج خطوة للمتابعة', esc(siteDate.errorMessage(state.error)), `<div class="actions"><button class="btn primary" id="retry">إعادة المحاولة</button><a class="btn secondary" href="/account.html#servers">اختيار سيرفر آخر</a>${state.error.status === 401 ? `<a class="btn secondary" href="/auth/discord?returnTo=${encodeURIComponent(location.pathname + location.search + location.hash)}">إعادة ربط الحساب</a>` : ''}</div>`)}</div>`; $('#retry').onclick = run(() => state.account ? loadGuild() : start()); return; }
   if (!state.guild || screen() === 'servers') { renderServers(); return; }
   const selected = screen();
   const pages = { 'server-import': serverImportPage, overview: overview, alerts: alertsPage, builder: builder, 'ready-templates': readyTemplatesPage, bots: bots, commands: commands, assistant: assistant, automation: automation, analytics: analytics, activity: activity, settings: settings, safety: safety };
-  Promise.resolve(pages[selected]?.()).catch(error => { if (screen() === selected) area.innerHTML = head('تعذر تحميل القسم', 'حاول مرة أخرى دون تغيير إعداداتك.') + `<div class="panel">${empty('البيانات غير متاحة الآن', esc(error.message), '<button class="btn primary" id="retrySection">إعادة المحاولة</button>')}</div>`; $('#retrySection')?.addEventListener('click', render); });
+  Promise.resolve(pages[selected]?.()).catch(error => { if (screen() === selected && viewEpoch===state.viewEpoch) area.innerHTML = head('تعذر تحميل القسم', 'حاول مرة أخرى دون تغيير إعداداتك.') + `<div class="panel">${empty('البيانات غير متاحة الآن', esc(siteDate.errorMessage(error)), '<button class="btn primary" id="retrySection">إعادة المحاولة</button>')}</div>`; $('#retrySection')?.addEventListener('click', render); });
 }
 function renderServers() {
   $('#workspace').innerHTML = head('كل مجتمع يبدأ من هنا', 'اختر سيرفرك، وكل أدواته ستكون في مكان واحد.', '<a class="btn primary" href="/account.html#create">＋ تجهيز سيرفر جديد</a>') + `<div class="server-grid">${(state.account?.servers || []).map(guild => `<article class="server-card"><div class="server-title"><span class="server-image">${guild.icon ? `<img src="https://cdn.discordapp.com/icons/${encodeURIComponent(guild.id)}/${encodeURIComponent(guild.icon)}.png?size=96" alt="">` : esc(guild.name.slice(0, 1))}</span><div><h3 data-i18n-preserve>${esc(guild.name)}</h3><small>${guild.owner ? 'أنت مالك السيرفر' : 'لديك صلاحية الإدارة'}</small></div></div>${status(guild.connection?.install_status)}<br><a class="btn primary" href="${url(guild.connection?.install_status === 'installed' ? 'overview' : 'settings', guild.id)}">${guild.connection?.install_status === 'installed' ? 'فتح لوحة السيرفر' : 'إكمال الربط'} ←</a></article>`).join('') || empty('لا توجد سيرفرات قابلة للإدارة', 'أنشئ سيرفرًا في Discord أو تأكد من صلاحية إدارة السيرفر في حسابك.')}</div>`;
@@ -368,6 +387,7 @@ function overview() {
   const localDrafts = state.draft.length;
   const readable = d.connection.readable;
   const botOnline = Boolean(d.bot?.online);
+  const startGuide=`<details class="customer-journey" ${!readable || !botOnline?'open':''}><summary>دليل البداية وحالة الإعداد</summary><ol><li><b>تأكد من قراءة السيرفر</b><span>${readable?'تم التحقق من القنوات والرتب':'لم نتمكن من قراءة البنية بعد'}</span></li><li><b>تحقق من البوت والصلاحيات</b><span>${botOnline?'البوت متصل؛ صلاحيات كل عملية تُفحص عند تنفيذها':'البوت غير متصل؛ افتح إعدادات الاتصال أولًا'}</span>${action('إدارة الاتصال','settings','text')}</li><li><b>ابدأ بمهمة واحدة</b><span>اختر قالبًا أو لوحة أو أمرًا، ثم خصّصه قبل النشر.</span>${action('استكشف القوالب الجاهزة','ready-templates','text')}</li><li><b>راجع النتيجة قبل إعادة المحاولة</b><span>عند تعثر التنفيذ افتح السجل؛ لا تكرر العملية إذا كانت نتيجتها غير مؤكدة.</span>${action('عرض سجل التغييرات','activity','text')}</li></ol></details>`;
   const priority = alerts.length ? { title: 'هناك أمر يحتاج انتباهك', detail: `${fmt(alerts.length)} تنبيه${alerts.length === 1 ? '' : 'ات'} يحتاج إلى مراجعة أو إجراء.`, label: 'راجع التنبيهات', target: 'alerts' }
     : !readable || !botOnline ? { title: 'أكمل اتصال السيرفر', detail: 'راجع اتصال البوت وقراءة القنوات والرتب قبل تنفيذ أي تغيير.', label: 'افتح إعدادات الاتصال', target: 'settings' }
     : localDrafts || drafts ? { title: 'تغييراتك جاهزة للمراجعة', detail: `${fmt(drafts)} خطة محفوظة و${fmt(localDrafts)} تعديل على هذا الجهاز. راجع التفاصيل قبل التطبيق.`, label: 'عرض خطط التغيير', target: 'activity' }
@@ -377,6 +397,7 @@ function overview() {
   const navigation = [['alerts', 'التنبيهات'], ['bots', 'اللوحات التفاعلية'], ['commands', 'الأوامر'], ['analytics', 'النشاط والتحليلات'], ['safety', 'الأمان والصلاحيات'], ['activity', 'سجل التغييرات'], ['settings', 'إعدادات السيرفر']];
   $('#workspace').innerHTML = head('نظرة عامة على سيرفرك', 'حالة المجتمع وما يحتاج إجراءً، في مكان واحد.', `<div class="actions"><button class="btn secondary" id="overviewRefresh" type="button">تحديث البيانات ↻</button><a class="btn secondary" href="https://discord.com/channels/${encodeURIComponent(state.guild)}" target="_blank" rel="noopener">فتح Discord ↗</a></div>`) + connectionNotice() + `<section class="hero overview-hero"><div><span class="eyebrow">${esc(d.guild.name)} · آخر تحقق ${date(d.connection.checked_at)}</span><h2>${priority.title}</h2><p>${priority.detail}</p><div class="actions">${action(priority.label, priority.target, 'primary')}${localDrafts ? '<button class="btn secondary" id="overviewLocalDraft" type="button">مراجعة تعديلات هذا الجهاز</button>' : ''}</div></div><div class="hero-art" aria-hidden="true"><span>${alerts.length ? '⚠' : '◈'}</span></div></section>${overviewMetrics}${failed || running ? `<div class="overview-work-note">${failed ? `<span>${fmt(failed)} خطط تعثرت وتحتاج مراجعة</span>` : ''}${running ? `<span>${fmt(running)} خطط قيد التنفيذ</span>` : ''}${action('عرض سجل التغييرات', 'activity', 'text')}</div>` : ''}${alerts.length ? panel('يحتاج انتباهك', alertRows(alerts.slice(0, 2)), action('كل التنبيهات', 'alerts', 'text')) : ''}<div class="section-title"><h3>ابدأ من هنا</h3><small>اختر ما تريد إنجازه</small></div><div class="quick-actions overview-quick-actions">${[['ready-templates', '▣', 'القوالب الجاهزة', 'هيكل متكامل قابل للتعديل'], ['builder', '▤', 'القنوات والرتب', 'اضبط بنية السيرفر خطوة بخطوة'], ['assistant', '✦', 'ديسكوكو AI', 'صمّم وراجع قبل التنفيذ'], ['automation', '◷', 'الرسائل المجدولة', 'جهّز ما سيُنشر لاحقًا']].map(([key, icon, title, sub]) => `<a class="quick-action" href="${url(key)}"><span class="quick-icon">${icon}</span><span><strong>${title}</strong><small>${sub}</small></span><em>←</em></a>`).join('')}</div><div class="grid-2 overview-bottom">${panel('حالة التشغيل', readiness, `<a class="btn text" href="${url('settings')}">إدارة الاتصال</a>`)}${panel('آخر ما حدث', overviewTimeline(d), action('سجل التغييرات كاملًا', 'activity', 'text'))}</div>${panel('أدوات الإدارة والمتابعة', `<div class="overview-directory">${navigation.map(([key, label]) => `<a href="${url(key)}">${esc(label)} <span aria-hidden="true">←</span></a>`).join('')}</div>`)}`;
   $('#overviewRefresh').onclick = run(() => loadGuild());
+  $('#workspace .overview-hero')?.insertAdjacentHTML('beforebegin',startGuide);
   $('#overviewLocalDraft')?.addEventListener('click', () => reviewLocal());
   bindPlans(); bindAlertActions();
 }
@@ -1072,6 +1093,7 @@ function openMovieItemEditor(available, selectedId, path, item = null) {
 }
 
 async function bots() {
+  const viewEpoch=state.viewEpoch;
   const guild = state.guild, epoch = state.epoch;
   $('#workspace').innerHTML = head('اللوحات التفاعلية', 'اختر البوت الذي يعرض اللوحة ويستجيب لأزرارها داخل Discord.') + '<div class="loading" role="status">جارٍ فحص بوتك…</div>';
   let bot = null, publicBot = null, managedBots = [], botQuota = null, connectionError = '';
@@ -1083,7 +1105,7 @@ async function bots() {
     bot = selected.bot; publicBot = registry.publicBot || null; managedBots = registry.bots || []; botQuota = registry.quota || null;
   }
   catch (error) { connectionError = error.message; }
-  if (guild !== state.guild || epoch !== state.epoch || screen() !== 'bots') return;
+  if (guild !== state.guild || epoch !== state.epoch || screen() !== 'bots' || viewEpoch!==state.viewEpoch) return;
   const availableBots = [publicBot, ...managedBots].filter(item => item?.online);
   let panelEdit = null;
   try { panelEdit = JSON.parse(sessionStorage.getItem(`diskoko-panel-edit:${guild}`) || 'null'); } catch { panelEdit = null; }
@@ -1095,6 +1117,8 @@ async function bots() {
     <div class="section-title"><h3>أنواع اللوحات</h3><small>لكل لوحة إعداداتها وأفعالها. لا تُنشر أزرار قبل توصيلها بتنفيذ فعلي.</small></div>
     <div class="server-grid bot-design-gallery">${botWorkshopDesigns.map((design, index) => `<article class="server-card bot-design-card"><span class="bot-design-art" aria-hidden="true">${design.icon}</span><div><small>${design.tag}</small><h3>${design.title}</h3><p>${design.description}</p><small>${index === 4 ? 'الخيارات المعروضة' : 'الوظائف المتاحة'}: ${design.actions}</small></div>${index === 0 ? `<button class="btn primary" type="button" id="createMusicPanel" ${availableBots.length ? '' : 'disabled'}>${availableBots.length ? 'تصميم لوحة الموسيقى' : 'اربط بوتًا متصلًا أولًا'}</button>` : index === 1 ? `<button class="btn primary" type="button" id="createMovieClub" ${availableBots.length ? '' : 'disabled'}>${availableBots.length ? 'تصميم نادي الأفلام' : 'اربط بوتًا متصلًا أولًا'}</button>` : index === 2 ? `<button class="btn secondary" type="button" id="createYoutubePanel" ${availableBots.length ? '' : 'disabled'}>${availableBots.length ? 'إنشاء لوحة يوتيوب' : 'اربط بوتًا متصلًا أولًا'}</button>` : index === 3 ? `<button class="btn primary" type="button" id="createCommunityPanel" ${availableBots.length ? '' : 'disabled'}>${availableBots.length ? 'تصميم واجهة المجتمع' : 'اربط بوتًا متصلًا أولًا'}</button>` : '<div class="bot-game-list" aria-label="معاينة الألعاب المعلقة"><span>أسئلة سريعة</span><span>حجر ورقة مقص</span><span>تخمين رقم</span><span>تحدي معلومات</span></div><small class="form-note">معاينة فقط · الألعاب معلقة ولا تستجيب للضغط الآن.</small>'}</article>`).join('')}</div>
     <div class="bot-workshop-steps" aria-label="خطوات تجهيز اللوحة"><span class="${availableBots.length ? 'done' : 'current'}"><b>01</b> ربط البوت</span><span class="${availableBots.length ? 'done' : 'current'}"><b>02</b> اختيار البوت والقناة</span><span><b>03</b> تصميم اللوحة وتوصيل الأفعال</span></div>`;
+  const pendingGames=$('#workspace .bot-game-list')?.closest('article');
+  if(pendingGames){const future=document.createElement('details');future.className='customer-journey future-options';future.innerHTML='<summary>ميزات قيد التجهيز</summary>';pendingGames.parentElement.after(future);future.append(pendingGames);}
   const selectedPanelBot=()=>$('#panelBotPicker').value;
   $('#panelBotPicker').onchange=()=>{sessionStorage.setItem(`diskoko-panel-bot:${guild}`,selectedPanelBot());const target=knownBots.find(b=>b.id===selectedPanelBot());$('#panelBotStatus').textContent=target?.online?'متصل وجاهز.':'البوت غير متصل. راجع إعداداته.';$('#panelBotDefault').disabled=!target?.online;};
   $('#panelBotCommands').onclick=()=>{sessionStorage.setItem(`diskoko-command-bot:${guild}`,selectedPanelBot());location.hash='#commands';};
@@ -1365,9 +1389,11 @@ function readyDecoratePreview() {
 }
 function readySelectOptions(items, chosen) { return items.map(item => `<option data-i18n-preserve value="${esc(item.key)}" ${item.key === chosen ? 'selected' : ''}>${esc(item.name)}</option>`).join(''); }
 async function readyTemplatesPage() {
+  const viewEpoch=state.viewEpoch;
   const epoch = state.epoch, guild = state.guild;
   $('#workspace').innerHTML = head('قوالب جاهزة لسيرفرك', 'اختر قالبًا، عدّل كل تفاصيله، ثم شاهد الفرق قبل أن يلمس البوت سيرفرك.') + '<div class="loading">نحمّل القوالب…</div>';
   const [catalog, runs, connected] = await Promise.all([state.readyCatalog ? Promise.resolve({ templates: state.readyCatalog }) : api('/api/ready-templates'), api(`/api/workspace/${encodeURIComponent(guild)}/ready-templates/runs`), api(`/api/ai/bot-connection?guildId=${encodeURIComponent(guild)}`)]);
+  if(guild!==state.guild || screen()!=='ready-templates' || viewEpoch!==state.viewEpoch)return;
   state.readyCatalog = catalog.templates.filter(item => item.key !== 'imported-server-template');
   try { const imported = JSON.parse(sessionStorage.getItem(`diskoko:import:${state.account?.user?.id}:${guild}`)); if (imported?.definition) state.readyCatalog.push(imported); } catch {}
   state.readyRuns = runs.runs || [];
@@ -2740,10 +2766,11 @@ async function assistant() {
   } catch (error) { if (active()) notice.textContent = error.message; }
 }
 async function commands() {
+  const viewEpoch=state.viewEpoch;
   const guild = state.guild; const epoch = state.epoch;
   $('#workspace').innerHTML = head('الأوامر', 'اعرض أوامر كل بوت متصل وعدّل اللوحات من مكانها، أو اضبط أوامر ديسكوكو العامة.') + connectionNotice() + '<div class="loading" role="status">جارٍ قراءة إعدادات البوت…</div>';
   const [{ settings }, { commands: commandCatalog }, registry] = await Promise.all([api(`/api/guilds/${encodeURIComponent(guild)}/bot-settings`), api('/api/bots/commands'), api(`/api/ai/bots?guildId=${encodeURIComponent(guild)}`)]);
-  if (guild !== state.guild || epoch !== state.epoch || screen() !== 'commands') return;
+  if (guild !== state.guild || epoch !== state.epoch || screen() !== 'commands' || viewEpoch!==state.viewEpoch) return;
   const connectedBots = [registry.publicBot, ...(registry.bots || [])].filter(item => item?.online);
   const commands = commandCatalog.filter(command => command.status === 'available').map(command => [command.key, command.title, command.description]);
   const textChannels = state.data.channels?.filter(channel => [0, 5].includes(channel.type)) || [];
@@ -2816,28 +2843,74 @@ async function commands() {
   document.querySelectorAll('[data-preview]').forEach(button => { button.onclick = () => { $('#botPreview').textContent = examples[button.dataset.preview]; }; });
   $('#botForm').onsubmit = run(async event => { event.preventDefault(); const button = event.submitter; button.disabled = true; try { await api(`/api/guilds/${encodeURIComponent(guild)}/bot-settings`, { method: 'PUT', body: JSON.stringify({ ...settings, enabled: $('#botEnabled').checked, locale: $('#botLocale').value, log_channel_id: $('#logChannel').value || null, command_keys: [...document.querySelectorAll('.command-check:checked')].map(input => input.value) }) }); toast('حُفظت إعدادات البوت لهذا السيرفر.'); } finally { button.disabled = false; } });
 }
+const scheduleRepeatLabels={once:'مرة واحدة',daily:'كل 24 ساعة',weekly:'كل 7 أيام',monthly:'كل شهر'};
+let scheduleListState={guild:null,q:'',status:'',channel:'',offset:0};
 async function automation() {
-  const guild = state.guild;
-  $('#workspace').innerHTML = head('رسالتك، في وقتها.', 'جهّز إعلانًا أو تذكيرًا، وراجعه قبل الجدولة.') + '<div class="loading" role="status">جارٍ تحميل الرسائل المجدولة…</div>';
-  const { schedules } = await api(`/api/workspace/${encodeURIComponent(guild)}/schedules`);
-  if (guild !== state.guild || screen() !== 'automation') return;
-  $('#workspace').innerHTML = head('رسالتك، في وقتها.', 'جهّز إعلانًا أو تذكيرًا، وراجعه قبل الجدولة.', `<button class="btn primary" id="newSchedule" ${!state.data.connection.readable ? 'disabled' : ''}>＋ رسالة مجدولة</button>`) + connectionNotice() + `<div class="notice info"><div><b>إرسال بعد موافقتك على الرسالة والموعد.</b><p>لا تُفعّل إشارات الجميع أو الرتب تلقائيًا. قد يتأخر الإرسال إذا توقفت خدمة الاستضافة.</p></div></div>` + panel('جدول الرسائل', schedules.length ? `<div class="rows">${schedules.map(job => `<div class="row"><span class="row-icon">◷</span><div class="row-main"><b>${esc(job.content.slice(0, 100))}</b><small># ${esc(state.data.channels?.find(channel => channel.id === job.channel_id)?.name || 'قناة غير متاحة')} · ${date(job.run_at)} · ${esc(job.timezone)} · ${{ once: 'مرة واحدة', daily: 'كل 24 ساعة', weekly: 'كل 7 أيام', monthly: 'كل شهر' }[job.repeat]}</small>${job.last_error ? `<small>${esc(job.last_error)}</small>` : ''}</div>${status(job.status)}${['scheduled', 'paused', 'failed'].includes(job.status) ? `<button class="btn small secondary" data-cancel-job="${job.id}">إلغاء</button>` : ''}</div>`).join('')}</div>` : empty('لا توجد رسائل مجدولة', 'جهّز أول إعلان وحدد القناة والوقت. ستجد حالة إرساله هنا.'));
-  $('#newSchedule').onclick = scheduleForm;
-  document.querySelectorAll('[data-cancel-job]').forEach(button => { button.onclick = () => confirmDialog('إلغاء الرسالة المجدولة؟', 'ستبقى في السجل ولن تُرسل في الموعد القادم.', 'إلغاء الجدولة', async () => { await api(`/api/workspace/${encodeURIComponent(guild)}/schedules/${button.dataset.cancelJob}/cancel`, { method: 'POST', body: '{}' }); closeDialog(); await automation(); }); });
+  const viewEpoch=state.viewEpoch,guild=state.guild;
+  if(scheduleListState.guild!==guild)scheduleListState={guild,q:'',status:'',channel:'',offset:0};
+  const filters={...scheduleListState};
+  $('#workspace').innerHTML=head('رسالتك، في وقتها.','الإعلانات والتذكيرات ومواعيد مجتمعك في مكان واحد.')+'<div class="loading" role="status">جارٍ تحميل الرسائل المجدولة…</div>';
+  const query=new URLSearchParams({q:filters.q,status:filters.status,channel:filters.channel,offset:filters.offset,limit:20});
+  const data=await api('/api/workspace/'+encodeURIComponent(guild)+'/tools/schedules?'+query);
+  if(guild!==state.guild || screen()!=='automation' || viewEpoch!==state.viewEpoch)return;
+  const schedules=data.items || [];
+  const channels=(state.data.channels || []).filter(c=>[0,5].includes(c.type));
+  $('#workspace').innerHTML=head('رسالتك، في وقتها.','الإعلانات والتذكيرات ومواعيد مجتمعك في مكان واحد.','<button class="btn primary" id="newSchedule" '+(!state.data.connection.readable || !channels.length?'disabled':'')+'>＋ رسالة مجدولة</button>')+connectionNotice()+
+   '<div class="notice info"><div><b>أنت تحدد الرسالة والقناة والموعد.</b><p>الإشارات لا تنبّه الجميع أو الرتب تلقائيًا. عند تعثر الإرسال راجع السجل والقناة قبل إنشاء بديل. قد يتأخر الموعد عند توقف الاستضافة.</p></div></div>'+
+   panel('جدول الرسائل','<form id="scheduleFilters" class="schedule-filters"><label>بحث في الرسائل<input id="scheduleSearch" type="search" maxlength="80" value="'+esc(filters.q)+'"></label><label>الحالة<select id="scheduleStatus"><option value="">كل الحالات</option>'+['scheduled','paused','sending','sent','failed','cancelled'].map(s=>'<option value="'+s+'" '+(s===filters.status?'selected':'')+'>'+esc(siteDate.statusLabel(s))+'</option>').join('')+'</select></label><label>القناة<select id="scheduleFilterChannel"><option value="">كل القنوات</option>'+channels.map(c=>'<option value="'+esc(c.id)+'" '+(c.id===filters.channel?'selected':'')+'># '+esc(c.name)+'</option>').join('')+'</select></label><button class="btn secondary" type="submit">تطبيق التصفية</button><button class="btn text" id="scheduleReset" type="button">مسح التصفية</button></form><p class="form-note">تظهر الرسائل القادمة أولًا، ثم المتعثرة والمتوقفة. يعرض السجل نتائج الإرسال الفعلية.</p>'+
+   (schedules.length?'<div class="rows">'+schedules.map(job=>'<article class="row schedule-row"><span class="row-icon">◷</span><div class="row-main"><b data-i18n-preserve>'+esc(job.content_kind==='command'?'/'+job.command_name:job.content.slice(0,140))+'</b><small data-i18n-preserve># '+esc(channels.find(c=>c.id===job.channel_id)?.name || 'قناة غير متاحة')+'</small><small>'+esc(formatScheduleTime(job.run_at,job.timezone || 'UTC',document.documentElement.lang || 'ar'))+' · '+esc(scheduleRepeatLabels[job.repeat] || '')+'</small>'+status(job.status)+(job.last_error?'<div class="notice danger"><p data-i18n-preserve>'+esc(job.last_error)+'</p><small>راجع صلاحيات البوت ووجود القناة وسجل الإرسال قبل إنشاء بديل.</small></div>':'')+(job.calendar?.length?'<details><summary>المواعيد القادمة</summary>'+job.calendar.slice(0,3).map(at=>'<p>'+esc(formatScheduleTime(at,job.timezone || 'UTC',document.documentElement.lang || 'ar'))+'</p>').join('')+'</details>':'')+'</div><div class="actions schedule-actions">'+(['scheduled','paused'].includes(job.status)?'<button class="btn small secondary" data-job-action="'+(job.status==='paused'?'resume':'pause')+'" data-job="'+job.id+'">'+(job.status==='paused'?'استكمال':'إيقاف مؤقت')+'</button>'+(job.content_kind==='text'?'<button class="btn small secondary" data-job-action="edit" data-job="'+job.id+'">تعديل</button>':''):'')+'<button class="btn small secondary" data-job-action="history" data-job="'+job.id+'">سجل الإرسال</button>'+(job.content_kind==='text'?'<button class="btn small secondary" data-job-action="duplicate" data-job="'+job.id+'">نسخ كرسالة جديدة</button>':'')+(['scheduled','paused','failed'].includes(job.status)?'<button class="btn small text" data-job-action="cancel" data-job="'+job.id+'">إلغاء الجدولة</button>':'')+'</div></article>').join('')+'</div>':empty('لا توجد رسائل بهذه الخيارات','أنشئ رسالة جديدة أو غيّر التصفية لعرض الرسائل السابقة.'))+
+   '<div class="button-row"><button class="btn secondary" id="schedulePrevious" '+(!filters.offset?'disabled':'')+'>السابق</button><button class="btn secondary" id="scheduleNext" '+(!data.more?'disabled':'')+'>التالي</button></div>');
+  $('#newSchedule').onclick=()=>scheduleForm();
+  $('#scheduleFilters').onsubmit=run(async e=>{e.preventDefault();Object.assign(scheduleListState,{q:$('#scheduleSearch').value,status:$('#scheduleStatus').value,channel:$('#scheduleFilterChannel').value,offset:0});await automation();});
+  $('#scheduleReset').onclick=run(async()=>{Object.assign(scheduleListState,{q:'',status:'',channel:'',offset:0});await automation();});
+  $('#schedulePrevious').onclick=run(async()=>{scheduleListState.offset=Math.max(0,filters.offset-20);await automation();});
+  $('#scheduleNext').onclick=run(async()=>{scheduleListState.offset=filters.offset+20;await automation();});
+  document.querySelectorAll('[data-job-action]').forEach(button=>button.onclick=run(async()=>{
+   const job=schedules.find(j=>String(j.id)===button.dataset.job),action=button.dataset.jobAction;
+   if(action==='edit' || action==='duplicate' || action==='resume')return scheduleForm(job,action);
+   if(action==='history'){
+    button.disabled=true;try{const history=await api('/api/workspace/'+encodeURIComponent(guild)+'/tools/schedules/'+job.id+'/history');if(guild!==state.guild || screen()!=='automation')return;
+     modal('سجل الإرسال',(history.runs || []).length?'<div class="rows">'+history.runs.map(item=>'<article class="row"><div class="row-main"><b>'+esc(siteDate.statusLabel(item.status))+'</b><small>'+esc(formatScheduleTime(item.run_at,job.timezone || 'UTC',document.documentElement.lang || 'ar'))+'</small>'+(item.error?'<p data-i18n-preserve>'+esc(item.error)+'</p>':'')+(item.message_id?'<a class="btn text" target="_blank" rel="noopener noreferrer" href="https://discord.com/channels/'+encodeURIComponent(guild)+'/'+encodeURIComponent(job.channel_id)+'/'+encodeURIComponent(item.message_id)+'">عرض في Discord ↗</a>':'')+'</div></article>').join('')+'</div>':'<p>لا توجد عمليات مسجلة بعد؛ يبدأ هذا السجل مع الإرسال القادم.</p>');
+    }finally{button.disabled=false;}return;
+   }
+   confirmDialog(action==='pause'?'إيقاف الرسالة مؤقتًا؟':'إلغاء الرسالة المجدولة؟',action==='pause'?'لن تُرسل حتى تحدد موعدًا جديدًا وتستكملها.':'ستبقى في السجل ولن تُرسل في الموعد القادم.',action==='pause'?'إيقاف مؤقت':'إلغاء الجدولة',async()=>{
+    const base='/api/workspace/'+encodeURIComponent(guild);
+    await api(action==='pause'?base+'/tools/schedules/'+job.id:base+'/schedules/'+job.id+'/cancel',{method:action==='pause'?'PUT':'POST',body:JSON.stringify(action==='pause'?{action,confirmed:true,updatedAt:new Date(job.updated_at).toISOString()}:{})});closeDialog();await automation();
+   });
+  }));
 }
-async function scheduleForm() {
-  const guild=state.guild;let timezone=Intl.DateTimeFormat().resolvedOptions().timeZone;
-  try{const saved=await api(`/api/workspace/${encodeURIComponent(guild)}/tools/settings`);if(saved.timezone)timezone=saved.timezone;}catch(error){toast(error.message);return;}
-  if(guild!==state.guild || screen()!=='automation')return;
-  modal('جهّز رسالتك', `<form id="scheduleForm" class="form-grid"><label>القناة<select id="scheduleChannel" required>${(state.data.channels || []).filter(channel => [0, 5].includes(channel.type)).map(channel => `<option value="${esc(channel.id)}"># ${esc(channel.name)}</option>`).join('')}</select></label><label>نص الرسالة<textarea id="scheduleText" rows="4" required maxlength="2000" placeholder="ما الذي تريد إخبار مجتمعك به؟"></textarea></label><div class="form-grid two"><label>موعد الإرسال<input id="scheduleTime" type="datetime-local" required></label><label>التكرار<select id="scheduleRepeat"><option value="once">مرة واحدة</option><option value="daily">كل 24 ساعة</option><option value="weekly">كل 7 أيام</option><option value="monthly">كل شهر</option></select></label></div><p class="form-note">الموعد حسب جهازك: ${esc(timezone)}. اليومي والأسبوعي بفواصل ثابتة. الشهري يحافظ على يوم الموعد، ويستخدم آخر يوم في الأشهر الأقصر. لا يُضبط التكرار تلقائيًا مع التوقيت الصيفي.</p><div class="preview"><b>معاينة الرسالة</b><div class="message" id="schedulePreview">ستظهر رسالتك هنا…</div></div><label class="check-row"><input id="scheduleConfirm" type="checkbox" required>أوافق على إرسال هذه الرسالة في القناة والموعد المحددين.</label></form>`, '<button class="btn primary" form="scheduleForm" type="submit">تأكيد الجدولة</button>');
-  $('#scheduleText').oninput = event => { $('#schedulePreview').textContent = event.target.value || 'ستظهر رسالتك هنا…'; };
-  $('#scheduleForm').onsubmit = async event => { event.preventDefault(); event.submitter.disabled = true; try { await api(`/api/workspace/${encodeURIComponent(state.guild)}/schedules`, { method: 'POST', body: JSON.stringify({ channel_id: $('#scheduleChannel').value, content: $('#scheduleText').value, run_at: zonedInputToIso($('#scheduleTime').value,timezone), repeat: $('#scheduleRepeat').value, timezone, confirmed: $('#scheduleConfirm').checked }) }); closeDialog(); await automation(); toast('حُفظت الرسالة المجدولة.'); } catch (error) { modalError(error); event.submitter.disabled = false; } };
+async function scheduleForm(job=null,mode='create') {
+ const guild=state.guild,editing=mode==='edit',resuming=mode==='resume';let timezone=job?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+ if(!job)try{const saved=await api('/api/workspace/'+encodeURIComponent(guild)+'/tools/settings');if(saved.timezone)timezone=saved.timezone;}catch{toast('تعذر تحميل المنطقة الزمنية المحفوظة؛ راجع المنطقة قبل الجدولة.');}
+ if(guild!==state.guild || screen()!=='automation')return;
+ const zones=[...new Set([timezone,'UTC',Intl.DateTimeFormat().resolvedOptions().timeZone,...(Intl.supportedValuesOf?.('timeZone') || ['Asia/Riyadh','Asia/Dubai','Africa/Cairo','Europe/London','America/New_York'])].filter(Boolean))];
+ const when=editing?job.run_at:new Date(Date.now()+3600000).toISOString();
+ modal(resuming?'استكمال الجدولة':editing?'تعديل الرسالة المجدولة':mode==='duplicate'?'نسخ كرسالة جديدة':'جهّز رسالتك','<form id="scheduleForm" class="form-grid">'+(mode==='duplicate'?'<div class="notice info"><p>هذه نسخة جديدة بموعد جديد. راجع القناة والسجل لتجنب تكرار رسالة أُرسلت بالفعل.</p></div>':'')+'<label>القناة<select id="scheduleChannel" required '+(resuming?'disabled':'')+'>'+(state.data.channels || []).filter(c=>[0,5].includes(c.type)).map(c=>'<option value="'+esc(c.id)+'" '+(job?.channel_id===c.id?'selected':'')+'># '+esc(c.name)+'</option>').join('')+'</select></label><label>نص الرسالة<textarea id="scheduleText" rows="5" required maxlength="2000" '+(resuming?'readonly':'')+' placeholder="ما الذي تريد إخبار مجتمعك به؟">'+esc(job?.content || '')+'</textarea></label><small id="scheduleCount" aria-live="polite"></small><div class="form-grid two"><label>موعد الإرسال<input id="scheduleTime" type="datetime-local" required value="'+formatScheduleTime.inputValue(when,timezone)+'"></label><label>التكرار<select id="scheduleRepeat" '+(resuming?'disabled':'')+'>'+Object.entries(scheduleRepeatLabels).map(([value,label])=>'<option value="'+value+'" '+(job?.repeat===value?'selected':'')+'>'+label+'</option>').join('')+'</select></label></div><label>المنطقة الزمنية<select id="scheduleZone" '+(resuming?'disabled':'')+'>'+zones.map(zone=>'<option value="'+esc(zone)+'" '+(zone===timezone?'selected':'')+'>'+esc(zone)+'</option>').join('')+'</select></label><p class="form-note">الموعد يُقرأ بالمنطقة المختارة. اليومي والأسبوعي بفواصل ثابتة؛ قد تتغير الساعة المحلية عند التوقيت الصيفي. الشهري يحافظ على يوم UTC الأصلي، ويستخدم آخر يوم في الأشهر الأقصر.</p><div class="preview"><b>معاينة الرسالة</b><div class="message" id="schedulePreview" dir="auto" data-i18n-preserve></div></div><div class="schedule-calendar"><b>المواعيد القادمة</b><div id="scheduleCalendar" role="status"></div></div><label class="check-row"><input id="scheduleConfirm" type="checkbox" required>أوافق على إرسال هذه الرسالة في القناة والموعد المحددين.</label></form>','<button class="btn primary" form="scheduleForm" type="submit">'+(editing?'حفظ التعديل':resuming?'استكمال الجدولة':'تأكيد الجدولة')+'</button>');
+ const refresh=()=>{
+  $('#schedulePreview').textContent=$('#scheduleText').value || 'ستظهر رسالتك هنا…';$('#scheduleCount').textContent=$('#scheduleText').value.length+' / 2000';
+  $('#scheduleConfirm').checked=false;
+  try{const iso=zonedInputToIso($('#scheduleTime').value,$('#scheduleZone').value);$('#scheduleCalendar').innerHTML=formatScheduleTime.upcoming(iso,$('#scheduleRepeat').value).map(at=>'<p>'+esc(formatScheduleTime(at,$('#scheduleZone').value,document.documentElement.lang || 'ar'))+'</p>').join('');}
+  catch(error){$('#scheduleCalendar').textContent=error.message;}
+ };
+ $('#scheduleForm').addEventListener('input',e=>{if(e.target.id!=='scheduleConfirm')refresh();});
+ $('#scheduleForm').addEventListener('change',e=>{if(e.target.id!=='scheduleConfirm')refresh();});refresh();
+ let saving=false;
+ $('#scheduleForm').onsubmit=async event=>{event.preventDefault();if(saving)return;saving=true;const submit=event.submitter;submit.disabled=true;
+  try{
+   const payload={channel_id:$('#scheduleChannel').value,content:$('#scheduleText').value,run_at:zonedInputToIso($('#scheduleTime').value,$('#scheduleZone').value),repeat:$('#scheduleRepeat').value,timezone:$('#scheduleZone').value};
+   if(new Date(payload.run_at).getTime()<Date.now()+60000)throw Error('اختر موعدًا بعد دقيقة على الأقل.');
+   if(!$('#scheduleConfirm').checked)throw Error('راجع الرسالة وموعدها ثم أكد الجدولة.');
+   await api('/api/workspace/'+encodeURIComponent(guild)+(editing || resuming?'/tools/schedules/'+job.id:'/schedules'),{method:editing || resuming?'PUT':'POST',body:JSON.stringify(editing || resuming?{action:mode,updatedAt:new Date(job.updated_at).toISOString(),confirmed:true,...(resuming?{runAt:payload.run_at}:{schedule:payload})}:{...payload,confirmed:true})});
+   closeDialog();await automation();toast('حُفظت الرسالة المجدولة.');
+  }catch(error){modalError(error);}finally{saving=false;submit.disabled=false;}
+ };
 }
 async function analytics() {
+  const viewEpoch=state.viewEpoch;
   const guild = state.guild; let days = state.days; const d = state.data;
   $('#workspace').innerHTML = head('تعرّف على نبض مجتمعك.', 'مؤشرات نشاط مفهومة، من البيانات التي يجمعها البوت.') + '<div class="loading" role="status">جارٍ قراءة النشاط…</div>';
   const data = await api(`/api/workspace/${encodeURIComponent(guild)}/analytics?days=${days}`);
-  if (guild !== state.guild || screen() !== 'analytics' || days !== state.days) return;
+  if (guild !== state.guild || screen() !== 'analytics' || viewEpoch!==state.viewEpoch || days !== state.days) return;
   days = Number(data.days) || days; state.days = days;
   const periods = analyticsPeriods(state.account?.limits?.analyticsDays || 30);
   const max = Math.max(1, ...data.members.map(member => member.messages));
@@ -2926,9 +2999,10 @@ async function start() {
 }
 $('#guildSelect').onchange = event => { if (event.target.value) location.href = url('overview', event.target.value); };
 $('#refresh').onclick = run(loadGuild);
-$('#menuToggle').onclick = () => { const open = $('#sidebar').classList.toggle('open'); $('#menuToggle').setAttribute('aria-expanded', String(open)); };
+siteDate.bindNavigation({toggle:$('#menuToggle'),panel:$('#sidebar')});
 document.addEventListener('click', event => { const link = event.target.closest('a[href]'); if (!link) return; const target = new URL(link.href, location.href); if (target.pathname === '/studio' && target.search === location.search) { $('#sidebar').classList.remove('open'); $('#menuToggle').setAttribute('aria-expanded', 'false'); } });
-window.addEventListener('hashchange', () => { render(); $('#workspace').focus({ preventScroll: true }); });
+let lastWorkspaceHash=location.hash;
+window.addEventListener('hashchange',()=>{const editor=document.querySelector('.code-command-studio[data-unsaved="true"]'),requested=location.hash;if(editor){history.replaceState(null,'',location.pathname+location.search+lastWorkspaceHash);editor.dispatchEvent(new CustomEvent('diskoko-request-leave',{detail:{continue:()=>{history.replaceState(null,'',location.pathname+location.search+requested);lastWorkspaceHash=requested;render();$('#workspace').focus({preventScroll:true});}}}));return;}lastWorkspaceHash=requested;render();$('#workspace').focus({preventScroll:true});});
 window.addEventListener('popstate', () => {
   if (screen() !== 'ready-templates' || !state.readyCatalog) return;
   readySaveDraft();
@@ -2941,13 +3015,16 @@ window.addEventListener('popstate', () => {
 });
 window.addEventListener('pagehide', readySaveDraft);
 window.addEventListener('focus', () => { if (state.awaitingInstall) { state.awaitingInstall = false; loadGuild(); } });
-$('#dialog').addEventListener('cancel', event => { if ($('#applyPlan')?.textContent === 'جارٍ التطبيق…') event.preventDefault(); });
+$('#dialog').addEventListener('input',event=>{if(event.target.matches('textarea,input:not([type="checkbox"]):not([type="radio"]):not([type="password"]):not([type="file"])'))$('#dialog').dataset.unsaved='true';});
+$('#dialog').addEventListener('change',event=>{if(event.target.matches('select'))$('#dialog').dataset.unsaved='true';});
+window.addEventListener('beforeunload',event=>{if($('#dialog').open && $('#dialog').dataset.unsaved==='true' || document.querySelector('.code-command-studio[data-unsaved="true"]')){event.preventDefault();event.returnValue='';}});
+$('#dialog').addEventListener('cancel',event=>{if($('#closeDialog')?.disabled || $('#dialog').dataset.unsaved==='true'){event.preventDefault();requestDialogClose();}});
 function dashboardEnhancements(){
   if(typeof document==='undefined' || !document)return;
   if(!state.data || !state.account || state.loading || state.error || !state.guild)return;
   const host=$('#workspace'),page=screen();if(!host || !host.isConnected || host.querySelector('.loading'))return;
   const existing=host.querySelector('[data-dashboard-tools]');if(existing && existing.dataset.context===`${page}:${state.readyKey || ''}`)return;
-  mountDashboardToolsUI({host,page,guild:state.guild,api,esc,state,getDraft:()=>state.readyDraft,applyDraft:definition=>{
+  mountDashboardToolsUI({host,page,guild:state.guild,api,esc,state,formatAction:value=>siteDate.actionLabel(value),formatStatus:value=>siteDate.statusLabel(value),formatTime:value=>date(value),getDraft:()=>state.readyDraft,applyDraft:definition=>{
     const key=state.cloudDraftKey,revision=state.cloudDraftRevision;
     const template={key:'imported-server-template',name:definition.name,description:'مسودة سحابية قابلة للتعديل والمراجعة.',revision:1,definition};
     state.readyCatalog=(state.readyCatalog || []).filter(t=>t.key!=='imported-server-template');state.readyCatalog.push(template);
@@ -2987,3 +3064,5 @@ function serverImportPage() {
     finally { button.disabled = false; }
   };
 }
+
+document.addEventListener('click',event=>{const link=event.target.closest('a[href]'),editor=document.querySelector('.code-command-studio[data-unsaved="true"]');if(!link || !editor || link.classList.contains('skip-link') || link.target==='_blank' || link.hasAttribute('download'))return;const destination=new URL(link.href,location.href);if(destination.href===location.href || !['http:','https:'].includes(destination.protocol))return;event.preventDefault();event.stopImmediatePropagation();editor.dispatchEvent(new CustomEvent('diskoko-request-leave',{detail:{continue:()=>{location.href=destination.href;}}}));},true);

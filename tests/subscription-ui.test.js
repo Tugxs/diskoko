@@ -8,7 +8,7 @@ test('subscription UI exposes services, free downgrade, one confirmed cancellati
   const account=structuredClone(fixture),calls=[];
   const dom=new JSDOM(fs.readFileSync('account.html','utf8'),{url:'https://diskoko.test/account.html#subscription',runScripts:'outside-only'});
   try {
-    const w=dom.window;w.confirm=()=>true;w.siteDate=()=>'';
+    const w=dom.window;w.confirm=()=>true;w.eval(fs.readFileSync('site-format.js','utf8').replace(/^export /gm,''));
     w.fetch=async(path,options={})=>{calls.push({path,options});if(path==='/api/account/subscription/cancel')account.plan.cancel_at_period_end=true;return {ok:true,json:async()=>path==='/api/account/overview'?account:path==='/api/csrf-token'?{token:'test'}:{ok:true}};};
     w.eval(fs.readFileSync('account.js','utf8').replace("import {siteDate} from './site-format.js';",''));
     const settle=()=>new Promise(resolve=>setTimeout(resolve,15));await settle();
