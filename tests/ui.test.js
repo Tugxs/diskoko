@@ -933,6 +933,17 @@ test('schedule list filters on the server and does not offer edits during delive
  }finally{dom.window.close();}
 });
 
+test('a delayed schedule query cannot replace the result of a newer query',async()=>{
+ const {dom,doc}=await page('automation');const pending=[],original=dom.window.fetch;
+ try{
+  dom.window.fetch=(url,options)=>url.includes('/tools/schedules?')?new Promise(resolve=>pending.push(resolve)):original(url,options);
+  const oldForm=doc.querySelector('#scheduleFilters'),oldSearch=doc.querySelector('#scheduleSearch');oldSearch.value='old';oldForm.dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));await settle();
+  dom.window.location.hash='overview';await settle();dom.window.location.hash='automation';await settle();assert.equal(pending.length,2);
+  pending[1]({ok:true,json:async()=>({items:[{id:'8',content:'Newest schedule result',content_kind:'text',channel_id:'c2',timezone:'UTC',repeat:'once',status:'sent',run_at:'2099-01-01T10:00:00Z'}]})});await settle();
+  pending[0]({ok:true,json:async()=>({items:[]})});await settle();assert.match(doc.querySelector('#workspace').textContent,/Newest schedule result/);
+ }finally{dom.window.close();}
+});
+
 test('double submission of a schedule form sends one request while it is pending',async()=>{
  const {dom,doc,requests}=await page('automation');try{
   doc.querySelector('#newSchedule').click();await settle();doc.querySelector('#scheduleText').value='Hello';doc.querySelector('#scheduleConfirm').checked=true;

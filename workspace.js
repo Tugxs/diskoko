@@ -2845,14 +2845,15 @@ async function commands() {
 }
 const scheduleRepeatLabels={once:'مرة واحدة',daily:'كل 24 ساعة',weekly:'كل 7 أيام',monthly:'كل شهر'};
 let scheduleListState={guild:null,q:'',status:'',channel:'',offset:0};
+let scheduleLoadEpoch=0;
 async function automation() {
-  const viewEpoch=state.viewEpoch,guild=state.guild;
+  const viewEpoch=state.viewEpoch,guild=state.guild,loadEpoch=++scheduleLoadEpoch;
   if(scheduleListState.guild!==guild)scheduleListState={guild,q:'',status:'',channel:'',offset:0};
   const filters={...scheduleListState};
   $('#workspace').innerHTML=head('رسالتك، في وقتها.','الإعلانات والتذكيرات ومواعيد مجتمعك في مكان واحد.')+'<div class="loading" role="status">جارٍ تحميل الرسائل المجدولة…</div>';
   const query=new URLSearchParams({q:filters.q,status:filters.status,channel:filters.channel,offset:filters.offset,limit:20});
   const data=await api('/api/workspace/'+encodeURIComponent(guild)+'/tools/schedules?'+query);
-  if(guild!==state.guild || screen()!=='automation' || viewEpoch!==state.viewEpoch)return;
+  if(guild!==state.guild || screen()!=='automation' || viewEpoch!==state.viewEpoch || loadEpoch!==scheduleLoadEpoch)return;
   const schedules=data.items || [];
   const channels=(state.data.channels || []).filter(c=>[0,5].includes(c.type));
   $('#workspace').innerHTML=head('رسالتك، في وقتها.','الإعلانات والتذكيرات ومواعيد مجتمعك في مكان واحد.','<button class="btn primary" id="newSchedule" '+(!state.data.connection.readable || !channels.length?'disabled':'')+'>＋ رسالة مجدولة</button>')+connectionNotice()+
@@ -2880,9 +2881,9 @@ async function automation() {
   }));
 }
 async function scheduleForm(job=null,mode='create') {
- const guild=state.guild,editing=mode==='edit',resuming=mode==='resume';let timezone=job?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+ const guild=state.guild,viewEpoch=state.viewEpoch,editing=mode==='edit',resuming=mode==='resume';let timezone=job?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
  if(!job)try{const saved=await api('/api/workspace/'+encodeURIComponent(guild)+'/tools/settings');if(saved.timezone)timezone=saved.timezone;}catch{toast('تعذر تحميل المنطقة الزمنية المحفوظة؛ راجع المنطقة قبل الجدولة.');}
- if(guild!==state.guild || screen()!=='automation')return;
+ if(guild!==state.guild || screen()!=='automation' || viewEpoch!==state.viewEpoch)return;
  const zones=[...new Set([timezone,'UTC',Intl.DateTimeFormat().resolvedOptions().timeZone,...(Intl.supportedValuesOf?.('timeZone') || ['Asia/Riyadh','Asia/Dubai','Africa/Cairo','Europe/London','America/New_York'])].filter(Boolean))];
  const when=editing?job.run_at:new Date(Date.now()+3600000).toISOString();
  modal(resuming?'استكمال الجدولة':editing?'تعديل الرسالة المجدولة':mode==='duplicate'?'نسخ كرسالة جديدة':'جهّز رسالتك','<form id="scheduleForm" class="form-grid">'+(mode==='duplicate'?'<div class="notice info"><p>هذه نسخة جديدة بموعد جديد. راجع القناة والسجل لتجنب تكرار رسالة أُرسلت بالفعل.</p></div>':'')+'<label>القناة<select id="scheduleChannel" required '+(resuming?'disabled':'')+'>'+(state.data.channels || []).filter(c=>[0,5].includes(c.type)).map(c=>'<option value="'+esc(c.id)+'" '+(job?.channel_id===c.id?'selected':'')+'># '+esc(c.name)+'</option>').join('')+'</select></label><label>نص الرسالة<textarea id="scheduleText" rows="5" required maxlength="2000" '+(resuming?'readonly':'')+' placeholder="ما الذي تريد إخبار مجتمعك به؟">'+esc(job?.content || '')+'</textarea></label><small id="scheduleCount" aria-live="polite"></small><div class="form-grid two"><label>موعد الإرسال<input id="scheduleTime" type="datetime-local" required value="'+formatScheduleTime.inputValue(when,timezone)+'"></label><label>التكرار<select id="scheduleRepeat" '+(resuming?'disabled':'')+'>'+Object.entries(scheduleRepeatLabels).map(([value,label])=>'<option value="'+value+'" '+(job?.repeat===value?'selected':'')+'>'+label+'</option>').join('')+'</select></label></div><label>المنطقة الزمنية<select id="scheduleZone" '+(resuming?'disabled':'')+'>'+zones.map(zone=>'<option value="'+esc(zone)+'" '+(zone===timezone?'selected':'')+'>'+esc(zone)+'</option>').join('')+'</select></label><p class="form-note">الموعد يُقرأ بالمنطقة المختارة. اليومي والأسبوعي بفواصل ثابتة؛ قد تتغير الساعة المحلية عند التوقيت الصيفي. الشهري يحافظ على يوم UTC الأصلي، ويستخدم آخر يوم في الأشهر الأقصر.</p><div class="preview"><b>معاينة الرسالة</b><div class="message" id="schedulePreview" dir="auto" data-i18n-preserve></div></div><div class="schedule-calendar"><b>المواعيد القادمة</b><div id="scheduleCalendar" role="status"></div></div><label class="check-row"><input id="scheduleConfirm" type="checkbox" required>أوافق على إرسال هذه الرسالة في القناة والموعد المحددين.</label></form>','<button class="btn primary" form="scheduleForm" type="submit">'+(editing?'حفظ التعديل':resuming?'استكمال الجدولة':'تأكيد الجدولة')+'</button>');
