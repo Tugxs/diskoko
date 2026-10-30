@@ -1,5 +1,10 @@
 // Interface translations only. Customer content is preserved by site-preferences.js.
 export const uiTranslations = new Map(Object.entries({
+  "حذف الرتب القديمة": "Delete old roles",
+  "مقفل افتراضيًا: تبقى الرتب القديمة وعضوياتها. عند التفعيل، تبقى رتب منفذ القالب والرتب المحمية محفوظة.": "Off by default: existing roles and memberships are retained. When enabled, the executor's roles and protected roles are preserved.",
+  "الاستبدال يحذف القنوات القديمة ورسائلها بعد بناء القالب. حذف الرتب اختياري ويظهر بالتفصيل في المراجعة.": "Replacement deletes old channels and their messages after building the template. Role deletion is optional and listed in the review.",
+  "حذف الرتب القديمة: مفعّل؛ رتبك والرتب المحمية ستبقى.": "Old role deletion: enabled; your roles and protected roles will remain.",
+  "حذف الرتب القديمة: غير مفعّل؛ ستبقى الرتب الحالية وعضوياتها.": "Old role deletion: disabled; existing roles and memberships will remain.",
   "مراقبة التشغيل": "Operations monitoring",
   "العملية": "Operation",
   "الحجم": "Size",

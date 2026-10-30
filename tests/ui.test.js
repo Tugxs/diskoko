@@ -1303,6 +1303,22 @@ test('compact bot identity settings retain the private bot profile and nickname 
  const {dom,doc}=await page('bots',response);doc.querySelector('#panelBotSettings').click();assert.ok(doc.querySelector('#workshopBotNickname'));assert.equal(doc.querySelector('#workshopBotLabel').value,'بوت الإدارة');assert.ok(doc.querySelector('#workshopBotIdentityConfirm'));await settle();dom.window.close();
 });
 
+test('replacement role deletion is explicit, defaults off and resets when switching install modes',async()=>{
+ const response=url=>url==='/api/ready-templates'?{templates:READY_TEMPLATES}:url.endsWith('/ready-templates/review')?{error:'Stop at review boundary'}:fixtureResponse(url);
+ const {dom,doc,requests}=await page('ready-templates',response,'studio.html','workspace.js',window=>{window.structuredClone=structuredClone;window.HTMLElement.prototype.scrollIntoView=()=>{};});
+ try{
+  doc.querySelector('[data-ready-choose="diskoko-store-ar"]').click();
+  const replace=doc.querySelector('input[name="readyMode"][value="replace"]'),add=doc.querySelector('input[name="readyMode"][value="add"]'),option=doc.querySelector('#readyDeleteOldRoles');
+  assert.equal(option.checked,false);assert.equal(doc.querySelector('#readyRoleDeletionOptions').hidden,true);
+  replace.checked=true;replace.dispatchEvent(new dom.window.Event('change'));assert.equal(option.checked,false);assert.equal(doc.querySelector('#readyRoleDeletionOptions').hidden,false);
+  option.checked=true;option.dispatchEvent(new dom.window.Event('change'));
+  doc.querySelector('#readyReview').click();await settle();await settle();
+  const request=requests.find(r=>r.url.endsWith('/ready-templates/review'));assert.ok(request);assert.equal(JSON.parse(request.options.body).deleteOldRoles,true);
+  add.checked=true;add.dispatchEvent(new dom.window.Event('change'));assert.equal(option.checked,false);
+  replace.checked=true;replace.dispatchEvent(new dom.window.Event('change'));assert.equal(option.checked,false);
+ }finally{dom.window.close();}
+});
+
 test('launch journey visits every customer tool in one session without publishing or losing the server',async()=>{
  const response=url=>url==='/api/ready-templates'?{templates:READY_TEMPLATES}:fixtureResponse(url);
  const {dom,doc,requests}=await page('overview',response);
