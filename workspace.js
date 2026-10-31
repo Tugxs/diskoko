@@ -528,6 +528,16 @@ const rolePermissionGroups = [
   ['الرسائل والسلاسل المتقدمة', [['SendTTSMessages','إرسال رسائل صوتية TTS','4096'],['UseExternalStickers','استخدام ملصقات خارجية','137438953472'],['UseApplicationCommands','استخدام أوامر التطبيقات','2147483648'],['ManageThreads','إدارة السلاسل','17179869184'],['SendVoiceMessages','إرسال رسائل صوتية','70368744177664'],['SendPolls','إنشاء استطلاعات','562949953421312'],['PinMessages','تثبيت الرسائل','2251799813685248'],['BypassSlowmode','تجاوز بطء المحادثة','4503599627370496'],['UseExternalApps','استخدام تطبيقات خارجية','1125899906842624']]],
   ['الصوت والأنشطة المتقدمة', [['UseVAD','استخدام كشف الصوت التلقائي','33554432'],['RequestToSpeak','طلب التحدث في المنصة','4294967296'],['UseEmbeddedActivities','بدء أنشطة داخل الصوت','549755813888'],['UseExternalSounds','استخدام أصوات خارجية','35184372088832'],['SetVoiceChannelStatus','تعيين حالة القناة الصوتية','281474976710656']]],
 ];
+const rolePermissionShortcuts = [
+ ['member','عضو أساسي',['ViewChannel','SendMessages','ReadMessageHistory','AddReactions','Connect','Speak','UseVAD','UseApplicationCommands']],
+ ['friends','أصدقاء',['ViewChannel','SendMessages','ReadMessageHistory','AddReactions','Connect','Speak','UseVAD','UseApplicationCommands','Stream','UseExternalEmojis','UseEmbeddedActivities']],
+ ['media','مشاركة الصور والروابط',['ViewChannel','SendMessages','ReadMessageHistory','AddReactions','AttachFiles','EmbedLinks']],
+ ['voice','إدارة الصوت',['ViewChannel','Connect','Speak','UseVAD','MuteMembers','DeafenMembers','MoveMembers']],
+ ['support','فريق الدعم',['ViewChannel','SendMessages','ReadMessageHistory','AttachFiles','EmbedLinks','SendMessagesInThreads','UseApplicationCommands']],
+ ['moderator','مشرف محادثات',['ViewChannel','SendMessages','ReadMessageHistory','ManageMessages','ModerateMembers','ViewAuditLog']],
+ ['manager','إدارة السيرفر والقنوات والرتب',['ViewChannel','ManageGuild','ManageChannels','ManageRoles','ViewAuditLog']],
+ ['none','بدون صلاحيات إضافية',[]],
+];
 const channelPermissionChoices = [
   ['ViewChannel','عرض القناة','1024'],['SendMessages','إرسال الرسائل','2048'],['ReadMessageHistory','قراءة السجل','65536'],['EmbedLinks','تضمين الروابط','16384'],['AttachFiles','إرفاق الملفات','32768'],['AddReactions','إضافة التفاعلات','64'],['MentionEveryone','الإشارة إلى الجميع','131072'],['ManageMessages','إدارة الرسائل','8192'],['CreatePublicThreads','إنشاء سلاسل عامة','34359738368'],['SendMessagesInThreads','الكتابة في السلاسل','274877906944'],['Connect','الاتصال الصوتي','1048576'],['Speak','التحدث','2097152'],['Stream','مشاركة الشاشة','512'],['MuteMembers','كتم الأعضاء','4194304'],['MoveMembers','نقل الأعضاء','16777216'],
   ['CreateInstantInvite','إنشاء دعوة','1'],['SendTTSMessages','رسائل TTS','4096'],['UseExternalEmojis','إيموجيات خارجية','262144'],['UseExternalStickers','ملصقات خارجية','137438953472'],['UseApplicationCommands','أوامر التطبيقات','2147483648'],['ManageThreads','إدارة السلاسل','17179869184'],['CreatePrivateThreads','إنشاء سلاسل خاصة','68719476736'],['ManageWebhooks','إدارة Webhooks','536870912'],['SendVoiceMessages','رسائل صوتية','70368744177664'],['SendPolls','الاستطلاعات','562949953421312'],['PinMessages','تثبيت الرسائل','2251799813685248'],['BypassSlowmode','تجاوز بطء المحادثة','4503599627370496'],['DeafenMembers','إسكات الأعضاء','8388608'],['PrioritySpeaker','متحدث ذو أولوية','256'],['UseSoundboard','لوحة الأصوات','4398046511104'],['UseVAD','كشف الصوت التلقائي','33554432'],['RequestToSpeak','طلب التحدث','4294967296'],['UseEmbeddedActivities','الأنشطة الصوتية','549755813888'],['UseExternalSounds','أصوات خارجية','35184372088832'],['SetVoiceChannelStatus','حالة القناة الصوتية','281474976710656']
@@ -580,6 +590,7 @@ function advancedEditResource(kind, id, typeOverride, nameDraft) {
   const role = kind === 'role';
   const label = { role: 'الرتبة', channel: 'القناة', category: 'التصنيف' }[kind];
   const roleFlags = BigInt(item.permissions || '0');
+  let rolePermissionBase=roleFlags;
   const memberTargetOptions = [...new Set((item.permission_overwrites || []).filter(row => Number(row.type) === 1).map(row => String(row.id)))].map(memberId => `<option value="${esc(memberId)}" data-member="1">عضو ${esc(memberId)}</option>`).join('');
   const displayedOrder = role ? null : channelOrder(original, state.data.channels);
   const currentOrder = existing && Object.hasOwn(existing, 'position') ? Number(existing.position) + 1 : displayedOrder;
@@ -589,6 +600,20 @@ function advancedEditResource(kind, id, typeOverride, nameDraft) {
   if (role) {
     const permissionSection = document.querySelector('[data-role-permission]')?.closest('details');
     if (permissionSection) {
+      const shortcut=document.createElement('section');shortcut.className='role-permission-shortcuts';
+      shortcut.innerHTML=`<label>اختصار صلاحيات الرتبة<select id="rolePermissionShortcut"><option value="custom">مخصص — اختر اختصارًا لتعبئة الصلاحيات</option>${rolePermissionShortcuts.map(([key,label])=>`<option value="${key}">${label}</option>`).join('')}</select></label><p class="form-note">الاختصار يستبدل صلاحيات هذه الرتبة فقط، ولا يغير اسمها أو لونها. يمكنك تعديل التفاصيل بعده. لا يمنح أي اختصار Administrator.</p><div id="roleShortcutSummary" role="status" aria-live="polite"></div><button class="btn secondary" type="button" id="roleShortcutRestore">استعادة صلاحيات بداية التعديل</button><p class="form-note">صلاحيات العضو تتأثر أيضًا برتبة everyone ورتبه الأخرى واستثناءات القنوات. اختصار الدعم لا يفتح قناة خاصة تلقائيًا.</p>`;
+      permissionSection.before(shortcut);
+      const select=shortcut.querySelector('select'),summary=shortcut.querySelector('#roleShortcutSummary');
+      const flagsByKey=new Map(rolePermissionGroups.flatMap(([,flags])=>flags).map(([key,label,bit])=>[key,{label,bit:BigInt(bit)}]));
+      const updateChecks=flags=>document.querySelectorAll('[data-role-permission]').forEach(input=>{input.checked=(flags & BigInt(input.value))!==0n;});
+      select.onchange=()=>{
+        const choice=rolePermissionShortcuts.find(([key])=>key===select.value);if(!choice)return;
+        rolePermissionBase=0n;const flags=choice[2].reduce((bits,key)=>bits|flagsByKey.get(key).bit,0n);updateChecks(flags);
+        summary.innerHTML=choice[2].length?`<p>${choice[2].map(key=>`<span>${esc(flagsByKey.get(key).label)}</span>`).join(' · ')}</p>`:'<p>لن تمنح هذه الرتبة صلاحيات إضافية بحد ذاتها.</p>';
+        $('#dialog').dataset.unsaved='true';
+      };
+      document.querySelectorAll('[data-role-permission]').forEach(input=>input.addEventListener('change',()=>{select.value='custom';summary.textContent='صلاحيات مخصصة؛ راجع الخيارات المحددة في التفاصيل.';$('#dialog').dataset.unsaved='true';}));
+      shortcut.querySelector('#roleShortcutRestore').onclick=()=>{rolePermissionBase=roleFlags;updateChecks(roleFlags);select.value='custom';summary.textContent='استُعيدت صلاحيات بداية التعديل.';$('#dialog').dataset.unsaved='true';};
       const search = document.createElement('input'); search.type = 'search'; search.placeholder = 'ابحث عن صلاحية بالاسم'; search.setAttribute('aria-label', 'بحث في صلاحيات الرتبة');
       permissionSection.querySelector('.form-note')?.after(search);
       search.oninput = () => permissionSection.querySelectorAll('.permission-group').forEach(group => { let visible = 0; group.querySelectorAll('.check-row').forEach(row => { row.hidden = !row.textContent.toLowerCase().includes(search.value.trim().toLowerCase()); if (!row.hidden) visible++; }); group.hidden = visible === 0; });
@@ -699,7 +724,7 @@ function advancedEditResource(kind, id, typeOverride, nameDraft) {
     event.preventDefault(); const name = $('#resourceName').value.trim(); if (!name) return;
     const op = { resource_type: kind, action: id ? 'update' : 'create', name, ...(id ? { resource_id: id } : {}) };
     if (!role) { const requestedPosition = Number($('#resourcePosition').value) - 1; if (!id || requestedPosition + 1 !== displayedOrder) { op.position = requestedPosition; if (id) { op.position_changed = true; op.position_before_display = displayedOrder; } } if (kind === 'channel') { op.parent_id = $('#resourceParent').value || null; if (!id) op.type = Number($('#resourceType').value); if ($('#resourceTopic')) op.topic = $('#resourceTopic').value.trim(); if ($('#resourceSlowmode')) op.rate_limit_per_user = Number($('#resourceSlowmode').value); if ($('#resourceNsfw')) op.nsfw = $('#resourceNsfw').checked; if ($('#resourceUserLimit')) op.user_limit = Number($('#resourceUserLimit').value); if ($('#resourceVideoQuality')) op.video_quality_mode = Number($('#resourceVideoQuality').value); } if (rows.length) op.permission_overwrites = rows; }
-    else { const requestedPosition = Number($('#resourcePosition').value); if ((!id && requestedPosition !== 1) || (id && requestedPosition !== Number(original.position ?? 1))) op.position = requestedPosition; op.color = parseInt($('#resourceColor').value.slice(1),16); op.hoist = $('#resourceHoist').checked; op.mentionable = $('#resourceMentionable').checked; let flags = BigInt(item.permissions || '0'); document.querySelectorAll('[data-role-permission]').forEach(input => { const bit = BigInt(input.value); flags = input.checked ? flags | bit : flags & ~bit; }); op.permissions = String(flags); if ((flags & 8n) && !(roleFlags & 8n)) { if (!confirm('هذه الرتبة ستحصل على Administrator والتحكم الكامل في السيرفر. هل تريد متابعتها إلى المراجعة؟')) return; op.confirm_admin = true; }
+    else { const requestedPosition = Number($('#resourcePosition').value); if ((!id && requestedPosition !== 1) || (id && requestedPosition !== Number(original.position ?? 1))) op.position = requestedPosition; op.color = parseInt($('#resourceColor').value.slice(1),16); op.hoist = $('#resourceHoist').checked; op.mentionable = $('#resourceMentionable').checked; let flags = rolePermissionBase; document.querySelectorAll('[data-role-permission]').forEach(input => { const bit = BigInt(input.value); flags = input.checked ? flags | bit : flags & ~bit; }); op.permissions = String(flags); if ((flags & 8n) && !(roleFlags & 8n)) { if (!confirm('هذه الرتبة ستحصل على Administrator والتحكم الكامل في السيرفر. هل تريد متابعتها إلى المراجعة؟')) return; op.confirm_admin = true; }
       const style = $('#resourceColorStyle')?.value;
       if (style === 'gradient') { op.colors = { primary_color: op.color, secondary_color: parseInt($('#resourceSecondaryColor').value.slice(1),16), tertiary_color: null }; delete op.color; }
       else if (style === 'holographic') { op.colors = { primary_color: 11127295, secondary_color: 16759788, tertiary_color: 16761760 }; delete op.color; }

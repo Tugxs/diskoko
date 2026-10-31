@@ -1303,6 +1303,62 @@ test('compact bot identity settings retain the private bot profile and nickname 
  const {dom,doc}=await page('bots',response);doc.querySelector('#panelBotSettings').click();assert.ok(doc.querySelector('#workshopBotNickname'));assert.equal(doc.querySelector('#workshopBotLabel').value,'بوت الإدارة');assert.ok(doc.querySelector('#workshopBotIdentityConfirm'));await settle();dom.window.close();
 });
 
+test('role shortcuts fill explicit permissions without publishing or changing role identity',async()=>{
+ const {dom,doc,requests}=await page('builder');
+ try{
+  doc.querySelector('[data-tab="roles"]').click();doc.querySelector('[data-edit="r1"]').click();
+  const name=doc.querySelector('#resourceName').value,color=doc.querySelector('#resourceColor').value,select=doc.querySelector('#rolePermissionShortcut');
+  assert.ok(select);assert.equal(select.value,'custom');assert.equal(doc.querySelector('[data-role-permission="Administrator"]').checked,true,'opening the editor does not change current permissions');
+  for(const option of [...select.options].filter(o=>o.value!=='custom')){
+   select.value=option.value;select.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+   assert.equal(doc.querySelector('[data-role-permission="Administrator"]').checked,false,option.value);
+   assert.equal(doc.querySelector('#resourceName').value,name);assert.equal(doc.querySelector('#resourceColor').value,color);
+  }
+  select.value='voice';select.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+  assert.equal(doc.querySelector('[data-role-permission="MoveMembers"]').checked,true);
+  assert.equal(doc.querySelector('[data-role-permission="ManageGuild"]').checked,false);
+  const custom=doc.querySelector('[data-role-permission="AttachFiles"]');custom.checked=true;custom.dispatchEvent(new dom.window.Event('change',{bubbles:true}));assert.equal(select.value,'custom');
+  doc.querySelector('#resourceForm').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
+  const operations=JSON.parse(dom.window.localStorage.getItem(`diskoko:review:${account.user.id}:${guild.id}`));
+  const flags=BigInt(operations[0].permissions);assert.ok(flags & 16777216n);assert.ok(flags & 32768n);assert.equal(flags & 8n,0n);
+  assert.equal(requests.filter(r=>r.options.method && r.options.method!=='GET').length,0);
+ }finally{dom.window.close();}
+});
+test('a new friend role uses the shortcut and still goes through the normal review',async()=>{
+ const {dom,doc,requests}=await page('builder');
+ try{
+  doc.querySelector('[data-tab="roles"]').click();doc.querySelector('#newResource').click();
+  doc.querySelector('#resourceName').value='Our friends';const select=doc.querySelector('#rolePermissionShortcut');
+  select.value='friends';select.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+  assert.match(doc.querySelector('#roleShortcutSummary').textContent,/مشاركة الشاشة/);
+  doc.querySelector('#resourceForm').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
+  const [op]=JSON.parse(dom.window.localStorage.getItem(`diskoko:review:${account.user.id}:${guild.id}`));
+  assert.equal(op.action,'create');assert.equal(op.resource_type,'role');assert.equal(op.name,'Our friends');
+  const flags=BigInt(op.permissions);assert.ok(flags & 512n);assert.equal(flags & (8n|32n|268435456n),0n);
+  assert.ok(doc.querySelector('#applyPlan'));assert.equal(requests.filter(r=>r.options.method && r.options.method!=='GET').length,0);
+ }finally{dom.window.close();}
+});
+
+test('role shortcut restore retains original and unlisted flags; choosing none explicitly clears them',async()=>{
+ const unknown=1n<<60n;
+ const response=url=>url===`/api/workspace/${guild.id}`?{...workspace,roles:workspace.roles.map(role=>role.id==='r1'?{...role,permissions:String(unknown|8n)}:role)}:fixtureResponse(url);
+ const {dom,doc}=await page('builder',response);
+ try{
+  doc.querySelector('[data-tab="roles"]').click();doc.querySelector('[data-edit="r1"]').click();
+  const select=doc.querySelector('#rolePermissionShortcut');select.value='member';select.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+  doc.querySelector('#roleShortcutRestore').click();assert.equal(doc.querySelector('[data-role-permission="Administrator"]').checked,true);
+  doc.querySelector('#resourceName').value='Renamed role';doc.querySelector('#resourceForm').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
+  let operations=JSON.parse(dom.window.localStorage.getItem(`diskoko:review:${account.user.id}:${guild.id}`));assert.equal(BigInt(operations[0].permissions),unknown|8n);
+ }finally{dom.window.close();}
+ const second=await page('builder',response);
+ try{
+  second.doc.querySelector('[data-tab="roles"]').click();second.doc.querySelector('[data-edit="r1"]').click();
+  const select=second.doc.querySelector('#rolePermissionShortcut');select.value='none';select.dispatchEvent(new second.dom.window.Event('change',{bubbles:true}));
+  second.doc.querySelector('#resourceForm').dispatchEvent(new second.dom.window.Event('submit',{bubbles:true,cancelable:true}));
+  const operations=JSON.parse(second.dom.window.localStorage.getItem(`diskoko:review:${account.user.id}:${guild.id}`));assert.equal(operations[0].permissions,'0');
+ }finally{second.dom.window.close();}
+});
+
 test('replacement role deletion is explicit, defaults off and resets when switching install modes',async()=>{
  const response=url=>url==='/api/ready-templates'?{templates:READY_TEMPLATES}:url.endsWith('/ready-templates/review')?{error:'Stop at review boundary'}:fixtureResponse(url);
  const {dom,doc,requests}=await page('ready-templates',response,'studio.html','workspace.js',window=>{window.structuredClone=structuredClone;window.HTMLElement.prototype.scrollIntoView=()=>{};});

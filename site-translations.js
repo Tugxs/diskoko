@@ -1,5 +1,14 @@
 // Interface translations only. Customer content is preserved by site-preferences.js.
 export const uiTranslations = new Map(Object.entries({
+ "اختصار صلاحيات الرتبة":"Role permission shortcut",
+ "مخصص — اختر اختصارًا لتعبئة الصلاحيات":"Custom — choose a permission shortcut",
+ "عضو أساسي":"Basic member","أصدقاء":"Friends","مشاركة الصور والروابط":"Media and links","إدارة الصوت":"Voice moderation","فريق الدعم":"Support team","مشرف محادثات":"Chat moderator","إدارة السيرفر والقنوات والرتب":"Server, channel and role management","بدون صلاحيات إضافية":"No additional permissions",
+ "الاختصار يستبدل صلاحيات هذه الرتبة فقط، ولا يغير اسمها أو لونها. يمكنك تعديل التفاصيل بعده. لا يمنح أي اختصار Administrator.":"A shortcut replaces only this role's permissions, leaving its name and color unchanged. You can adjust the details afterward. No shortcut grants Administrator.",
+ "استعادة صلاحيات بداية التعديل":"Restore permissions from the start of this edit",
+ "صلاحيات العضو تتأثر أيضًا برتبة everyone ورتبه الأخرى واستثناءات القنوات. اختصار الدعم لا يفتح قناة خاصة تلقائيًا.":"Member access also depends on everyone, other roles and channel overrides. The support shortcut does not automatically open private channels.",
+ "لن تمنح هذه الرتبة صلاحيات إضافية بحد ذاتها.":"This role will grant no additional permissions by itself.",
+ "صلاحيات مخصصة؛ راجع الخيارات المحددة في التفاصيل.":"Custom permissions; review the selected details.",
+ "استُعيدت صلاحيات بداية التعديل.":"Permissions from the start of this edit were restored.",
   "حذف الرتب القديمة": "Delete old roles",
   "مقفل افتراضيًا: تبقى الرتب القديمة وعضوياتها. عند التفعيل، تبقى رتب منفذ القالب والرتب المحمية محفوظة.": "Off by default: existing roles and memberships are retained. When enabled, the executor's roles and protected roles are preserved.",
   "الاستبدال يحذف القنوات القديمة ورسائلها بعد بناء القالب. حذف الرتب اختياري ويظهر بالتفصيل في المراجعة.": "Replacement deletes old channels and their messages after building the template. Role deletion is optional and listed in the review.",
