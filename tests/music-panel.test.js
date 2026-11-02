@@ -39,20 +39,20 @@ test('audio source validates links and derives direct-file titles', async () => 
 });
 
 test('music slash fields are required and a legacy add button keeps its combined form', async () => {
-  assert.deepEqual(musicSlashOptions.map(option => option.name), ['رابط', 'روم']);
+  assert.deepEqual(musicSlashOptions.map(option => option.name), ['رابط', 'روم', 'طريقة']);
   let panel;
   await handleMusicCommand({ options: { getString: () => null }, reply: async value => { panel = value; } }, {}, 'bot', 'موسيقى', {});
   assert.match(panel.content, /الرابط والروم/);
   assert.equal(panel.ephemeral, true);
   assert.equal(panel.embeds, undefined);
-  assert.ok(musicSlashOptions.every(option => option.required));
+  assert.ok(musicSlashOptions.slice(0,2).every(option => option.required));
   assert.deepEqual(musicSlashOptions[1].channel_types, [2]);
   const pool = { query: async () => ({ rows: [{ panel_config: {} }] }) };
   let modal;
   const interaction = { customId: 'diskoko:music:choose:موسيقى', guildId: 'guild', showModal: async value => { modal = value; } };
   assert.equal(await handleMusicInteraction(interaction, pool, 'bot', {}), true);
-  assert.deepEqual(modal.components.map(item => item.component.custom_id), ['audio_url', 'voice_room']);
-  assert.deepEqual(modal.components[1].component.channel_types, [2]);
+  assert.deepEqual(modal.components.map(item => item.component.custom_id), ['source_mode', 'audio_url', 'voice_room']);
+  assert.deepEqual(modal.components[2].component.channel_types, [2]);
 });
 
 test('old room selector points members to the slash fields without opening a modal', async () => {
