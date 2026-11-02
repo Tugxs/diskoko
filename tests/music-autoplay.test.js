@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {selectAutoplayTrack,fillAutoplay} from '../lib/music-autoplay.js';
+import {selectAutoplayTrack,fillAutoplay,loadedMusicTracks,youtubeMixUrl} from '../lib/music-autoplay.js';
+test('Lavalink v4 search arrays, single tracks and playlists are read without discarding matches',()=>{
+ const one=track('one');assert.deepEqual(loadedMusicTracks({loadType:'search',data:[one]}),[one]);assert.deepEqual(loadedMusicTracks({loadType:'track',data:one}),[one]);assert.deepEqual(loadedMusicTracks({loadType:'playlist',data:{tracks:[one]}}),[one]);assert.deepEqual(loadedMusicTracks({loadType:'empty',data:{}}),[]);
+ assert.equal(youtubeMixUrl('jNQXAC9IVRw'),'https://www.youtube.com/watch?v=jNQXAC9IVRw&list=RDjNQXAC9IVRw');assert.equal(youtubeMixUrl('bad'),null);
+});
 const track=(id,other={})=>({encoded:id,info:{identifier:id,length:180000,sourceName:'youtube',...other}});
 test('automatic choice skips played items, streams, long tracks and other sources',()=>{
  const good=track('new');assert.equal(selectAutoplayTrack({data:[track('old'),track('stream',{isStream:true}),track('long',{length:7200001}),track('other',{sourceName:'soundcloud'}),good]},new Set(['old'])),good);
