@@ -15,7 +15,7 @@ test('music panel validates identity and exposes controls only while playing', (
   assert.equal(idle.embeds[0].image.url, 'https://cdn.discordapp.com/attachments/123/banner.png');
   assert.equal(idle.embeds[0].thumbnail.url, 'https://cdn.discordapp.com/attachments/123/logo.png');
   const playing = musicPanelMessage(config, 'موسيقى', { channelId: '123', queue: [{ title: 'مقطع' }], paused: false, volume: 0.4 });
-  assert.equal(playing.components.length, 2);
+  assert.equal(playing.components.length, 3);
   assert.deepEqual(playing.components[0].components.map(button => button.emoji.name), ['🔁', '🔉', '⏸️', '🔊', '⏭️']);
   assert.match(playing.components[1].components[0].custom_id, /:stop:/);
   assert.equal(playing.components[1].components[0].style, 4);
