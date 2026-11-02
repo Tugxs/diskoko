@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {selectAutoplayTrack,fillAutoplay,loadedMusicTracks,youtubeMixUrl} from '../lib/music-autoplay.js';
+import {selectAutoplayTrack,fillAutoplay,loadedMusicTracks,youtubeMixUrl,loadYoutubeMix} from '../lib/music-autoplay.js';
+test('autoplay requests the exact video mix and never substitutes generic search results',async()=>{
+ const requested=[],first=track('first'),second=track('second');
+ const node={rest:{resolve:async url=>{requested.push(url);return {loadType:'playlist',data:{tracks:[track('jNQXAC9IVRw'),first,second]}};}}};
+ assert.equal(await loadYoutubeMix(node,{id:'jNQXAC9IVRw'},new Set(['jNQXAC9IVRw'])),first);
+ assert.equal(requested[0],'https://www.youtube.com/watch?v=jNQXAC9IVRw&list=RDjNQXAC9IVRw');
+ node.rest.resolve=async()=>({loadType:'search',data:[first]});assert.equal(await loadYoutubeMix(node,{id:'jNQXAC9IVRw'},new Set()),null);
+});
 test('Lavalink v4 search arrays, single tracks and playlists are read without discarding matches',()=>{
  const one=track('one');assert.deepEqual(loadedMusicTracks({loadType:'search',data:[one]}),[one]);assert.deepEqual(loadedMusicTracks({loadType:'track',data:one}),[one]);assert.deepEqual(loadedMusicTracks({loadType:'playlist',data:{tracks:[one]}}),[one]);assert.deepEqual(loadedMusicTracks({loadType:'empty',data:{}}),[]);
  assert.equal(youtubeMixUrl('jNQXAC9IVRw'),'https://www.youtube.com/watch?v=jNQXAC9IVRw&list=RDjNQXAC9IVRw');assert.equal(youtubeMixUrl('bad'),null);
